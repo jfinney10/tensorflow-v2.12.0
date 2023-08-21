@@ -1,7 +1,6 @@
 load("//tensorflow:tensorflow.bzl", "py_test")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = ["//tensorflow:internal"],
     licenses = ["notice"],
 )
@@ -10,7 +9,10 @@ py_library(
     name = "nest",
     srcs = ["nest.py"],
     srcs_version = "PY3",
-    deps = ["//tensorflow/python:util"],
+    deps = [
+        "//tensorflow/python:util",
+        "@six_archive//:six",
+    ],
 )
 
 py_test(
@@ -43,6 +45,7 @@ py_library(
         "//tensorflow/python:tensor_shape",
         "//tensorflow/python:util",
         "//tensorflow/python/user_ops:ops",
+        "@six_archive//:six",
     ],
 )
 
@@ -77,7 +80,6 @@ py_library(
         "//tensorflow/python:tensor_shape",
         "//tensorflow/python:tensor_util",
         "//tensorflow/python:util",
-        "//tensorflow/python/framework:type_spec_registry",
         "//tensorflow/python/ops/ragged:ragged_tensor",
         "//tensorflow/python/user_ops:ops",
         "@wrapt",

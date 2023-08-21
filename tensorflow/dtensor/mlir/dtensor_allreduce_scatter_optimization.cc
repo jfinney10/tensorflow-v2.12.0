@@ -27,6 +27,7 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
 #include "tensorflow/dtensor/mlir/collectives_common.h"
 #include "tensorflow/dtensor/mlir/dtensor_mlir_passes.h"
+#include "tensorflow/dtensor/mlir/dtensor_mlir_passes_classes.h"
 #include "tensorflow/dtensor/mlir/group_assignment.h"
 #include "tensorflow/dtensor/mlir/ir/tf_dtensor.h"
 #include "tensorflow/dtensor/mlir/layout_parsing.h"
@@ -34,10 +35,7 @@ limitations under the License.
 
 namespace tensorflow {
 namespace dtensor {
-
 namespace {
-#define GEN_PASS_DEF_DTENSORALLREDUCESCATTEROPTIMIZATION
-#include "tensorflow/dtensor/mlir/dtensor_passes.h.inc"
 
 // Returns true if both group assignments are constant and equal.
 bool same_group_assignments(mlir::DenseIntElementsAttr attr_a,
@@ -50,14 +48,14 @@ bool same_group_assignments(mlir::DenseIntElementsAttr attr_a,
 
 mlir::DenseIntElementsAttr GetScatterGroupAssignment(
     mlir::TF::DTensorAllScatterOp all_scatter, int scatter_dim) {
-  const Layout original_layout = all_scatter.getInputLayout();
-  const Layout desired_layout = all_scatter.getOutputLayout();
+  const Layout original_layout = all_scatter.input_layout();
+  const Layout desired_layout = all_scatter.output_layout();
   absl::flat_hash_set<std::string> scattered_dims;
   scattered_dims.insert(desired_layout.sharding_spec(scatter_dim));
 
   auto partitions =
       GetAllReducePartitionsFromReducedDims(original_layout, scattered_dims)
-          .value();
+          .ValueOrDie();
   const int32 num_partitions = partitions.size();
 
   // Construct a flattened list of scatter partitions.
@@ -86,8 +84,8 @@ mlir::LogicalResult ApplyOptimization(mlir::func::FuncOp function) {
         if (VLOG_IS_ON(2)) all_reduce.dump();
         if (VLOG_IS_ON(2)) all_scatter.dump();
 
-        const Layout original_layout = all_scatter.getInputLayout();
-        const Layout desired_layout = all_scatter.getOutputLayout();
+        const Layout original_layout = all_scatter.input_layout();
+        const Layout desired_layout = all_scatter.output_layout();
 
         // Find all potential scatter dimensions.
         std::vector<int> scatter_dims;
@@ -111,7 +109,7 @@ mlir::LogicalResult ApplyOptimization(mlir::func::FuncOp function) {
         // Check that the all-reduce and all-scatter group assignments are the
         // same.
         mlir::DenseIntElementsAttr all_reduce_group_assignment_attr;
-        if (!matchPattern(all_reduce.getGroupAssignment(),
+        if (!matchPattern(all_reduce.group_assignment(),
                           m_Constant(&all_reduce_group_assignment_attr))) {
           all_reduce.emitOpError("group_assignment should be a constant");
           return mlir::WalkResult::interrupt();
@@ -139,9 +137,9 @@ mlir::LogicalResult ApplyOptimization(mlir::func::FuncOp function) {
 
         auto reduce_scatter = builder.create<mlir::TF::DTensorReduceScatterOp>(
             all_reduce.getLoc(), all_scatter->getResultTypes(),
-            all_reduce.getOperand(0), all_reduce.getGroupAssignment(),
-            scatter_dim_const_op, all_reduce.getReduceOp(),
-            all_reduce.getDeviceType());
+            all_reduce.getOperand(0), all_reduce.group_assignment(),
+            scatter_dim_const_op, all_reduce.reduce_op(),
+            all_reduce.device_type());
         SetSingleLayoutOnOp(reduce_scatter, desired_layout);
 
         all_scatter->replaceAllUsesWith(reduce_scatter);
@@ -161,7 +159,7 @@ mlir::LogicalResult ApplyOptimization(mlir::func::FuncOp function) {
 
 // MLIR pass that combines AllReduce and AllScatter to ReduceScatter.
 struct DTensorAllReduceScatterOptimization
-    : public impl::DTensorAllReduceScatterOptimizationBase<
+    : public DTensorAllReduceScatterOptimizationBase<
           DTensorAllReduceScatterOptimization> {
   void runOnOperation() override {
     mlir::func::FuncOp function = getOperation();

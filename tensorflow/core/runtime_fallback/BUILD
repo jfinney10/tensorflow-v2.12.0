@@ -5,7 +5,6 @@ package_group(
     name = "internal",
     packages = [
         "//tensorflow/core/runtime_fallback/...",
-        "//tensorflow/compiler/mlir/tfrt/tests/tfrt_fallback/...",
     ] + if_google([
         "//learning/brain/experimental/mlir/tflite/tfmrt/...",
         "//learning/brain/experimental/tfrt/...",
@@ -15,7 +14,6 @@ package_group(
 )
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [":internal"],
     licenses = ["notice"],
 )
@@ -42,6 +40,7 @@ tf_cc_binary(
         "@tf_runtime//:hostcontext_alwayslink",
         "@tf_runtime//:tensor_alwayslink",
         "@tf_runtime//:test_kernels_alwayslink",
+        "@tf_runtime//:data_alwayslink",
         # copybara:uncomment "@tf_runtime//backends/cpu:proto_alwayslink",
         # copybara:uncomment "@tf_runtime//backends/cpu:image_alwayslink",
         "@tf_runtime//backends/cpu:core_runtime_alwayslink",

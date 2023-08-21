@@ -2,7 +2,9 @@
 #   TensorFlow builder (TensorFlow on Demand project).
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
+    default_visibility = [
+        "//tensorflow/tools/tensorflow_builder/config_detector:__subpackages__",
+    ],
     licenses = ["notice"],
 )
 

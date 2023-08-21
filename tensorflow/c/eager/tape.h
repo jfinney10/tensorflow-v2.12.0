@@ -23,8 +23,6 @@ limitations under the License.
 #include <unordered_set>
 #include <vector>
 
-#include "tensorflow/core/config/flag_defs.h"
-#include "tensorflow/core/config/flags.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/lib/gtl/array_slice.h"
@@ -378,13 +376,6 @@ inline bool IsDtypeTrainable(DataType dtype) {
     case DT_RESOURCE:
     case DT_VARIANT:
       return true;
-    case DT_QINT8:
-    case DT_QINT16:
-    case DT_QINT32:
-    case DT_QUINT8:
-    case DT_QUINT16:
-      return tensorflow::flags::Global()
-          .enable_quantized_dtypes_training.value();
     default:
       return false;
   }

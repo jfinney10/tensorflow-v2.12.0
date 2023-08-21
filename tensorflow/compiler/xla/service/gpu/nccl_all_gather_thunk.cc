@@ -25,9 +25,12 @@ limitations under the License.
 #include "absl/strings/str_format.h"
 #include "tensorflow/compiler/xla/layout_util.h"
 #include "tensorflow/compiler/xla/service/gpu/ir_emission_utils.h"
+#include "tensorflow/compiler/xla/service/hlo_casting_utils.h"
+#include "tensorflow/compiler/xla/service/hlo_instructions.h"
+#include "tensorflow/compiler/xla/util.h"
 
 #if XLA_ENABLE_XCCL
-#include "tensorflow/compiler/xla/stream_executor/gpu/gpu_stream.h"
+#include "tensorflow/stream_executor/gpu/gpu_stream.h"
 #endif
 
 namespace xla {
@@ -45,7 +48,7 @@ namespace gpu {
   return absl::c_all_of(op.getInputs(), [&](mlir::Value operand) {
     Shape shape = GetShape(operand);
     return LayoutUtil::IsDenseArray(shape) &&
-           IsTypeSupportedByNccl(shape.element_type(), Thunk::kNcclAllGather) &&
+           IsTypeSupportedByNccl(shape.element_type()) &&
            LayoutUtil::MinorToMajor(shape).back() == op.getAllGatherDimension();
   });
 }
@@ -74,11 +77,10 @@ Status RunAllGather(std::vector<DeviceBufferPair>& buffers, se::Stream& stream,
     void* recv_buffer = buffer.destination_buffer.opaque();
 
     PrimitiveType element_type = buffer.element_type;
-    TF_ASSIGN_OR_RETURN(
-        auto dtype_and_multiplier,
-        ToNcclDataTypeAndCountMultiplier(element_type, Thunk::kNcclAllGather));
+    TF_ASSIGN_OR_RETURN(auto dtype_and_multiplier,
+                        ToNcclDataTypeAndCountMultiplier(element_type));
     ncclDataType_t dtype = dtype_and_multiplier.first;
-    int64_t element_count = buffer.element_count * dtype_and_multiplier.second;
+    int element_count = buffer.element_count * dtype_and_multiplier.second;
 
     VLOG(3) << absl::StreamFormat(
         "Calling ncclAllGather(send_buffer=%p, recv_buffer=%p, sendcount=%d, "

@@ -22,7 +22,6 @@ limitations under the License.
 #include "tensorflow/c/eager/abstract_operation.h"
 #include "tensorflow/c/eager/immediate_execution_tensor_handle.h"
 #include "tensorflow/c/tensor_interface.h"
-#include "tensorflow/core/framework/cancellation.h"
 #include "tensorflow/core/framework/device_attributes.pb.h"
 #include "tensorflow/core/framework/op_def.pb.h"
 #include "tensorflow/core/framework/types.pb.h"
@@ -36,6 +35,7 @@ namespace tensorflow {
 
 class ImmediateExecutionContext;
 class AbstractOpAttrs;
+class CancellationManager;
 
 // Abstract interface to an operation.
 class ImmediateExecutionOperation : public AbstractOperation {

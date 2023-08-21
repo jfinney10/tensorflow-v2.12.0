@@ -25,7 +25,6 @@ namespace gpu {
 absl::Status FullyConnectedTest(TestExecutionEnvironment* env);
 absl::Status FullyConnectedLargeTest(TestExecutionEnvironment* env);
 absl::Status FullyConnectedExtraLargeTest(TestExecutionEnvironment* env);
-absl::Status FullyConnectedInt8Test(TestExecutionEnvironment* env);
 
 }  // namespace gpu
 }  // namespace tflite

@@ -23,13 +23,13 @@ limitations under the License.
 namespace mlir {
 namespace TFL {
 namespace {
-#define GEN_PASS_DEF_INSERTCALLONCEOPFROMSESSIONINITIALIZERPASS
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/lite/transforms/passes.h.inc"
 
 // This pass inserts a TFL::CallOnce op when tf_saved_model's session
 // initializer is given.
 class InsertCallOnceOpFromSessionInitializerPass
-    : public impl::InsertCallOnceOpFromSessionInitializerPassBase<
+    : public InsertCallOnceOpFromSessionInitializerPassBase<
           InsertCallOnceOpFromSessionInitializerPass> {
  public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
@@ -41,9 +41,22 @@ class InsertCallOnceOpFromSessionInitializerPass
 
 void InsertCallOnceOpFromSessionInitializerPass::runOnOperation() {
   ModuleOp module = getOperation();
+  tf_saved_model::SessionInitializerOp session_init_op =
+      tf_saved_model::GetSessionInitializerOp(module);
 
-  for (func::FuncOp init_func_op :
-       tf_saved_model::GetInitializerFunctions(module)) {
+  if (!session_init_op) return;
+
+  SymbolTable symbol_table(module);
+
+  for (auto sym_ref : session_init_op.initializers()) {
+    func::FuncOp init_func_op = symbol_table.lookup<mlir::func::FuncOp>(
+        sym_ref.cast<FlatSymbolRefAttr>().getValue());
+
+    if (!init_func_op) {
+      module.emitError("no session initializer function found");
+      return signalPassFailure();
+    }
+
     for (auto func : module.getOps<func::FuncOp>()) {
       auto dict_attr =
           func->getAttrOfType<mlir::DictionaryAttr>("tf.entry_function");

@@ -30,6 +30,7 @@ limitations under the License.
 #include "tensorflow/compiler/xla/status_macros.h"
 #include "tensorflow/compiler/xla/statusor.h"
 #include "tensorflow/compiler/xla/util.h"
+#include "tensorflow/core/lib/math/math_util.h"
 
 namespace xla {
 
@@ -564,7 +565,7 @@ StatusOr<HloInstruction*> TriangularSolveExpander::ExpandInstruction(
       TriangularSolveOptions_Transpose_Name(options.transpose_a()),
       options.unit_diagonal() ? "unit" : "nonunit");
 
-  HloModule* module = instruction->GetModule();
+  HloModule* module = instruction->parent()->parent();
 
   HloComputation*& computation =
       computation_cache_.emplace(name, nullptr).first->second;

@@ -34,11 +34,11 @@ limitations under the License.
 namespace mlir {
 namespace TFL {
 namespace {
-#define GEN_PASS_DEF_GETARITHMETICCOUNTPASS
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/lite/transforms/passes.h.inc"
 
 struct GetArithmeticCountPass
-    : public impl::GetArithmeticCountPassBase<GetArithmeticCountPass> {
+    : public GetArithmeticCountPassBase<GetArithmeticCountPass> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(GetArithmeticCountPass)
 
   void runOnOperation() override;

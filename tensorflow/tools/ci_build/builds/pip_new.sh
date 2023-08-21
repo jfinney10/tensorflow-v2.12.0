@@ -326,10 +326,8 @@ if [[ -z "$PYTHON_BIN_PATH" ]]; then
 fi
 
 ${PYTHON_BIN_PATH} -m pip install tb-nightly
-if [[ "x${PY_MAJOR_MINOR_VER}x" == "x3.8x" ]]; then
-  ${PYTHON_BIN_PATH} -m pip uninstall -y protobuf
-  ${PYTHON_BIN_PATH} -m pip install "protobuf < 4"
-fi
+${PYTHON_BIN_PATH} -m pip uninstall -y protobuf
+${PYTHON_BIN_PATH} -m pip install "protobuf < 4"
 
 # Bazel build the file.
 PIP_BUILD_TARGET="//tensorflow/tools/pip_package:build_pip_package"
@@ -525,7 +523,6 @@ run_test_with_bazel() {
 
   if [[ "${IS_OSS_SERIAL}" == "1" ]]; then
     remove_test_filter_tag -no_oss
-    remove_test_filter_tag -oss_serial
     add_test_filter_tag oss_serial
   else
     add_test_filter_tag -oss_serial

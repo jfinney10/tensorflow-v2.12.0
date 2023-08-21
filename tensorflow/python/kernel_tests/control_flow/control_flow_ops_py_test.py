@@ -33,7 +33,8 @@ from tensorflow.python.client import session
 from tensorflow.python.data.experimental.ops import cardinality
 from tensorflow.python.data.ops import dataset_ops
 from tensorflow.python.eager import context
-from tensorflow.python.eager import def_function as eager_def_function
+from tensorflow.python.eager import def_function
+from tensorflow.python.eager import function as eager_function
 from tensorflow.python.eager import wrap_function
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
@@ -153,7 +154,7 @@ def tf_function_in_tf2(f):
   if tf2.enabled():
     # In TF1 do not wrap with tf.function so that we can test the v1 control
     # flow code path.
-    return eager_def_function.function(f)
+    return def_function.function(f)
   return f
 
 
@@ -457,7 +458,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
     self.assertAllEqual([0], ind)
 
   def testCondMismatchedIndexedSlices(self):
-    @eager_def_function.function
+    @def_function.function
     def foo():
       values = constant_op.constant([10])
       indices = constant_op.constant([0])
@@ -628,7 +629,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
       self.assertEqual(len(r), 2)
       return r[1]
 
-    f_defun = eager_def_function.function(f)
+    f_defun = eager_function.defun(f)
 
     if not context.executing_eagerly():
       with self.cached_session():
@@ -851,7 +852,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
 
   def testCondAccessTrueBranchTensorInFalseBranchRaises(self):
 
-    @eager_def_function.function
+    @def_function.function
     def f():
       c = constant_op.constant(1.)
       inputs = {"c": c}
@@ -879,7 +880,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
 
   def testSwitchCaseAccessBranch1TensorInBranch4Raises(self):
 
-    @eager_def_function.function
+    @def_function.function
     def f():
       c = constant_op.constant(1.)
       inputs = {"c": c}
@@ -1335,7 +1336,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
       y3 = array_ops.gather(x1, [2])
       return y1, y2, y3
 
-    @eager_def_function.function
+    @def_function.function
     def foo():
       r = control_flow_ops.cond(constant_op.constant(True), true_fn, false_fn)
       return gradients_impl.gradients(r, [var, x1, x2])
@@ -1359,7 +1360,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
   def testCondPredicateTensor(self):
     """Regression test for lowering predicate from non-first output of an op."""
 
-    @eager_def_function.function
+    @eager_function.defun
     def foo():
       return constant_op.constant("foo"), constant_op.constant(True)
 
@@ -1394,7 +1395,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
   def testCondTensorDeps(self):
     t = array_ops.identity(1.)
 
-    @eager_def_function.function
+    @def_function.function
     def f():
       with ops.control_dependencies([t]):
         return array_ops.identity(2.)
@@ -1437,7 +1438,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
     # This doesn't work with legacy control flow.
     if control_flow_util.ENABLE_CONTROL_FLOW_V2:
 
-      @eager_def_function.function
+      @eager_function.defun
       def cond():
         return build_cond()
 
@@ -1446,7 +1447,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
       self.assertEqual(["A", "B", "C"],
                        filter_test_messages(printed.contents()))
 
-      @eager_def_function.function
+      @eager_function.defun
       def nested_cond():
         return build_nested_cond()
 
@@ -1511,7 +1512,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
         self.assertEqual(["D", "D"], filter_test_messages(printed.contents()))
 
     # In defuns, all prints should execute in program order.
-    @eager_def_function.function
+    @eager_function.defun
     def while_loop():
       return build_while()[0]
 
@@ -1520,7 +1521,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
     self.assertEqual(["A", "B", "C", "D", "A", "B", "C", "D", "A"],
                      filter_test_messages(printed.contents()))
 
-    @eager_def_function.function
+    @eager_function.defun
     def nested_while_loop():
       return build_nested_while()[0]
 
@@ -3051,7 +3052,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
 
   def testWhileGradInControlDeps(self):
 
-    @eager_def_function.function
+    @def_function.function
     def f():
       x_init = constant_op.constant(2.)
       loop_cond = lambda i, x: math_ops.less(i, 2)
@@ -3072,7 +3073,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
     assert config.graph_options.optimizer_options.do_function_inlining
     with session.Session(config=config):
 
-      @eager_def_function.function
+      @def_function.function
       def loop_body(i):
         # Here we create the const.
         return i + 1.
@@ -3145,7 +3146,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
           np.ones([2, 2], dtype=np.float32))
       v = constant_op.constant(1.0)
 
-      @eager_def_function.function
+      @eager_function.defun
       def fn():
         r = control_flow_ops.while_loop(
             lambda i, _: i < 2,
@@ -3157,11 +3158,11 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
 
   def testWhileGrad_ResourceVarInFunctionCall(self):
 
-    @eager_def_function.function
+    @def_function.function
     def foo(x, var):
       return x + math_ops.reduce_sum(var.sparse_read([1, 3]))
 
-    @eager_def_function.function
+    @def_function.function
     def bar(var):
       r = control_flow_ops.while_loop(
           lambda i, _: i < 2,
@@ -3176,15 +3177,15 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
 
   def testWhileGrad_ResourceVarInNestedFunctionCall(self):
 
-    @eager_def_function.function
+    @def_function.function
     def foo(x, var):
       return x + math_ops.reduce_sum(var.sparse_read([1, 3]))
 
-    @eager_def_function.function
+    @def_function.function
     def foo2(x, var):
       return foo(x, var)
 
-    @eager_def_function.function
+    @def_function.function
     def bar(var):
       r = control_flow_ops.while_loop(
           lambda i, _: i < 2,
@@ -3201,7 +3202,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
     if test.is_gpu_available():
       self.skipTest("b/128635252")
 
-    @eager_def_function.function
+    @def_function.function
     def foo(x, var):
       return control_flow_ops.while_loop(
           lambda j, _: j < 3,
@@ -3209,7 +3210,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
                         y + math_ops.reduce_sum(var.sparse_read([1, 2]))),
           [0, x])[1]
 
-    @eager_def_function.function
+    @def_function.function
     def bar(var):
       r = control_flow_ops.while_loop(
           lambda i, _: i < 2,
@@ -3224,7 +3225,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
 
   def testWhileCondGrad_ResourceVarInFunctionCall(self):
 
-    @eager_def_function.function
+    @def_function.function
     def foo(x, var):
       return x + var.sparse_read([1])[0]
 
@@ -3234,7 +3235,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
           lambda: foo(x, var1),
           lambda: foo(x, var2)))
 
-    @eager_def_function.function
+    @def_function.function
     def bar(var1, var2):
       r = control_flow_ops.while_loop(
           lambda i, _: i < 4, body, [0, 0.0])
@@ -3406,7 +3407,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
     with ops.device(test.gpu_device_name()):
       var = resource_variable_ops.ResourceVariable(constant_op.constant(3.0))
 
-    @eager_def_function.function
+    @def_function.function
     def foo():
       return control_flow_ops.while_loop(
           lambda i, _: i < 3,
@@ -3422,7 +3423,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
   def testNestedResourceAccess(self):
     var = resource_variable_ops.ResourceVariable(constant_op.constant(3.0))
 
-    @eager_def_function.function
+    @eager_function.defun
     def test_fn():
       x = constant_op.constant(0.0)
       r = control_flow_ops.while_loop(
@@ -4682,7 +4683,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
         cond, body, [r], shape_invariants=shape_invariants)
 
   def testWhileOutputShapeWithShapeInvariantsUnknownRank(self):
-    @eager_def_function.function
+    @def_function.function
     def runTest():
       while_output = self._buildWhileWithShapeInvariants(
           [tensor_shape.TensorShape(None)])
@@ -4690,7 +4691,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
     runTest()
 
   def testWhileOutputShapeWithShapeInvariantsPartialShape(self):
-    @eager_def_function.function
+    @def_function.function
     def runTest():
       while_output = self._buildWhileWithShapeInvariants(
           [tensor_shape.TensorShape([None])])
@@ -4699,7 +4700,7 @@ class ControlFlowTest(test.TestCase, parameterized.TestCase):
 
   def testFunctionInWhile(self):
 
-    @eager_def_function.function
+    @def_function.function
     def body(x):
       return x + 1
 
@@ -5094,7 +5095,7 @@ class EagerTest(test.TestCase):
   def DISABLED_testCondInDefun(self):
     with context.eager_mode():
 
-      @eager_def_function.function
+      @eager_function.defun
       def foo(pred):
         # TODO(b/111124878): this only needs to output one element.
         fn1 = lambda: (constant_op.constant(10), constant_op.constant(100))

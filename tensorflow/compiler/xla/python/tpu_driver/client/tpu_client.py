@@ -14,14 +14,12 @@
 # ==============================================================================
 """XLA LocalClient interface for interacting with TPUs via the TPU driver."""
 
-import logging
+from absl import logging
 
 # Import xla_client to load shared C++ extensions (just CompileOptions at the
 # time of writing).
 from tensorflow.compiler.xla.python import xla_client  # pylint: disable=unused-import
 from tensorflow.compiler.xla.python.tpu_driver.client import tpu_client_extension as _tpu_client
-
-logger = logging.getLogger(__name__)
 
 
 class TpuBackend(object):
@@ -49,7 +47,7 @@ class TpuBackend(object):
       if force:
         return _tpu_client.TpuClient.Get(worker)
       if TpuBackend._local_backend is None:
-        logger.info('Starting the local TPU driver.')
+        logging.info('Starting the local TPU driver.')
         TpuBackend._local_backend = _tpu_client.TpuClient.Get(worker)
       return TpuBackend._local_backend
     else:

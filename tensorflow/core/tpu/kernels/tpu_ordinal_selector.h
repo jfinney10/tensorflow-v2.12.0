@@ -16,9 +16,9 @@ limitations under the License.
 #ifndef TENSORFLOW_CORE_TPU_KERNELS_TPU_ORDINAL_SELECTOR_H_
 #define TENSORFLOW_CORE_TPU_KERNELS_TPU_ORDINAL_SELECTOR_H_
 
-#include "tensorflow/compiler/xla/stream_executor/tpu/tpu_api.h"
-#include "tensorflow/compiler/xla/stream_executor/tpu/tpu_ops_c_api.h"
 #include "tensorflow/core/tpu/kernels/tpu_ordinal_selector_interface.h"
+#include "tensorflow/core/tpu/tpu_api.h"
+#include "tensorflow/core/tpu/tpu_ops_c_api.h"
 
 namespace tensorflow {
 namespace tpu {
@@ -30,24 +30,22 @@ constexpr int32_t kDeferredCoreSelectionReserved = -8193;
 class TPUOrdinalSelector : TPUOrdinalSelectorInterface {
  public:
   explicit TPUOrdinalSelector(int num_cores_per_replica = 1) {
-    stream_executor::tpu::OpsApiFn()->TfTpuOrdinalSelector_CreateFn(
-        &ordinal_selector_, num_cores_per_replica);
+    OpsApiFn()->TfTpuOrdinalSelector_CreateFn(&ordinal_selector_,
+                                              num_cores_per_replica);
   }
   ~TPUOrdinalSelector() override {
-    stream_executor::tpu::OpsApiFn()->TfTpuOrdinalSelector_DestroyFn(
-        ordinal_selector_);
+    OpsApiFn()->TfTpuOrdinalSelector_DestroyFn(ordinal_selector_);
   }
   int64_t GetOrdinal(absl::optional<uint64> key, int64_t* req_id) override {
     int64_t ordinal;
-    stream_executor::tpu::OpsApiFn()->TfTpuOrdinalSelector_GetOrdinalFn(
-        ordinal_selector_, key, req_id, &ordinal);
+    OpsApiFn()->TfTpuOrdinalSelector_GetOrdinalFn(ordinal_selector_, key,
+                                                  req_id, &ordinal);
     return ordinal;
   }
   void DequeueFromCoreSelector(int32_t device_ordinal,
                                int64_t req_id) override {
-    stream_executor::tpu::OpsApiFn()
-        ->TfTpuOrdinalSelector_DequeueFromCoreSelectorFn(
-            ordinal_selector_, device_ordinal, req_id);
+    OpsApiFn()->TfTpuOrdinalSelector_DequeueFromCoreSelectorFn(
+        ordinal_selector_, device_ordinal, req_id);
   }
 
  private:

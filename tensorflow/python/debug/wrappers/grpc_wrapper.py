@@ -17,6 +17,8 @@ import signal
 import sys
 import traceback
 
+import six
+
 # Google-internal import(s).
 from tensorflow.python.debug.lib import common
 from tensorflow.python.debug.wrappers import framework
@@ -137,7 +139,8 @@ class GrpcDebugWrapperSession(framework.NonInteractiveDebugWrapperSession):
 
 def _signal_handler(unused_signal, unused_frame):
   while True:
-    response = input("\nSIGINT received. Quit program? (Y/n): ").strip()
+    response = six.moves.input(
+        "\nSIGINT received. Quit program? (Y/n): ").strip()
     if response in ("", "Y", "y"):
       sys.exit(0)
     elif response in ("N", "n"):
@@ -188,7 +191,7 @@ class TensorBoardDebugWrapperSession(GrpcDebugWrapperSession):
       return framework.WatchOptions(
           debug_ops=["DebugIdentity(gated_grpc=true)"])
 
-    super().__init__(
+    super(TensorBoardDebugWrapperSession, self).__init__(
         sess,
         grpc_debug_server_addresses,
         watch_fn=_gated_grpc_watch_fn,
@@ -214,7 +217,7 @@ class TensorBoardDebugWrapperSession(GrpcDebugWrapperSession):
       self._sent_graph_version = publish_traceback(
           self._grpc_debug_server_urls, self.graph, feed_dict, fetches,
           self._sent_graph_version)
-    return super().run(
+    return super(TensorBoardDebugWrapperSession, self).run(
         fetches,
         feed_dict=feed_dict,
         options=options,

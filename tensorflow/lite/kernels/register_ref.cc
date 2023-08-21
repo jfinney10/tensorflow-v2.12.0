@@ -15,7 +15,7 @@ limitations under the License.
 
 #include "tensorflow/lite/kernels/register_ref.h"
 
-#include "tensorflow/lite/core/c/common.h"
+#include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 #include "tensorflow/lite/util.h"
@@ -173,10 +173,8 @@ TfLiteRegistration* Register_GELU();
 TfLiteRegistration* Register_DYNAMIC_UPDATE_SLICE();
 TfLiteRegistration* Register_UNSORTED_SEGMENT_PROD();
 TfLiteRegistration* Register_UNSORTED_SEGMENT_MAX();
-TfLiteRegistration* Register_UNSORTED_SEGMENT_MIN();
 TfLiteRegistration* Register_UNSORTED_SEGMENT_SUM();
 TfLiteRegistration* Register_ATAN2();
-TfLiteRegistration* Register_SIGN();
 
 namespace {
 
@@ -280,7 +278,7 @@ BuiltinRefOpResolver::BuiltinRefOpResolver() {
              /* min_version = */ 1,
              /* max_version = */ 3);
   AddBuiltin(BuiltinOperator_MUL, Register_MUL_REF(), /* min_version = */ 1,
-             /* max_version = */ 6);
+             /* max_version = */ 5);
   AddBuiltin(BuiltinOperator_L2_NORMALIZATION, Register_L2NORM_REF(),
              /* min_version = */ 1,
              /* max_version = */ 2);
@@ -509,12 +507,9 @@ BuiltinRefOpResolver::BuiltinRefOpResolver() {
              Register_UNSORTED_SEGMENT_PROD());
   AddBuiltin(BuiltinOperator_UNSORTED_SEGMENT_MAX,
              Register_UNSORTED_SEGMENT_MAX());
-  AddBuiltin(BuiltinOperator_UNSORTED_SEGMENT_MIN,
-             Register_UNSORTED_SEGMENT_MIN());
   AddBuiltin(BuiltinOperator_UNSORTED_SEGMENT_SUM,
              Register_UNSORTED_SEGMENT_SUM());
   AddBuiltin(BuiltinOperator_ATAN2, Register_ATAN2());
-  AddBuiltin(BuiltinOperator_SIGN, Register_SIGN());
   AddCustom("NumericVerify",
             tflite::ops::custom::Register_NUMERIC_VERIFY_REF());
   // TODO(andrewharp, ahentz): Move these somewhere more appropriate so that

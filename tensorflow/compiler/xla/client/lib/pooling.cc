@@ -14,7 +14,6 @@ limitations under the License.
 ==============================================================================*/
 
 #include "tensorflow/compiler/xla/client/lib/pooling.h"
-
 #include "tensorflow/compiler/xla/client/lib/arithmetic.h"
 #include "tensorflow/compiler/xla/client/lib/constants.h"
 #include "tensorflow/compiler/xla/client/lib/conv_grad_size_util.h"
@@ -202,8 +201,8 @@ XlaOp AvgPoolGrad(XlaOp out_backprop, absl::Span<const int64_t> gradients_size,
     const int num_dims = kernel_size.size();
     const int num_gradients = gradients_size.size();
     if (num_gradients != num_dims) {
-      return tsl::errors::InvalidArgument("gradients must be ", num_dims,
-                                          "-dimensional");
+      return tensorflow::errors::InvalidArgument("gradients must be ", num_dims,
+                                                 "-dimensional");
     }
 
     TF_ASSIGN_OR_RETURN(Shape out_backprop_xla_shape,
@@ -211,8 +210,8 @@ XlaOp AvgPoolGrad(XlaOp out_backprop, absl::Span<const int64_t> gradients_size,
     const int backprop_xla_num_dims =
         out_backprop_xla_shape.dimensions().size();
     if (backprop_xla_num_dims != num_dims) {
-      return tsl::errors::InvalidArgument("out_backprop must be ", num_dims,
-                                          "-dimensional");
+      return tensorflow::errors::InvalidArgument("out_backprop must be ",
+                                                 num_dims, "-dimensional");
     }
 
     // We can think of average-pooling as:

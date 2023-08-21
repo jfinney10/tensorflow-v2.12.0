@@ -13,14 +13,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-// clang-format: off
-// Must be included first.
 #include "tensorflow/python/lib/core/py_func.h"
 
-#include "tensorflow/tsl/python/lib/core/numpy.h"
-// clang-format: on
-
 #include <Python.h>
+
+// clang-format: off
+// Must be included first.
+#include "tensorflow/python/lib/core/numpy.h"
+// clang-format: on
 
 #include <array>
 
@@ -342,8 +342,6 @@ class PyFuncOp : public OpKernel {
       }
       call.eager_async = eager_async_;
     }
-
-    VLOG(1) << "PyFuncOp of token " << call.token << "is called.";
 
     for (int i = 0; i < ctx->num_inputs(); ++i) {
       call.ins.push_back(ctx->input(i));

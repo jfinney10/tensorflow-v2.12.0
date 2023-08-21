@@ -31,15 +31,13 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/tensorflow/utils/attribute_utils.h"
 #include "tensorflow/dtensor/mlir/device_utils.h"
 #include "tensorflow/dtensor/mlir/dtensor_mlir_passes.h"
+#include "tensorflow/dtensor/mlir/dtensor_mlir_passes_classes.h"
 #include "tensorflow/dtensor/mlir/op_utils.h"
 #include "tensorflow/dtensor/mlir/spmd_expander_common.h"
 
 namespace tensorflow {
 namespace dtensor {
-
 namespace {
-#define GEN_PASS_DEF_DTENSORPROPAGATEDEVICEIDTOFUNCTIONARGS
-#include "tensorflow/dtensor/mlir/dtensor_passes.h.inc"
 
 // Holds information on functions to rewrite. `function` is the function
 // definition or function that needs to be updated and `callsite_ops` holds a
@@ -64,9 +62,9 @@ llvm::SmallVector<FunctionToChangeInfo, 4> FindFunctionsToRewrite(
     llvm::StringRef symbol;
     if (auto call_op =
             llvm::dyn_cast<mlir::TF::StatefulPartitionedCallOp>(op)) {
-      symbol = call_op.getF();
+      symbol = call_op.f();
     } else {
-      auto symbol_ref = llvm::dyn_cast<mlir::TF::PartitionedCallOp>(op).getF();
+      auto symbol_ref = llvm::dyn_cast<mlir::TF::PartitionedCallOp>(op).f();
       if (!symbol_ref.isa<mlir::FlatSymbolRefAttr>()) return;
       symbol = symbol_ref.getRootReference().getValue();
     }
@@ -117,7 +115,7 @@ mlir::LogicalResult PrependDeviceIdToCallsites(mlir::OpBuilder* builder,
         "must have device id as 0th argument.");
 
   auto new_operands = llvm::to_vector<4>(op->getOperands());
-  new_operands.insert(new_operands.begin(), device_id_or_status.value());
+  new_operands.insert(new_operands.begin(), device_id_or_status.ValueOrDie());
 
   builder->setInsertionPoint(op);
   mlir::Operation* new_call = nullptr;
@@ -125,15 +123,15 @@ mlir::LogicalResult PrependDeviceIdToCallsites(mlir::OpBuilder* builder,
           llvm::dyn_cast<mlir::TF::StatefulPartitionedCallOp>(op)) {
     new_call = builder->create<mlir::TF::StatefulPartitionedCallOp>(
         op->getLoc(), op->getResultTypes(), new_operands,
-        stateful_partitioned_call.getF(), stateful_partitioned_call.getConfig(),
-        stateful_partitioned_call.getConfigProto(),
-        stateful_partitioned_call.getExecutorType());
+        stateful_partitioned_call.f(), stateful_partitioned_call.config(),
+        stateful_partitioned_call.config_proto(),
+        stateful_partitioned_call.executor_type());
   } else {
     auto partitioned_call = llvm::cast<mlir::TF::PartitionedCallOp>(op);
     new_call = builder->create<mlir::TF::PartitionedCallOp>(
-        op->getLoc(), op->getResultTypes(), new_operands,
-        partitioned_call.getF(), partitioned_call.getConfig(),
-        partitioned_call.getConfigProto(), partitioned_call.getExecutorType());
+        op->getLoc(), op->getResultTypes(), new_operands, partitioned_call.f(),
+        partitioned_call.config(), partitioned_call.config_proto(),
+        partitioned_call.executor_type());
   }
 
   for (auto results : llvm::zip(op->getResults(), new_call->getResults()))
@@ -147,7 +145,7 @@ mlir::LogicalResult PrependDeviceIdToCallsites(mlir::OpBuilder* builder,
 // Pass that rewrites the functions in graph so that 0th argument of the main
 // function (i.e. device_id) is present on all functions in the graph.
 struct DTensorPropagateDeviceIdToFunctionArgs
-    : public impl::DTensorPropagateDeviceIdToFunctionArgsBase<
+    : public DTensorPropagateDeviceIdToFunctionArgsBase<
           DTensorPropagateDeviceIdToFunctionArgs> {
   void runOnOperation() override {
     mlir::MLIRContext& context = getContext();
@@ -164,7 +162,7 @@ struct DTensorPropagateDeviceIdToFunctionArgs
           "have device id as 0th function argument.");
       return signalPassFailure();
     }
-    auto device_id_from_main_function = device_id_or_status.value();
+    auto device_id_from_main_function = device_id_or_status.ValueOrDie();
     // First iterate through all functions to rewrite and update the signatures
     // first.
     const auto functions_to_update = FindFunctionsToRewrite(module);

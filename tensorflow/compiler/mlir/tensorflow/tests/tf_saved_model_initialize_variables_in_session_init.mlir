@@ -12,8 +12,7 @@ module attributes {tf_saved_model.semantics, tf_saved_model.under_construction} 
   }
 
   // CHECK-LABEL: func @SessionInitializerFunction()
-  // CHECK-SAME: tf_saved_model.exported_names = ["SessionInitializerFunction"]
-  // CHECK-SAME: tf_saved_model.initializer_type = "restore_op"
+  // CHECK-SAME: {tf_saved_model.exported_names = ["SessionInitializerFunction"]}
   // CHECK: %[[VAR:.*]] = "tf.VarHandleOp"
   // CHECK-SAME: "var1"
   // CHECK: %[[CST:.*]] = arith.constant dense<> : tensor<0xf32>
@@ -33,13 +32,12 @@ module attributes {tf_saved_model.semantics, tf_saved_model.under_construction} 
     func.return %1 : tensor<100x50xf32>
   }
 
-  func.func @Init() attributes {tf_saved_model.exported_names = ["Init"], tf_saved_model.initializer_type = "restore_op"} {
+  func.func @Init() attributes {tf_saved_model.exported_names = ["Init"]} {
     func.return
   }
 
   // CHECK-LABEL: func @Init
-  // CHECK-SAME: tf_saved_model.exported_names = ["Init"]
-  // CHECK-SAME: tf_saved_model.initializer_type = "restore_op"
+  // CHECK-SAME: {tf_saved_model.exported_names = ["Init"]}
   // CHECK: %[[VAR:.*]] = "tf.VarHandleOp"()
   // CHECK-SAME: "var1"
   // CHECK: %[[CST:.*]] = arith.constant dense<> : tensor<0xf32>
@@ -75,8 +73,7 @@ module attributes {tf_saved_model.semantics, tf_saved_model.under_construction} 
   }
 
   // CHECK-LABEL: func @SessionInitializerFunction
-  // CHECK-SAME: tf_saved_model.exported_names = ["SessionInitializerFunction"]
-  // CHECK-SAME: tf_saved_model.initializer_type = "restore_op"
+  // CHECK-SAME: {tf_saved_model.exported_names = ["SessionInitializerFunction"]}
   // CHECK: %[[VAR:.*]] = "tf.VarHandleOp"()
   // CHECK-SAME: "var1"
   // CHECK: %[[CST:.*]] = arith.constant dense<> : tensor<0xf32>

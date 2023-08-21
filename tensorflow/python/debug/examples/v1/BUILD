@@ -1,5 +1,5 @@
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
+    default_visibility = ["//tensorflow:internal"],
     licenses = ["notice"],
 )
 
@@ -125,7 +125,6 @@ sh_test(
     ],
     tags = [
         "no_windows",
-        "noasan",
         "v1only",
     ],
 )

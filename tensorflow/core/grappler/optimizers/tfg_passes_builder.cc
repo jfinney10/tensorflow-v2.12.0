@@ -61,8 +61,7 @@ void RemapperPassBuilder(PassManager& manager) {
   manager.addPass(CreateTopoSortPass());
   manager.addPass(CreateShapeInferencePass());
   manager.addPass(
-      CreateRemapperPass(/*enable_onednn_patterns=*/tensorflow::IsMKLEnabled(),
-                         /*xla_auto_clustering=*/false));
+      CreateRemapperPass(/*enable_mkl_patterns=*/tensorflow::IsMKLEnabled()));
   manager.addPass(CreatePrepareAttributesForExportPass());
 }
 

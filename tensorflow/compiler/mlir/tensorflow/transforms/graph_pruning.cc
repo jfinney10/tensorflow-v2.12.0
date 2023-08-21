@@ -29,17 +29,15 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_executor.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_side_effects.h"
 #include "tensorflow/compiler/mlir/tensorflow/transforms/passes.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes_detail.h"
 
 namespace mlir {
 namespace tf_executor {
 namespace {
 
-#define GEN_PASS_DEF_EXECUTORGRAPHPRUNINGPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
-
 // This transformation pass prunes a TF graph eliminating dead-nodes.
 class GraphPruningPass
-    : public impl::ExecutorGraphPruningPassBase<GraphPruningPass> {
+    : public TF::ExecutorGraphPruningPassBase<GraphPruningPass> {
  public:
   GraphPruningPass() = default;
   explicit GraphPruningPass(llvm::ArrayRef<std::string> ops_to_preserve);
@@ -93,7 +91,7 @@ void VisitOp(GraphOp graph, Operation* op,
              llvm::SmallVectorImpl<Operation*>* ops_to_visit) {
   if (auto island = llvm::dyn_cast<IslandOp>(op)) {
     mlir::visitUsedValuesDefinedAbove(
-        island.getBody(), island.getBody(), [&](OpOperand* operand) {
+        island.body(), island.body(), [&](OpOperand* operand) {
           VisitOpOperand(graph, operand->get(), reachable_ops, ops_to_visit);
         });
   }

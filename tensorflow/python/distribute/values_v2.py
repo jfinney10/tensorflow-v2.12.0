@@ -22,7 +22,6 @@ from tensorflow.python.distribute import tpu_util
 from tensorflow.python.distribute import values_util
 from tensorflow.python.eager import context
 from tensorflow.python.framework import ops
-from tensorflow.python.framework import tensor_conversion_registry
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import resource_variable_ops
 from tensorflow.python.ops import variables as variables_lib
@@ -57,7 +56,7 @@ class DistributedVariable(resource_variable_ops.BaseResourceVariable):
     else:
       self._packed_handle = None
     for v in variables:
-      v.handle._distributed_container = weakref.ref(self)  # pylint: disable=protected-access
+      v._distributed_container = weakref.ref(self)  # pylint: disable=protected-access
     self._device_to_handle = {v.device: v.handle for v in variables}
     self._primary_handle = variables[0].handle
     with ops.init_scope(), \
@@ -264,5 +263,4 @@ def _tensor_conversion(var, dtype=None, name=None, as_ref=False):
       var.read_value(), dtype=dtype, name=name, as_ref=as_ref)
 
 
-tensor_conversion_registry.register_tensor_conversion_function(
-    DistributedVariable, _tensor_conversion)
+ops.register_tensor_conversion_function(DistributedVariable, _tensor_conversion)

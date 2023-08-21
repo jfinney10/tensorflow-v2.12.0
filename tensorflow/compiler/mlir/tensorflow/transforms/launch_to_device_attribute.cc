@@ -13,38 +13,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <memory>
-#include <vector>
-
+#include "llvm/Support/Casting.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
 #include "mlir/IR/Attributes.h"  // from @llvm-project
+#include "mlir/IR/BuiltinOps.h"  // from @llvm-project
 #include "mlir/IR/Dialect.h"  // from @llvm-project
 #include "mlir/IR/Operation.h"  // from @llvm-project
 #include "mlir/IR/Visitors.h"  // from @llvm-project
 #include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_device.h"
-#include "tensorflow/compiler/mlir/tensorflow/ir/tf_executor.h"
-#include "tensorflow/compiler/mlir/tensorflow/transforms/passes.h"
-#include "tensorflow/compiler/mlir/tensorflow/translate/split_into_island_per_op_pass.h"
-#include "tensorflow/compiler/mlir/tensorflow/utils/attribute_utils.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_device_passes_detail.h"
 
 namespace mlir {
 namespace TFDevice {
 namespace {
 constexpr char kDeviceAttr[] = "device";
 
-#define GEN_PASS_DEF_LAUNCHTODEVICEATTRIBUTEPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_device_passes.h.inc"
-
 struct LaunchToDeviceAttributePass
-    : public impl::LaunchToDeviceAttributePassBase<
-          LaunchToDeviceAttributePass> {
- public:
-  explicit LaunchToDeviceAttributePass(bool legacy_graph_export) {
-    legacy_graph_export_ = legacy_graph_export;
-  }
-
+    : public LaunchToDeviceAttributePassBase<LaunchToDeviceAttributePass> {
   void runOnOperation() override;
 };
 
@@ -52,30 +39,25 @@ struct LaunchToDeviceAttributePass
 LogicalResult AssignDevicesInRegion(const Dialect* tf_dialect,
                                     tf_device::LaunchOp launch,
                                     Region& region) {
-  auto parallel_group_attr =
-      launch->getAttrOfType<StringAttr>(TF::kParallelExecAnnotation);
   auto result = region.walk([&](Operation* op) -> WalkResult {
     if (op->getDialect() != tf_dialect) return WalkResult::advance();
 
-    if (parallel_group_attr) {
-      op->setAttr(TF::kParallelExecAnnotation, parallel_group_attr);
-    }
     auto device_attr = op->getAttr(kDeviceAttr);
     if (!device_attr) {
-      op->setAttr(kDeviceAttr, launch.getDeviceAttr());
+      op->setAttr(kDeviceAttr, launch.deviceAttr());
       return WalkResult::advance();
     }
 
     if (auto device_str_attr = device_attr.dyn_cast<StringAttr>()) {
       if (device_str_attr.getValue().empty()) {
-        op->setAttr(kDeviceAttr, launch.getDeviceAttr());
+        op->setAttr(kDeviceAttr, launch.deviceAttr());
         return WalkResult::advance();
-      } else if (device_str_attr.getValue() != launch.getDevice()) {
+      } else if (device_str_attr.getValue() != launch.device()) {
         return launch.emitOpError()
                << "inner op has conflicting 'device' attribute, "
                   "got '"
                << device_str_attr.getValue() << "' but expected '"
-               << launch.getDevice() << "'";
+               << launch.device() << "'";
       }
     } else {
       return launch.emitOpError()
@@ -94,7 +76,7 @@ LogicalResult HoistOpsAndAnnotateWithDevice(const Dialect* tf_dialect,
   launch.replaceAllUsesWith(launch.GetBody().getTerminator()->getOperands());
 
   // For all inner ops, assign the launch device as a `device` attribute.
-  if (failed(AssignDevicesInRegion(tf_dialect, launch, launch.getBody())))
+  if (failed(AssignDevicesInRegion(tf_dialect, launch, launch.body())))
     return failure();
 
   // Move all inner ops of the launch to the block containing the launch.
@@ -124,25 +106,13 @@ void LaunchToDeviceAttributePass::runOnOperation() {
   });
 
   if (result.wasInterrupted()) return signalPassFailure();
-
-  if (!legacy_graph_export_) {
-    // Now, split the island into an island per op since we don't want to
-    // violate the invariant imposed by the GraphExport pipeline that every
-    // IslandOp perfectly wraps a single op.
-    auto control_type =
-        mlir::tf_executor::ControlType::get(tf_dialect->getContext());
-    getOperation().walk(
-        [&control_type](mlir::tf_executor::IslandOp curr_island) {
-          mlir::TF::SplitIsland(curr_island, control_type);
-        });
-  }
 }
 
 }  // anonymous namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>> CreateLaunchToDeviceAttributePass(
-    bool legacy_graph_export) {
-  return std::make_unique<LaunchToDeviceAttributePass>(legacy_graph_export);
+std::unique_ptr<OperationPass<func::FuncOp>>
+CreateLaunchToDeviceAttributePass() {
+  return std::make_unique<LaunchToDeviceAttributePass>();
 }
 
 }  // namespace TFDevice

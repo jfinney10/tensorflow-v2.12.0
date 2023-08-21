@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
     LOG(ERROR) << errorOrModule.status();
     return 3;
   }
-  auto module = std::move(errorOrModule.value());
+  auto module = std::move(errorOrModule.ValueOrDie());
   if (failed(mlir::verify(*module))) {
     LOG(ERROR) << "Module verification failed\n";
     return 3;

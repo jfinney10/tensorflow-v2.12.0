@@ -27,6 +27,7 @@ limitations under the License.
 #include "tensorflow/lite/delegates/gpu/common/data_type.h"
 #include "tensorflow/lite/delegates/gpu/common/status.h"
 #include "tensorflow/lite/delegates/gpu/common/task/tensor_desc.h"
+#include "tensorflow/lite/delegates/gpu/common/task/texture2d_desc.h"
 
 namespace tflite {
 namespace gpu {
@@ -330,6 +331,18 @@ absl::Status Tensor::GetGPUResources(const GPUObjectDescriptor* obj_ptr,
     resources->buffers.push_back({"buffer", memory_});
     return absl::OkStatus();
   }
+  const auto* texture2d_desc =
+      dynamic_cast<const Texture2DDescriptor*>(obj_ptr);
+  if (texture2d_desc) {
+    if (descriptor_.GetStorageType() != TensorStorageType::TEXTURE_2D) {
+      return absl::InvalidArgumentError(
+          "Tensor can be used with Texture2DDescriptor only with "
+          "TensorStorageType::TEXTURE_2D.");
+    }
+    cl_mem mem = buffer_based_ ? image_buffer_memory_ : memory_;
+    resources->images2d.push_back({"tex2d", mem});
+    return absl::OkStatus();
+  }
   const auto* tensor_desc = dynamic_cast<const TensorDescriptor*>(obj_ptr);
   if (!tensor_desc) {
     return absl::InvalidArgumentError("Expected TensorDescriptor on input.");
@@ -365,6 +378,40 @@ absl::Status Tensor::GetGPUResources(const GPUObjectDescriptor* obj_ptr,
   }
 
   return absl::OkStatus();
+}
+
+int3 Tensor::GetFullTensorRegion() const {
+  std::vector<uint64_t> storage_dims = descriptor_.GetStorageDims();
+  switch (descriptor_.GetStorageType()) {
+    case TensorStorageType::BUFFER:
+    case TensorStorageType::IMAGE_BUFFER:
+      // 1D resources
+      return int3(static_cast<int>(storage_dims[0]), 1, 1);
+    case TensorStorageType::TEXTURE_2D:
+    case TensorStorageType::SINGLE_TEXTURE_2D:
+      // 2D resources
+      return int3(static_cast<int>(storage_dims[0]),
+                  static_cast<int>(storage_dims[1]), 1);
+    case TensorStorageType::TEXTURE_ARRAY:
+    case TensorStorageType::TEXTURE_3D:
+      // 3D resources
+      return int3(static_cast<int>(storage_dims[0]),
+                  static_cast<int>(storage_dims[1]),
+                  static_cast<int>(storage_dims[2]));
+    case TensorStorageType::UNKNOWN:
+      return {-1, -1, -1};
+  }
+}
+
+uint64_t Tensor::GetMemorySizeInBytes() const {
+  std::vector<uint64_t> storage_dims = descriptor_.GetStorageDims();
+  uint64_t total_size = 1;
+  for (int i = 0; i < storage_dims.size(); ++i) {
+    total_size *= storage_dims[i];
+  }
+  const int element_size =
+      descriptor_.GetElementSize() * SizeOf(descriptor_.GetDataType());
+  return total_size * element_size;
 }
 
 cl_mem Tensor::GetMemoryPtr() const {
@@ -427,8 +474,8 @@ absl::Status Tensor::WriteData(const void* ptr, CLCommandQueue* queue) {
     case TensorStorageType::TEXTURE_3D:
     case TensorStorageType::SINGLE_TEXTURE_2D: {
       cl_mem mem = buffer_based_ ? image_buffer_memory_ : memory_;
-      RETURN_IF_ERROR(queue->EnqueueWriteImage(
-          mem, descriptor_.GetFullTensorRegion(), ptr));
+      RETURN_IF_ERROR(
+          queue->EnqueueWriteImage(mem, GetFullTensorRegion(), ptr));
       break;
     }
     default:
@@ -449,8 +496,7 @@ absl::Status Tensor::ReadData(void* ptr, CLCommandQueue* queue) const {
     case TensorStorageType::TEXTURE_3D:
     case TensorStorageType::SINGLE_TEXTURE_2D: {
       cl_mem mem = buffer_based_ ? image_buffer_memory_ : memory_;
-      RETURN_IF_ERROR(
-          queue->EnqueueReadImage(mem, descriptor_.GetFullTensorRegion(), ptr));
+      RETURN_IF_ERROR(queue->EnqueueReadImage(mem, GetFullTensorRegion(), ptr));
       break;
     }
     default:

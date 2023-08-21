@@ -15,14 +15,13 @@
 # ==============================================================================
 # External `common.sh`
 
-# Keeps Bazel versions of the build scripts.
+# Keep in sync with tensorflow_estimator and configure.py.
 # LINT.IfChange
-LATEST_BAZEL_VERSION=5.3.0
+LATEST_BAZEL_VERSION=5.1.1
 # LINT.ThenChange(
-#   //tensorflow/opensource_only/.bazelversion,
+#   //tensorflow_estimator/google/kokoro/common.sh,
 #   //tensorflow/tools/ci_build/install/install_bazel.sh,
-#   //tensorflow/tools/ci_build/install/install_bazel_from_source.sh,
-#   //tensorflow_estimator/google/kokoro/common.sh)
+#   //tensorflow/tools/ci_build/install/install_bazel_from_source.sh)
 
 # Run flaky functions with retries.
 # run_with_retry cmd
@@ -425,7 +424,7 @@ function test_xml_summary_exit {
 }
 
 # Note: The Docker-based Ubuntu TF-nightly jobs do not use this list. They use
-# //tensorflow/tools/tf_sig_build_dockerfiles/devel.usertools/wheel_verification.bats
+# https://github.com/tensorflow/build/blob/master/tf_sig_build_dockerfiles/devel.usertools/wheel_verification.bats
 # instead. See go/tf-devinfra/docker.
 # CPU size
 MAC_CPU_MAX_WHL_SIZE=240M

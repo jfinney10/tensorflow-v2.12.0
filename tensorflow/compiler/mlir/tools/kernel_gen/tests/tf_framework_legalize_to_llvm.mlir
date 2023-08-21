@@ -19,8 +19,9 @@ func.func @alloc(%ctx: !tf_framework.op_kernel_context,
 
 // Compute the size of an individual element.
 // CHECK: [[NULL:%.*]] = llvm.mlir.null : !llvm.ptr<f32>
-// CHECK: [[GEP:%.*]] = llvm.getelementptr [[NULL]]{{\[}}1]
-// CHECK-SAME:            (!llvm.ptr<f32>) -> !llvm.ptr<f32>
+// CHECK: [[C1:%.*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK: [[GEP:%.*]] = llvm.getelementptr [[NULL]]{{\[}}[[C1]]]
+// CHECK-SAME:            (!llvm.ptr<f32>, i64) -> !llvm.ptr<f32>
 // CHECK: [[SIZE_OF_FLOAT:%.*]] = llvm.ptrtoint [[GEP]]
 // CHECK-SAME:            !llvm.ptr<f32> to i64
 
@@ -162,7 +163,8 @@ func.func @is_valid_memref(%buf: memref<?xf32>) -> i1 {
 func.func @jit_compile_from_str(%ctx: !tf_framework.op_kernel_context)
     -> !tf_framework.jit_callable {
   // CHECK: %[[ADDR:.*]] = llvm.mlir.addressof @[[CODE]]
-  // CHECK: %[[CODE_PTR:.*]] = llvm.getelementptr %[[ADDR]][0, 0]
+  // CHECK: %[[C0:.*]] = llvm.mlir.constant(0 : index)
+  // CHECK: %[[CODE_PTR:.*]] = llvm.getelementptr %[[ADDR]][%[[C0]], %[[C0]]]
 
   // Create stack-allocated array for the tile sizes.
   // CHECK: %[[NUM_TILE_SIZES:.*]] = llvm.mlir.constant(3 : i64)

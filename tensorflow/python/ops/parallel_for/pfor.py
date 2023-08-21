@@ -16,12 +16,12 @@
 # pylint: disable=missing-docstring,g-direct-tensorflow-import
 
 import collections
-from functools import partial
 import string
 import sys
 import traceback
 
 import numpy as np
+from functools import partial
 
 from tensorflow.compiler.tf2xla.python import xla
 from tensorflow.core.framework import full_type_pb2
@@ -41,12 +41,12 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import data_flow_ops
 from tensorflow.python.ops import gen_array_ops
+from tensorflow.python.ops import gen_dataset_ops
 from tensorflow.python.ops import gen_image_ops
 from tensorflow.python.ops import gen_linalg_ops
 from tensorflow.python.ops import gen_list_ops
 from tensorflow.python.ops import gen_math_ops
 from tensorflow.python.ops import gen_nn_ops
-from tensorflow.python.ops import gen_optional_ops
 from tensorflow.python.ops import gen_parsing_ops
 from tensorflow.python.ops import gen_random_ops
 from tensorflow.python.ops import gen_sparse_ops
@@ -1077,13 +1077,10 @@ def _wrap_and_tile_variants(tensor, length):
   return wrap(tensor)
 
 
-def _fallback_converter(pfor_input, root_cause="", warn=False):
-  msg = ("Using a while_loop for converting "
-         f"{pfor_input.op_type} cause {root_cause}")
+def _fallback_converter(pfor_input, root_cause="", warn=True):
   if warn:
-    logging.warning(msg)
-  else:
-    logging.debug(msg)
+    logging.warning("Using a while_loop for converting %s cause %s",
+                    pfor_input.op_type, root_cause)
   output_dtypes = [x.dtype for x in pfor_input.outputs]
   iters = pfor_input.pfor.loop_len_vector[0]
 
@@ -2429,14 +2426,6 @@ def _convert_pad(pfor_input):
   return wrap(array_ops.pad(t, paddings, mode="CONSTANT"), True)
 
 
-@RegisterPFor("PadV2")
-def _convert_pad_v2(pfor_input):
-  t = pfor_input.stacked_input(0)
-  paddings = pfor_input.unstacked_input(1)
-  paddings = array_ops.concat([[[0, 0]], paddings], 0)
-  return wrap(array_ops.pad_v2(t, paddings, mode="CONSTANT"), True)
-
-
 @RegisterPFor("Split")
 def _convert_split(pfor_input):
   split_dim = pfor_input.unstacked_input(0)
@@ -2835,7 +2824,7 @@ def _convert_clip_by_value(pfor_input):
   t = pfor_input.stacked_input(0)
   clip_value_min = pfor_input.unstacked_input(1)
   clip_value_max = pfor_input.unstacked_input(2)
-  return wrap(gen_math_ops._clip_by_value(t, clip_value_min, clip_value_max),
+  return wrap(gen_math_ops.clip_by_value(t, clip_value_min, clip_value_max),
               True)
 
 
@@ -3910,9 +3899,8 @@ def _untile_variant(t):
 def _convert_optional_from_value(pfor_input):
   pfor_input.stack_inputs()
   return wrap(
-      gen_optional_ops.optional_from_value([x.t for x in pfor_input.inputs]),
-      True,
-  )
+      gen_dataset_ops.optional_from_value([x.t for x in pfor_input.inputs]),
+      True)
 
 
 @RegisterPFor("OptionalGetValue")
@@ -3927,9 +3915,8 @@ def _convert_optional_get_value(pfor_input):
         [tensor_util.constant_value(pfor_input.pfor.loop_len_vector)])
     shape = loop_len_shape.concatenate(shape)
     output_shapes.append(shape.as_proto())
-  results = gen_optional_ops.optional_get_value(
-      handle, output_types, output_shapes
-  )
+  results = gen_dataset_ops.optional_get_value(handle, output_types,
+                                               output_shapes)
   return [wrap(t, True) for t in results]
 
 
@@ -4277,7 +4264,7 @@ def _convert_tensor_scatter_update(pfor_input):
 
   # Tile the loop count range for the batch dimensions (all except the first and
   # last dimensions of indices).
-  # Rank(indices) >= 3 always for this function so we always have at least 1.
+  # Rank(indices) >= 3 always for this function so we always have atleast 1.
   tile_multiplier = array_ops.tensor_scatter_nd_update(
       indices_shape, [[0], [indices_rank - 1]], [1, 1])
   meta_index = array_ops.tile(loop_count, tile_multiplier)
@@ -4603,51 +4590,6 @@ def _convert_if(pfor_input):
         cond,
         lambda: _outputs_for_branch(then_branch.name, None, pfor_input, inputs),
         lambda: _outputs_for_branch(else_branch.name, None, pfor_input, inputs))
-    return [wrap(t, True) for t in outputs]
-
-
-@RegisterPFor("Case")
-@RegisterPFor("StatelessCase")
-def _convert_stateless_case(pfor_input):
-  branch_idx, is_stacked, _ = pfor_input.input(0)
-  branches = pfor_input.get_attr("branches")
-  inputs = pfor_input.inputs[1:]
-
-  if is_stacked:
-    logging.info("Running stacked flow")
-
-    # Compute loop indices for the different branches
-    switch_indices = data_flow_ops.dynamic_partition(
-        pfor_input.pfor.all_indices, branch_idx, len(branches))
-    if pfor_input.pfor.all_indices_partitioned:
-      partitioned_indices = data_flow_ops.dynamic_partition(
-          math_ops.range(pfor_input.pfor.loop_len_vector[0]), branch_idx,
-          len(branches))
-    else:
-      partitioned_indices = switch_indices
-    # Partition inputs
-    input_list = []
-    for indices in partitioned_indices:
-      input_list.append(_partition_inputs_for_indices(inputs, indices))
-
-    outputs = []
-    for (b, indices, inputs) in zip(branches, switch_indices, input_list):
-      out = _outputs_for_branch(b.name, indices, pfor_input, inputs)
-      outputs.extend(out)
-
-    out = data_flow_ops.dynamic_stitch(partitioned_indices, outputs)
-    return [wrap(out, True)]
-  else:
-    new_branches = []
-    for b in branches:
-      def new_function(func=b.name):
-        return _outputs_for_branch(func, None, pfor_input,
-                                   pfor_input.inputs[1:])
-
-      new_branches.append(new_function)
-
-    outputs = []
-    outputs = control_flow_ops.switch_case(branch_idx, new_branches)
     return [wrap(t, True) for t in outputs]
 
 

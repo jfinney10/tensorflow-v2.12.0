@@ -19,6 +19,7 @@ OpLogProto is used to add extra model information for offline analysis.
 import os
 import sys
 
+import six
 from tensorflow.core.profiler import tfprof_log_pb2
 from tensorflow.python.eager import context
 from tensorflow.python.framework import ops
@@ -169,7 +170,7 @@ def merge_default_with_oplog(graph, op_log=None, run_meta=None,
     all_ops = {}
     for entry in op_log.log_entries:
       all_ops[entry.name] = entry
-    for op_name, entry in logged_ops.items():
+    for op_name, entry in six.iteritems(logged_ops):
       if op_name in all_ops:
         all_ops[op_name].types.extend(entry.types)
         if entry.float_ops > 0 and all_ops[op_name].float_ops == 0:
@@ -180,7 +181,7 @@ def merge_default_with_oplog(graph, op_log=None, run_meta=None,
         all_ops[op_name] = entry
     tmp_op_log.log_entries.extend(all_ops.values())
 
-  for s, i in string_to_id.items():
+  for s, i in six.iteritems(string_to_id):
     tmp_op_log.id_to_string[i] = s
   return tmp_op_log
 

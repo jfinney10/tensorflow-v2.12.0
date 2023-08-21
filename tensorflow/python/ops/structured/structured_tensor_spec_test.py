@@ -100,12 +100,14 @@ class StructuredTensorSpecTest(test_util.TensorFlowTestCase,
 
   # Note that there is no error for creating a spec without known rank.
   @parameterized.parameters([
-      (None,),
-      ({1: tensor_spec.TensorSpec(None)},),
-      ({'x': 0},),
+      (None, r'fields: expected mapping, got None'),
+      ({1: tensor_spec.TensorSpec(None)},
+       r'expected str, got 1'),
+      ({'x': 0},
+       r'got 0'),
   ])
-  def testConstructionErrors(self, field_specs):
-    with self.assertRaises(TypeError):
+  def testConstructionErrors(self, field_specs, error):
+    with self.assertRaisesRegex(TypeError, error):
       structured_tensor.StructuredTensor.Spec(
           _ragged_shape=DynamicRaggedShape.Spec(
               row_partitions=[],

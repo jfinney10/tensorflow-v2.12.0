@@ -77,7 +77,7 @@ Status GetTrtBindingShape(const nvinfer1::ICudaEngine* cuda_engine,
   TF_RETURN_IF_ERROR(DimsAdapter(dims).TensorShape(
       &shape,
       use_implicit_batch ? std::optional<int>(batch_size) : std::nullopt));
-  return OkStatus();
+  return Status::OK();
 }
 
 Status SetupBindings(nvinfer1::ICudaEngine* cuda_engine, const Tensor& tensor,
@@ -104,16 +104,11 @@ Status SetupBindings(nvinfer1::ICudaEngine* cuda_engine, const Tensor& tensor,
       buffers[binding_index] = const_cast<bool*>(tensor.flat<bool>().data());
       break;
 #endif
-#if IS_TRT_VERSION_GE(8, 5, 0, 0)
-    case nvinfer1::DataType::kUINT8:
-      buffers[binding_index] = const_cast<uint8*>(tensor.flat<uint8>().data());
-      break;
-#endif
     default:
       return errors::Internal("Unknown TRT data type: ",
                               static_cast<int>(dtype));
   }
-  return OkStatus();
+  return Status::OK();
 }
 
 // Sets up bindings.
@@ -129,14 +124,6 @@ Status SetTrtEngineInputs(nvinfer1::ICudaEngine* cuda_engine,
   int n_inputs = ctx ? ctx->num_inputs() : (input_vec ? input_vec->size() : 0);
   // Setup engine inputs.
   for (int i = 0; i < n_inputs; i++) {
-    const Tensor& input_tensor = ctx ? ctx->input(i) : input_vec->at(i).tensor;
-    const TensorShape& input_shape = input_tensor.shape();
-
-    // Skip resource inputs.
-    if (input_tensor.dtype() == DataType::DT_RESOURCE) {
-      continue;
-    }
-
     const string input_name =
         ctx ? StrCat(IONamePrefixes::kInputPHName, i) : input_vec->at(i).name;
     int binding_index;
@@ -151,6 +138,8 @@ Status SetTrtEngineInputs(nvinfer1::ICudaEngine* cuda_engine,
       VLOG(2) << "Skipping pruned input " << input_name;
       continue;
     }
+    const Tensor& input_tensor = ctx ? ctx->input(i) : input_vec->at(i).tensor;
+    const TensorShape& input_shape = input_tensor.shape();
 
     if (use_implicit_batch && ctx) {
       // Ensure all inputs have the same batch size
@@ -171,20 +160,17 @@ Status SetTrtEngineInputs(nvinfer1::ICudaEngine* cuda_engine,
         tensorflow::profiler::TraceMe activity(
             "SetTrtEngineInputs::setBindingDimensions",
             tensorflow::profiler::TraceMeLevel::kInfo);
+        nvinfer1::Dims trt_dims;
         auto adap = DimsAdapter::Create(input_shape);
         TRT_ENSURE_OK(adap);
-        nvinfer1::Dims trt_dims = adap->AsTrtDims();
-        if (execution_context->getBindingDimensions(binding_index) !=
-            trt_dims) {
-          VLOG(2) << "Setting binding dimensions for idx " << binding_index;
-          bool ret =
-              execution_context->setBindingDimensions(binding_index, trt_dims);
-          if (!ret) {
-            VLOG(2) << "Error setting engine input " << binding_index << " "
-                    << DebugString(trt_dims);
-            return errors::Internal(
-                "Binding dimension does not fit selected profile.");
-          }
+        VLOG(2) << "Setting binding dimensions for idx " << binding_index;
+        bool ret = execution_context->setBindingDimensions(binding_index,
+                                                           adap->AsTrtDims());
+        if (!ret) {
+          VLOG(2) << "Error setting engine input " << binding_index << " "
+                  << DebugString(trt_dims);
+          return errors::Internal(
+              "Binding dimension does not fit selected profile.");
         }
       }
     }
@@ -203,7 +189,7 @@ Status SetTrtEngineInputs(nvinfer1::ICudaEngine* cuda_engine,
     return errors::Internal(
         "Failed to set dimensions for all shape input tensors.");
   }
-  return OkStatus();
+  return Status::OK();
 }
 
 Status SetTrtEngineOutputs(nvinfer1::ICudaEngine* cuda_engine,
@@ -253,7 +239,7 @@ Status SetTrtEngineOutputs(nvinfer1::ICudaEngine* cuda_engine,
     TF_RETURN_IF_ERROR(
         SetupBindings(cuda_engine, *output_tensor, buffers, binding_index));
   }
-  return OkStatus();
+  return Status::OK();
 }
 
 Status TrtEnqueue(nvinfer1::IExecutionContext* execution_context,
@@ -273,7 +259,7 @@ Status TrtEnqueue(nvinfer1::IExecutionContext* execution_context,
     return errors::Internal("Failed to enqueue batch for TRT engine");
   }
   // Synchronization will be done by TF.
-  return OkStatus();
+  return Status::OK();
 }
 
 }  // namespace tensorrt

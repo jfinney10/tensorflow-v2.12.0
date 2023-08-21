@@ -16,19 +16,16 @@ limitations under the License.
 #ifndef TENSORFLOW_COMPILER_XLA_CLIENT_EXECUTABLE_BUILD_OPTIONS_H_
 #define TENSORFLOW_COMPILER_XLA_CLIENT_EXECUTABLE_BUILD_OPTIONS_H_
 
-#include <functional>
 #include <optional>
-#include <utility>
 #include <vector>
 
 #include "absl/strings/string_view.h"
-#include "tensorflow/compiler/xla/pjrt/compile_options.pb.h"
-#include "tensorflow/compiler/xla/service/compilation_environments.h"
 #include "tensorflow/compiler/xla/service/computation_placer.h"
 #include "tensorflow/compiler/xla/shape.h"
+#include "tensorflow/compiler/xla/util.h"
 #include "tensorflow/compiler/xla/xla.pb.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
-#include "tensorflow/tsl/platform/threadpool.h"
+#include "tensorflow/core/platform/threadpool.h"
 
 namespace stream_executor {
 
@@ -38,7 +35,6 @@ class DeviceMemoryAllocator;
 }  // namespace stream_executor
 
 namespace xla {
-class HloModule;
 
 // Class containing options for building an LocalExecutable with
 // LocalClient::Compile.
@@ -60,16 +56,8 @@ class ExecutableBuildOptions {
   ExecutableBuildOptions& set_result_layout(const Shape& shape_with_layout);
   const Shape* result_layout() const;
 
-  // Expose access to the XLA compilation environments, which will be passed to
-  // the compilation process. `comp_envs()` must not be called if
-  // `has_comp_envs()` returns false.
-  bool has_comp_envs() const { return comp_envs_.has_value(); }
-  const CompilationEnvironments& comp_envs() const { return *comp_envs_; }
-  CompilationEnvironments* mutable_comp_envs();
-
   // Expose access to the XLA debug options which will be passed to the
-  // compilation process. `debug_options()` must not be called if
-  // `has_debug_options()` returns false.
+  // compilation process.
   bool has_debug_options() const { return debug_options_.has_value(); }
   const DebugOptions& debug_options() const { return *debug_options_; }
   DebugOptions* mutable_debug_options();
@@ -173,33 +161,19 @@ class ExecutableBuildOptions {
   }
 
   // Thread pool for parallel compilation.
-  tsl::thread::ThreadPool* compile_thread_pool() const {
+  tensorflow::thread::ThreadPool* compile_thread_pool() const {
     return compile_thread_pool_;
   }
   ExecutableBuildOptions& set_compile_thread_pool(
-      tsl::thread::ThreadPool* compile_thread_pool) {
+      tensorflow::thread::ThreadPool* compile_thread_pool) {
     compile_thread_pool_ = compile_thread_pool;
     return *this;
-  }
-
-  StatusOr<ExecutableBuildOptionsProto> ToProto() const;
-
-  using LayoutCanonicalizationCallback =
-      std::function<StatusOr<std::pair<std::vector<Shape>, Shape>>(
-          const HloModule& module)>;
-  void set_layout_canonicalization_callback(
-      LayoutCanonicalizationCallback callback) {
-    layout_canonicalization_callback_ = std::move(callback);
-  }
-  LayoutCanonicalizationCallback layout_canonicalization_callback() const {
-    return layout_canonicalization_callback_;
   }
 
  private:
   int device_ordinal_ = -1;
   Shape result_layout_;
   bool result_layout_set_ = false;
-  std::optional<CompilationEnvironments> comp_envs_;
   std::optional<DebugOptions> debug_options_;
   se::DeviceMemoryAllocator* device_allocator_ = nullptr;
   int num_replicas_ = 1;
@@ -214,12 +188,8 @@ class ExecutableBuildOptions {
   bool alias_passthrough_params_ = false;
   bool run_backend_only_ = false;
   bool allow_spmd_sharding_propagation_to_output_ = false;
-  tsl::thread::ThreadPool* compile_thread_pool_ = nullptr;
-  LayoutCanonicalizationCallback layout_canonicalization_callback_;
+  tensorflow::thread::ThreadPool* compile_thread_pool_ = nullptr;
 };
-
-StatusOr<ExecutableBuildOptions> ExecutableBuildOptionsFromProto(
-    const ExecutableBuildOptionsProto& input);
 
 // Creates an ExecutionOptions based on a given ExecutableBuildOptions and
 // ProgramShape.

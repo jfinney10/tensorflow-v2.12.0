@@ -27,7 +27,7 @@ limitations under the License.
 #include "mlir/Pass/PassManager.h"  // from @llvm-project
 #include "mlir/Target/LLVMIR/Export.h"  // from @llvm-project
 #include "mlir/Transforms/Passes.h"  // from @llvm-project
-#include "tensorflow/compiler/xla/translate/hlo_to_mhlo/hlo_utils.h"
+#include "tensorflow/compiler/mlir/xla/hlo_utils.h"
 
 namespace xla {
 namespace cpu {
@@ -42,7 +42,7 @@ std::unique_ptr<llvm::Module> MakeLLVMModule(
   // TODO(kramerb): link this to the right option, command line flag, etc.
   constexpr bool kReassociateFPReductions = true;
 
-  mlir::PassManager manager((*module)->getName(),
+  mlir::PassManager manager(module->getContext(),
                             mlir::OpPassManager::Nesting::Implicit);
   manager.addPass(mlir::createConvertLinalgToLoopsPass());
   manager.addPass(mlir::createLowerAffinePass());

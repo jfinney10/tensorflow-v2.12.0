@@ -24,8 +24,8 @@ limitations under the License.
 #include "tensorflow/compiler/xla/service/hlo_parser.h"
 #include "tensorflow/compiler/xla/service/hlo_query.h"
 #include "tensorflow/compiler/xla/tests/hlo_test_base.h"
-#include "tensorflow/tsl/lib/core/status_test_util.h"
-#include "tensorflow/tsl/platform/test.h"
+#include "tensorflow/core/lib/core/status_test_util.h"
+#include "tensorflow/core/platform/test.h"
 
 namespace xla {
 namespace cpu {
@@ -47,7 +47,8 @@ ENTRY entry {
 
   HloModuleConfig config;
   config.set_use_spmd_partitioning(true);
-  auto hlo_module = ParseAndReturnVerifiedModule(hlo_string, config).value();
+  auto hlo_module =
+      ParseAndReturnVerifiedModule(hlo_string, config).ValueOrDie();
 
   // Verify that compilation succeeded.
   StatusOr<std::unique_ptr<Executable>> executable =
@@ -72,7 +73,7 @@ ENTRY main {
   config.set_replica_count(4);
   config.set_num_partitions(4);
   config.set_debug_options(GetDebugOptionsFromFlags());
-  auto module = ParseAndReturnVerifiedModule(hlo_string, config).value();
+  auto module = ParseAndReturnVerifiedModule(hlo_string, config).ValueOrDie();
 
   CpuAotCompilationOptions options{
       /*triple=*/kTargetTripleForHost, /*cpu_name=*/kTargetCpuForHost,

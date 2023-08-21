@@ -83,18 +83,19 @@ struct HostCallback {
 // A helper class that maintains the send/recv states for a host callback.
 class HostCallbackContext {
  public:
-  HostCallbackContext(HostCallback host_callback, PjRtClient* client)
-      : HostCallbackContext(std::move(host_callback),
+  HostCallbackContext(const HostCallback* host_callback, PjRtClient* client)
+      : HostCallbackContext(host_callback,
                             client->GetPjRtHostMemoryForDeviceManager()) {}
 
   HostCallbackContext(
-      HostCallback host_callback,
+      const HostCallback* host_callback,
       PjRtHostMemoryForDeviceManager* host_memory_for_device_manager)
-      : host_callback_(std::move(host_callback)),
+      : host_callback_(host_callback),
         host_memory_for_device_manager_(host_memory_for_device_manager),
-        args_(host_callback_.operands.size()),
-        result_channels_(host_callback_.results.size()),
+        args_(host_callback->operands.size()),
+        result_channels_(host_callback->results.size()),
         ready_count_(args_.size()) {
+    CHECK(host_callback_);
     CHECK(host_memory_for_device_manager_);
 
     for (auto& channel : result_channels_) {
@@ -108,10 +109,8 @@ class HostCallbackContext {
   void Receive(int res_num, const PjRtTransferMetadata& metadata,
                CopyToDeviceStream& stream);
 
-  const HostCallback& host_callback() const { return host_callback_; }
-
  private:
-  HostCallback host_callback_;
+  const HostCallback* host_callback_ = nullptr;
   PjRtHostMemoryForDeviceManager* host_memory_for_device_manager_ = nullptr;
   std::vector<PjRtChunk> args_;
   std::vector<std::unique_ptr<ThreadSafePjRtChunkQueue>> result_channels_;
@@ -129,9 +128,16 @@ struct HostCallbackStates {
 };
 
 // Creates the execution context for the `host_callback` for one replica.
+ABSL_DEPRECATED(
+    "Use the overload that takes PjRtHostMemoryForDeviceManager* instead")
 std::unique_ptr<HostCallbackContext>
 CreateHostCallbackStateAndAppendSendRecvCallbacks(
-    HostCallback host_callback,
+    const HostCallback* host_callback, PjRtClient* client,
+    std::vector<SendCallback>& send_callbacks,
+    std::vector<RecvCallback>& recv_callbacks);
+std::unique_ptr<HostCallbackContext>
+CreateHostCallbackStateAndAppendSendRecvCallbacks(
+    const HostCallback* host_callback,
     PjRtHostMemoryForDeviceManager* host_memory_for_device_manager,
     std::vector<SendCallback>& send_callbacks,
     std::vector<RecvCallback>& recv_callbacks);

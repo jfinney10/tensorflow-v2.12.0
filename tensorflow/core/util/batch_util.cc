@@ -45,8 +45,7 @@ Status ValidateInput(const Tensor& parent, const Tensor& element,
 template <typename T>
 Status HandleElementToSlice(const Tensor& /* element */, T* src, T* dest,
                             int64_t num_values) {
-  static_assert(tsl::is_simple_type<T>::value,
-                "Memcpy requires a simple type.");
+  static_assert(is_simple_type<T>::value, "Memcpy requires a simple type.");
   memcpy(dest, src, num_values * sizeof(T));
   return OkStatus();
 }
@@ -96,8 +95,7 @@ Status HandleElementToSlice<Eigen::half>(const Tensor& /* element */,
 
 template <typename T>
 void HandleSliceToElement(const T* src, T* dest, int64_t num_values) {
-  static_assert(tsl::is_simple_type<T>::value,
-                "Memcpy requires a simple type.");
+  static_assert(is_simple_type<T>::value, "Memcpy requires a simple type.");
   memcpy(dest, src, num_values * sizeof(T));
 }
 
@@ -128,8 +126,7 @@ void HandleSliceToElement<Eigen::half>(const Eigen::half* src,
 
 template <typename T>
 void HandleSliceToElement(Tensor* parent, T* src, T* dest, int64_t num_values) {
-  static_assert(tsl::is_simple_type<T>::value,
-                "Memcpy requires a simple type.");
+  static_assert(is_simple_type<T>::value, "Memcpy requires a simple type.");
   memcpy(dest, src, num_values * sizeof(T));
 }
 

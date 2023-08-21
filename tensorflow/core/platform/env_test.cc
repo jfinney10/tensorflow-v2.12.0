@@ -17,10 +17,9 @@ limitations under the License.
 
 #include <sys/stat.h>
 
-#include <memory>
-
 #include "tensorflow/core/framework/graph.pb.h"
 #include "tensorflow/core/framework/node_def.pb.h"
+#include "tensorflow/core/lib/core/status_test_util.h"
 #include "tensorflow/core/platform/cord.h"
 #include "tensorflow/core/platform/null_file_system.h"
 #include "tensorflow/core/platform/path.h"
@@ -29,9 +28,8 @@ limitations under the License.
 #include "tensorflow/core/platform/strcat.h"
 #include "tensorflow/core/platform/stringpiece.h"
 #include "tensorflow/core/platform/test.h"
-#include "tensorflow/tsl/lib/core/status_test_util.h"
 
-namespace tsl {
+namespace tensorflow {
 
 namespace {
 
@@ -42,9 +40,9 @@ string CreateTestFile(Env* env, const string& filename, int length) {
   return input;
 }
 
-tensorflow::GraphDef CreateTestProto() {
-  tensorflow::GraphDef g;
-  tensorflow::NodeDef* node = g.add_node();
+GraphDef CreateTestProto() {
+  GraphDef g;
+  NodeDef* node = g.add_node();
   node->set_name("name1");
   node->set_op("op1");
   node = g.add_node();
@@ -116,25 +114,25 @@ TEST_F(DefaultEnvTest, ReadFileToString) {
 }
 
 TEST_F(DefaultEnvTest, ReadWriteBinaryProto) {
-  const tensorflow::GraphDef proto = CreateTestProto();
+  const GraphDef proto = CreateTestProto();
   const string filename = strings::StrCat(BaseDir(), "binary_proto");
 
   // Write the binary proto
   TF_EXPECT_OK(WriteBinaryProto(env_, filename, proto));
 
   // Read the binary proto back in and make sure it's the same.
-  tensorflow::GraphDef result;
+  GraphDef result;
   TF_EXPECT_OK(ReadBinaryProto(env_, filename, &result));
   EXPECT_EQ(result.DebugString(), proto.DebugString());
 
   // Reading as text or binary proto should also work.
-  tensorflow::GraphDef result2;
+  GraphDef result2;
   TF_EXPECT_OK(ReadTextOrBinaryProto(env_, filename, &result2));
   EXPECT_EQ(result2.DebugString(), proto.DebugString());
 }
 
 TEST_F(DefaultEnvTest, ReadWriteTextProto) {
-  const tensorflow::GraphDef proto = CreateTestProto();
+  const GraphDef proto = CreateTestProto();
   const string filename = strings::StrCat(BaseDir(), "text_proto");
 
   // Write the text proto
@@ -143,12 +141,12 @@ TEST_F(DefaultEnvTest, ReadWriteTextProto) {
   TF_EXPECT_OK(WriteStringToFile(env_, filename, as_text));
 
   // Read the text proto back in and make sure it's the same.
-  tensorflow::GraphDef result;
+  GraphDef result;
   TF_EXPECT_OK(ReadTextProto(env_, filename, &result));
   EXPECT_EQ(result.DebugString(), proto.DebugString());
 
   // Reading as text or binary proto should also work.
-  tensorflow::GraphDef result2;
+  GraphDef result2;
   TF_EXPECT_OK(ReadTextOrBinaryProto(env_, filename, &result2));
   EXPECT_EQ(result2.DebugString(), proto.DebugString());
 }
@@ -464,4 +462,4 @@ TEST_F(DefaultEnvTest, GetChildThreadInformation) {
   delete child_thread;
 }
 
-}  // namespace tsl
+}  // namespace tensorflow

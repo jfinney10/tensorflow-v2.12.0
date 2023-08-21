@@ -22,12 +22,11 @@ namespace mlir {
 #include "tensorflow/compiler/mlir/lite/ir/tfl_ops_interface.h.inc"
 namespace TFL {
 namespace {
-#define GEN_PASS_DEF_RUNTIMEVERIFYPASS
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/lite/transforms/passes.h.inc"
 
 // This pass verifies that the TFL ops meet the TFL runtime constraints.
-class RuntimeVerifyPass
-    : public impl::RuntimeVerifyPassBase<RuntimeVerifyPass> {
+class RuntimeVerifyPass : public RuntimeVerifyPassBase<RuntimeVerifyPass> {
  public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(RuntimeVerifyPass)
 

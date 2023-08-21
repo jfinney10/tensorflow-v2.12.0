@@ -16,6 +16,8 @@
 
 import abc
 
+import six
+
 from tensorflow.python import pywrap_tensorflow  # pylint: disable=unused-import
 from tensorflow.python.util import _pywrap_utils
 from tensorflow.python.util import nest
@@ -23,7 +25,8 @@ from tensorflow.python.util.tf_export import tf_export
 
 
 @tf_export("__internal__.CompositeTensor", v1=[])
-class CompositeTensor(metaclass=abc.ABCMeta):
+@six.add_metaclass(abc.ABCMeta)
+class CompositeTensor(object):
   """Abstract base class for Tensor-like objects that are composed from Tensors.
 
   Each `CompositeTensor` can be decomposed into a structured collection of

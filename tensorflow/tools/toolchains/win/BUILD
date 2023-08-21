@@ -11,13 +11,13 @@ java_runtime(
 platform(
     name = "rbe_windows_ltsc2019",
     constraint_values = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:windows",
+        "@bazel_tools//platforms:x86_64",
+        "@bazel_tools//platforms:windows",
     ],
     remote_execution_properties = """
         properties:{
           name: "container-image"
-          value: "docker://gcr.io/tensorflow-testing/tf-win2019-rbe@sha256:6840d4ea7db934541cc36ef0ca10fb6703b28bd49f762d22768d6d5728969d03"
+          value: "docker://gcr.io/tensorflow-testing/tf-win2019-rbe@sha256:450a2ba8d8e990212ca504e52a47155da75159d5baccad0bdd90dfdced3cc174"
         }
         properties:{
           name: "OSFamily"

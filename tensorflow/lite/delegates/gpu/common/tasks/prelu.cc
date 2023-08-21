@@ -21,22 +21,27 @@ limitations under the License.
 
 #include "absl/strings/str_cat.h"
 #include "absl/types/variant.h"
+#include "tensorflow/lite/delegates/gpu/common/task/storage_type_util.h"
 #include "tensorflow/lite/delegates/gpu/common/tensor.h"
 
 namespace tflite {
 namespace gpu {
 
-ElementwiseDescriptor CreatePReLU(const PReLUAttributes& attr,
-                                  TensorDescriptor tensor_desc) {
+GPUOperation CreatePReLU(const GpuInfo& gpu_info,
+                         const OperationDef& definition,
+                         const PReLUAttributes& attr) {
   ElementwiseDescriptor op_desc;
   std::string alpha_read;
   auto alpha_linear =
       absl::get_if<tflite::gpu::Tensor<Linear, DataType::FLOAT32>>(&attr.alpha);
   if (alpha_linear) {
-    TensorDescriptor alpha_tensor_desc = CreateConstantLinearTensorDescriptor(
-        tensor_desc.GetDataType(), tensor_desc.GetStorageType(), *alpha_linear);
-    op_desc.args.AddObject("alpha", std::make_unique<TensorDescriptor>(
-                                        std::move(alpha_tensor_desc)));
+    TensorLinearDescriptor desc;
+    desc.storage_type =
+        DeduceLinearStorageType(definition.GetPrimaryStorageType());
+    desc.element_type = definition.GetPrimaryDataType();
+    desc.UploadLinearData(*alpha_linear);
+    op_desc.args.AddObject(
+        "alpha", std::make_unique<TensorLinearDescriptor>(std::move(desc)));
     alpha_read = "FLT4 alpha_val = args.alpha.Read(S_COORD);\n";
   }
 
@@ -45,7 +50,9 @@ ElementwiseDescriptor CreatePReLU(const PReLUAttributes& attr,
   if (alpha_hwc) {
     const BHWC shape =
         BHWC(1, alpha_hwc->shape.h, alpha_hwc->shape.w, alpha_hwc->shape.c);
-    TensorDescriptor const_tensor_desc = tensor_desc;
+    TensorDescriptor const_tensor_desc = definition.src_tensors[0];
+    auto status =
+        const_tensor_desc.UpdateToSupportedStorageType(gpu_info, shape);
     const_tensor_desc.UploadData(*alpha_hwc);
     op_desc.args.AddObject("alpha", std::make_unique<TensorDescriptor>(
                                         std::move(const_tensor_desc)));
@@ -65,13 +72,7 @@ ElementwiseDescriptor CreatePReLU(const PReLUAttributes& attr,
                  "out_value = max(INIT_FLT4(0.0f), in_value) + "
                  "min(INIT_FLT4(0.0f), "
                  "in_value) * alpha_val;";
-  return op_desc;
-}
 
-GPUOperation CreatePReLU(const GpuInfo& gpu_info,
-                         const OperationDef& definition,
-                         const PReLUAttributes& attr) {
-  ElementwiseDescriptor op_desc = CreatePReLU(attr, definition.src_tensors[0]);
   return CreateGpuOperation(definition, std::move(op_desc));
 }
 

@@ -41,7 +41,6 @@ from tensorflow.python.ops import random_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables as variables_lib
 from tensorflow.python.tpu import tpu_strategy_util
-from tensorflow.python.util import variable_utils
 
 
 def strategy_and_run_tf_function_combinations():
@@ -662,9 +661,8 @@ class OnWriteVariableSyncScatterTests(test.TestCase, parameterized.TestCase):
         return scatter_op(delta)
 
       per_replica_results = self.evaluate(
-          variable_utils.convert_variables_to_tensors(
-              distribution.experimental_local_results(
-                  distribution.run(scatter_xxx))))
+          distribution.experimental_local_results(
+              distribution.run(scatter_xxx)))
       self.assertAllClose([expect, expect], per_replica_results)
 
     with distribution.scope():

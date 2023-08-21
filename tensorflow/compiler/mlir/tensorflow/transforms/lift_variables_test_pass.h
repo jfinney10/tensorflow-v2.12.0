@@ -63,7 +63,7 @@ class FakeSession : public tensorflow::Session {
     // This method returns a null device manager without making an error.
     // Users of this method will be notified since it will have a fake data.
     *deviceMgrPtr = nullptr;
-    return OkStatus();
+    return Status::OK();
   }
 
   Status Run(const std::vector<std::pair<std::string, Tensor>>& inputs,
@@ -111,7 +111,7 @@ class FakeSession : public tensorflow::Session {
         outputs->push_back(t);
       }
     }
-    return OkStatus();
+    return Status::OK();
   }
 };
 

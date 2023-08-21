@@ -67,7 +67,7 @@ def _restore_checkpoint_and_maybe_run_saved_model_initializers(
 
 
 @tf_export(v1=["train.SessionManager"])
-class SessionManager:
+class SessionManager(object):
   """Training helper that restores from checkpoint and creates session.
 
   This class is a small wrapper that takes care of session creation and
@@ -572,8 +572,7 @@ def _ready(op, sess, msg):
       return False, str(e)
 
 
-class _CountDownTimer:
-  """A timer that tracks a duration since creation."""
+class _CountDownTimer(object):
 
   __slots__ = ["_start_time_secs", "_duration_secs"]
 

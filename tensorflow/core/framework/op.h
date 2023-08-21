@@ -17,20 +17,20 @@ limitations under the License.
 #define TENSORFLOW_CORE_FRAMEWORK_OP_H_
 
 #include <functional>
-#include <memory>
-#include <string>
-#include <utility>
+#include <unordered_map>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "tensorflow/core/framework/full_type.pb.h"
-#include "tensorflow/core/framework/full_type_inference_util.h"  // IWYU pragma: export
-#include "tensorflow/core/framework/full_type_util.h"  // IWYU pragma: export
+#include "tensorflow/core/framework/full_type_inference_util.h"
+#include "tensorflow/core/framework/full_type_util.h"
 #include "tensorflow/core/framework/op_def_builder.h"
-#include "tensorflow/core/framework/op_def_util.h"  // IWYU pragma: export
+#include "tensorflow/core/framework/op_def_util.h"
 #include "tensorflow/core/framework/registration/registration.h"
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/lib/strings/str_util.h"
+#include "tensorflow/core/lib/strings/strcat.h"
+#include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/platform/mutex.h"
 #include "tensorflow/core/platform/thread_annotations.h"
@@ -43,7 +43,7 @@ namespace tensorflow {
 // (const) OpRegistryInterface* may call LookUp() from multiple threads.
 class OpRegistryInterface {
  public:
-  virtual ~OpRegistryInterface() = default;
+  virtual ~OpRegistryInterface();
 
   // Returns an error status and sets *op_reg_data to nullptr if no OpDef is
   // registered under that name, otherwise returns the registered OpDef.
@@ -64,13 +64,14 @@ class OpRegistryInterface {
 //   OpRegistry::Global()->Register(
 //     [](OpRegistrationData* op_reg_data)->Status {
 //       // Populate *op_reg_data here.
-//       return OkStatus();
+//       return Status::OK();
 //   });
 class OpRegistry : public OpRegistryInterface {
  public:
   typedef std::function<Status(OpRegistrationData*)> OpRegistrationDataFactory;
 
   OpRegistry();
+  ~OpRegistry() override;
 
   void Register(const OpRegistrationDataFactory& op_data_factory);
 
@@ -127,7 +128,7 @@ class OpRegistry : public OpRegistryInterface {
   // Process the current list of deferred registrations. Note that calls to
   // Export, LookUp and DebugString would also implicitly process the deferred
   // registrations. Returns the status of the first failed op registration or
-  // OkStatus() otherwise.
+  // Status::OK() otherwise.
   Status ProcessRegistrations() const;
 
   // Defer the registrations until a later call to a function that processes
@@ -146,7 +147,7 @@ class OpRegistry : public OpRegistryInterface {
   bool MustCallDeferred() const TF_EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
   // Calls the functions in deferred_ and registers their OpDef's
-  // It returns the Status of the first failed op registration or OkStatus()
+  // It returns the Status of the first failed op registration or Status::OK()
   // otherwise.
   Status CallDeferred() const TF_EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
@@ -162,8 +163,8 @@ class OpRegistry : public OpRegistryInterface {
   // Functions in deferred_ may only be called with mu_ held.
   mutable std::vector<OpRegistrationDataFactory> deferred_ TF_GUARDED_BY(mu_);
   // Values are owned.
-  mutable absl::flat_hash_map<string, std::unique_ptr<const OpRegistrationData>>
-      registry_ TF_GUARDED_BY(mu_);
+  mutable std::unordered_map<string, const OpRegistrationData*> registry_
+      TF_GUARDED_BY(mu_);
   mutable bool initialized_ TF_GUARDED_BY(mu_);
 
   // Registry watcher.
@@ -181,6 +182,7 @@ class OpListOpRegistry : public OpRegistryInterface {
  public:
   // Does not take ownership of op_list, *op_list must outlive *this.
   explicit OpListOpRegistry(const OpList* op_list);
+  ~OpListOpRegistry() override;
   Status LookUp(const std::string& op_type_name,
                 const OpRegistrationData** op_reg_data) const override;
 
@@ -189,7 +191,7 @@ class OpListOpRegistry : public OpRegistryInterface {
 
  private:
   // Values are owned.
-  absl::flat_hash_map<string, std::unique_ptr<const OpRegistrationData>> index_;
+  std::unordered_map<string, const OpRegistrationData*> index_;
 };
 
 // Support for defining the OpDef (specifying the semantics of the Op and how
@@ -222,22 +224,13 @@ class OpDefBuilderWrapper {
     builder_.Attr(std::move(spec));
     return *this;
   }
-  OpDefBuilderWrapper& Attr(const char* spec) TF_ATTRIBUTE_NOINLINE {
-    return Attr(std::string(spec));
-  }
   OpDefBuilderWrapper& Input(std::string spec) {
     builder_.Input(std::move(spec));
     return *this;
   }
-  OpDefBuilderWrapper& Input(const char* spec) TF_ATTRIBUTE_NOINLINE {
-    return Input(std::string(spec));
-  }
   OpDefBuilderWrapper& Output(std::string spec) {
     builder_.Output(std::move(spec));
     return *this;
-  }
-  OpDefBuilderWrapper& Output(const char* spec) TF_ATTRIBUTE_NOINLINE {
-    return Output(std::string(spec));
   }
   OpDefBuilderWrapper& SetIsCommutative() {
     builder_.SetIsCommutative();
@@ -283,12 +276,13 @@ class OpDefBuilderWrapper {
     return *this;
   }
 
-  OpDefBuilderWrapper& SetForwardTypeFn(TypeInferenceFn fn) {
+  OpDefBuilderWrapper& SetForwardTypeFn(ForwardTypeInferenceFn fn) {
     builder_.SetForwardTypeFn(std::move(fn));
     return *this;
   }
 
-  OpDefBuilderWrapper& SetReverseTypeFn(int input_number, TypeInferenceFn fn) {
+  OpDefBuilderWrapper& SetReverseTypeFn(int input_number,
+                                        ForwardTypeInferenceFn fn) {
     builder_.SetReverseTypeFn(input_number, std::move(fn));
     return *this;
   }

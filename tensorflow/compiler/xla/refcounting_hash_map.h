@@ -21,7 +21,6 @@ limitations under the License.
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/node_hash_map.h"
-#include "absl/functional/function_ref.h"
 #include "absl/synchronization/mutex.h"
 #include "tensorflow/compiler/xla/statusor.h"
 
@@ -58,7 +57,7 @@ class RefcountingHashMap {
   // using `value_factory`.
   std::shared_ptr<V> GetOrCreateIfAbsent(
       const K& key,
-      absl::FunctionRef<std::unique_ptr<V>(const K&)> value_factory) {
+      const std::function<std::unique_ptr<V>(const K&)>& value_factory) {
     absl::MutexLock lock(&mu_);
     auto it = map_.find(key);
     if (it != map_.end()) {

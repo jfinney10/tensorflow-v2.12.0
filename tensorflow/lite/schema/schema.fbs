@@ -53,8 +53,7 @@ enum TensorType : byte {
   RESOURCE = 13,
   VARIANT = 14,
   UINT32 = 15,
-  UINT16 = 16,
-  INT4 = 17,
+  UINT16 = 16
 }
 
 // Custom quantization parameters for experimenting with new quantization
@@ -194,16 +193,6 @@ table SparsityParameters {
   dim_metadata:[DimensionMetadata];
 }
 
-// The nested tensor type for VARIANT type.
-table VariantSubType {
-  // The tensor shape.
-  shape:[int];
-  type:TensorType;
-  // If false, the rank or the number of tensor dimensions is unknown.
-  // If false, "shape" must be [].
-  has_rank: bool = false;
-}
-
 table Tensor {
   // The tensor shape. The meaning of each entry is operator-specific but
   // builtin ops use: [batch size, height, width, number of channels] (That's
@@ -235,12 +224,6 @@ table Tensor {
   // If false, the rank or the number of tensor dimensions is unknown.
   // If false, "shape" must be [].
   has_rank: bool = false;
-
-  // The nested Tensor types for VARIANT type. This is always empty for
-  // non-VARIANT types. This is optional because the nested type can be omitted.
-  // Currently only 1 subtype is supported. The field is defined as an array for
-  // flexibility of supporting multiple subtypes in the future.
-  variant_tensors:[VariantSubType];
 }
 
 // A list of builtin operators. Builtin operators are slightly faster than custom
@@ -411,9 +394,7 @@ enum BuiltinOperator : int32 {
   UNSORTED_SEGMENT_PROD = 153,
   UNSORTED_SEGMENT_MAX = 154,
   UNSORTED_SEGMENT_SUM = 155,
-  ATAN2 = 156,
-  UNSORTED_SEGMENT_MIN = 157,
-  SIGN = 158
+  ATAN2 = 156
 }
 // LINT.ThenChange(nnapi_linter/linter.proto)
 
@@ -538,10 +519,8 @@ union BuiltinOptions {
   DynamicUpdateSliceOptions,
   UnsortedSegmentProdOptions,
   UnsortedSegmentMaxOptions,
-  UnsortedSegmentMinOptions,
   UnsortedSegmentSumOptions,
-  ATan2Options,
-  SignOptions
+  ATan2Options
 }
 
 // LINT.IfChange
@@ -740,11 +719,8 @@ table UnidirectionalSequenceLSTMOptions {
   // If true then first dimension is sequence, otherwise batch.
   time_major:bool;
 
-  // Parameter for Unidirectional Sequence LSTM version 3.
+  // Parameter for Unidirectional Sequence LSTM version 4.
   asymmetric_quantize_inputs:bool;
-
-  // Parameter for unidirectional sequence RNN version 4.
-  diagonal_recurrent_tensors:bool;
 }
 
 table BidirectionalSequenceLSTMOptions {
@@ -923,13 +899,9 @@ table SliceOptions {
 }
 
 table TransposeConvOptions {
-  // Parameters supported by version 1, 2, 3:
   padding:Padding;
   stride_w:int;
   stride_h:int;
-
-  // Parameters supported by version 4:
-  fused_activation_function:ActivationFunctionType = NONE;
 }
 
 table ExpandDimsOptions {
@@ -1170,12 +1142,6 @@ table UnsortedSegmentSumOptions {
 }
 
 table ATan2Options {
-}
-
-table UnsortedSegmentMinOptions{
-}
-
-table SignOptions {
 }
 
 

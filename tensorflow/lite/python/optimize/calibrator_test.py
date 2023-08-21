@@ -16,6 +16,7 @@
 
 from absl.testing import parameterized
 import numpy as np
+from six.moves import range
 
 from tensorflow.lite.python.optimize import calibrator as _calibrator
 from tensorflow.python.framework import dtypes

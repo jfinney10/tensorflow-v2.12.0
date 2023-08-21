@@ -18,7 +18,10 @@ import collections
 import copy
 import math
 import re
+
 from typing import Optional
+
+import six
 
 from tensorflow.core.protobuf.tpu import optimization_parameters_pb2
 from tensorflow.core.protobuf.tpu import tpu_embedding_configuration_pb2 as elc
@@ -139,9 +142,10 @@ class TableConfig(
                          f'Received: `type(optimization_parameters)`='
                          f'{type(optimization_parameters)}.')
 
-    return super().__new__(cls, vocabulary_size, dimension, initializer,
-                           combiner, hot_id_replication, learning_rate,
-                           learning_rate_fn, optimization_parameters)
+    return super(TableConfig,
+                 cls).__new__(cls, vocabulary_size, dimension, initializer,
+                              combiner, hot_id_replication, learning_rate,
+                              learning_rate_fn, optimization_parameters)
 
 
 class FeatureConfig(
@@ -171,7 +175,8 @@ class FeatureConfig(
       raise ValueError(f'max_sequence_length must be zero or a positive int, '
                        f'got {max_sequence_length}.')
 
-    return super().__new__(cls, table_id, max_sequence_length, weight_key)
+    return super(FeatureConfig, cls).__new__(cls, table_id, max_sequence_length,
+                                             weight_key)
 
 
 class EnqueueData(
@@ -205,8 +210,8 @@ class EnqueueData(
       An EnqueueData tuple.
 
     """
-    return super().__new__(cls, embedding_indices, sample_indices,
-                           aggregation_weights)
+    return super(EnqueueData, cls).__new__(cls, embedding_indices,
+                                           sample_indices, aggregation_weights)
 
   @staticmethod
   def from_sparse_tensor(sp_tensor, weights=None):
@@ -246,8 +251,9 @@ class RaggedEnqueueData(
       An RaggedEnqueueData tuple.
 
     """
-    return super().__new__(cls, embedding_indices, row_splits,
-                           aggregation_weights)
+    return super(RaggedEnqueueData,
+                 cls).__new__(cls, embedding_indices, row_splits,
+                              aggregation_weights)
 
   @staticmethod
   def from_ragged_tensor(rg_tensor, weights=None):
@@ -275,7 +281,8 @@ def get_enqueue_datas_list_from_sparse_tensors_list(sp_tensors_list):
   enqueue_datas_list = []
   for sp_tensors in sp_tensors_list:
     enqueue_datas = collections.OrderedDict(
-        (k, EnqueueData.from_sparse_tensor(v)) for k, v in sp_tensors.items())
+        (k, EnqueueData.from_sparse_tensor(v))
+        for k, v in six.iteritems(sp_tensors))
     enqueue_datas_list.append(enqueue_datas)
   return enqueue_datas_list
 
@@ -299,7 +306,7 @@ def get_enqueue_datas_list_from_ragged_tensors_list(rg_tensors_list):
   for rg_tensors in rg_tensors_list:
     enqueue_datas = collections.OrderedDict(
         (k, RaggedEnqueueData.from_ragged_tensor(v))
-        for k, v in rg_tensors.items())
+        for k, v in six.iteritems(rg_tensors))
     enqueue_datas_list.append(enqueue_datas)
   return enqueue_datas_list
 
@@ -363,7 +370,7 @@ VariablesAndOps = collections.namedtuple('VariablesAndOps', [
 ])
 
 
-class _OptimizationParameters:
+class _OptimizationParameters(object):
   """Parameters common to all optimizations."""
 
   def __init__(
@@ -444,7 +451,7 @@ class AdagradParameters(_OptimizationParameters):
       clip_gradient_max: the maximum value to clip by; None means +infinity.
         Gradient accumulation must be set to true if this is set.
     """
-    super().__init__(
+    super(AdagradParameters, self).__init__(
         learning_rate=learning_rate,
         use_gradient_accumulation=use_gradient_accumulation,
         clip_weight_min=clip_weight_min,
@@ -521,7 +528,7 @@ class AdagradMomentumParameters(_OptimizationParameters):
       clip_gradient_max: the maximum value to clip by; None means +infinity.
         Gradient accumulation must be set to true if this is set.
     """
-    super().__init__(
+    super(AdagradMomentumParameters, self).__init__(
         learning_rate=learning_rate,
         use_gradient_accumulation=use_gradient_accumulation,
         clip_weight_min=clip_weight_min,
@@ -589,7 +596,7 @@ class ProximalAdagradParameters(_OptimizationParameters):
       clip_gradient_max: the maximum value to clip by; None means +infinity.
         Gradient accumulation must be set to true if this is set.
     """
-    super().__init__(
+    super(ProximalAdagradParameters, self).__init__(
         learning_rate=learning_rate,
         use_gradient_accumulation=use_gradient_accumulation,
         clip_weight_min=clip_weight_min,
@@ -679,7 +686,7 @@ class AdamParameters(_OptimizationParameters):
       clip_gradient_max: the maximum value to clip by; None means +infinity.
         Gradient accumulation must be set to true if this is set.
     """
-    super().__init__(
+    super(AdamParameters, self).__init__(
         learning_rate=learning_rate,
         use_gradient_accumulation=use_gradient_accumulation,
         clip_weight_min=clip_weight_min,
@@ -784,7 +791,7 @@ class FtrlParameters(_OptimizationParameters):
       clip_gradient_max: the maximum value to clip by; None means +infinity.
         Gradient accumulation must be set to true if this is set.
     """
-    super().__init__(
+    super(FtrlParameters, self).__init__(
         learning_rate=learning_rate,
         use_gradient_accumulation=use_gradient_accumulation,
         clip_weight_min=clip_weight_min,
@@ -883,7 +890,7 @@ class ProximalYogiParameters(_OptimizationParameters):
       clip_gradient_max: the maximum value to clip by; None means +infinity.
         Gradient accumulation must be set to true if this is set.
     """
-    super().__init__(
+    super(ProximalYogiParameters, self).__init__(
         learning_rate=learning_rate,
         use_gradient_accumulation=use_gradient_accumulation,
         clip_weight_min=clip_weight_min,
@@ -975,7 +982,7 @@ class MomentumParameters(_OptimizationParameters):
       clip_gradient_max: the maximum value to clip by; None means +infinity.
         Gradient accumulation must be set to true if this is set.
     """
-    super().__init__(
+    super(MomentumParameters, self).__init__(
         learning_rate=learning_rate,
         use_gradient_accumulation=use_gradient_accumulation,
         clip_weight_min=clip_weight_min,
@@ -1044,7 +1051,7 @@ class RMSPropParameters(_OptimizationParameters):
       clip_gradient_max: the maximum value to clip by; None means +infinity.
         Gradient accumulation must be set to true if this is set.
     """
-    super().__init__(
+    super(RMSPropParameters, self).__init__(
         learning_rate=learning_rate,
         use_gradient_accumulation=use_gradient_accumulation,
         clip_weight_min=clip_weight_min,
@@ -1107,7 +1114,7 @@ class StochasticGradientDescentParameters(_OptimizationParameters):
       clip_gradient_min: the minimum value to clip by; None means -infinity.
       clip_gradient_max: the maximum value to clip by; None means +infinity.
     """
-    super().__init__(
+    super(StochasticGradientDescentParameters, self).__init__(
         learning_rate=learning_rate,
         use_gradient_accumulation=use_gradient_accumulation,
         clip_weight_min=clip_weight_min,
@@ -1164,7 +1171,7 @@ class FrequencyEstimatorParameters(_OptimizationParameters):
       weight_exponent: The weight exponent used to transform the estimated delta
         into weights.
     """
-    super().__init__(
+    super(FrequencyEstimatorParameters, self).__init__(
         learning_rate=1.0,
         use_gradient_accumulation=True,
         clip_weight_min=None,
@@ -1182,7 +1189,7 @@ DeviceConfig = collections.namedtuple('DeviceConfig',
                                       ['num_hosts', 'num_cores', 'job_name'])
 
 
-class TPUEmbedding:
+class TPUEmbedding(object):
   """API for using TPU for embedding.
 
     Example:
@@ -1784,7 +1791,7 @@ class TPUEmbedding:
 
       device = None
       device_feature = None
-      for feature, enqueue_data in enqueue_datas.items():
+      for feature, enqueue_data in six.iteritems(enqueue_datas):
         combiner = self._table_to_config_dict[
             self._feature_to_config_dict[feature].table_id].combiner
 
@@ -1976,7 +1983,7 @@ class TPUEmbedding:
 
 def _validate_table_to_config_dict(table_to_config_dict):
   """Validate `table_to_config_dict`."""
-  for k, v in table_to_config_dict.items():
+  for k, v in six.iteritems(table_to_config_dict):
     if not isinstance(v, TableConfig):
       raise ValueError('Value of `table_to_config_dict` must be of type '
                        '`TableConfig`, got {} for {}.'.format(type(v), k))
@@ -2039,7 +2046,7 @@ def _validate_optimization_parameters(optimization_parameters,
       raise ValueError('`optimization_parameters` is missing.')
 
 
-class _OptimizerHandler:
+class _OptimizerHandler(object):
   """Interface class for handling optimizer specific logic."""
 
   def __init__(self, optimization_parameters):
@@ -2952,7 +2959,7 @@ def _create_combiners(table_to_config_dict, table_to_features_dict):
 def _create_table_to_features_dict(feature_to_config_dict):
   """Create mapping from table to a list of its features."""
   table_to_features_dict_tmp = {}
-  for feature, feature_config in feature_to_config_dict.items():
+  for feature, feature_config in six.iteritems(feature_to_config_dict):
     if feature_config.table_id in table_to_features_dict_tmp:
       table_to_features_dict_tmp[feature_config.table_id].append(feature)
     else:

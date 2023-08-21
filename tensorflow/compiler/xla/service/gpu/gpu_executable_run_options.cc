@@ -15,9 +15,6 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/service/gpu/gpu_executable_run_options.h"
 
-#include <map>
-#include <optional>
-
 #include "absl/algorithm/container.h"
 #include "tensorflow/compiler/xla/status_macros.h"
 
@@ -32,12 +29,12 @@ std::string NcclCliqueKey::ToString() const {
 }
 
 GpuExecutableRunOptions& GpuExecutableRunOptions::set_gpu_global_device_ids(
-    std::optional<std::map<int, GlobalDeviceId>> gpu_global_device_ids) {
+    std::optional<std::vector<GlobalDeviceId>> gpu_global_device_ids) {
   gpu_global_device_ids_ = std::move(gpu_global_device_ids);
   return *this;
 }
 
-const std::optional<std::map<int, GlobalDeviceId>>&
+const std::optional<std::vector<GlobalDeviceId>>&
 GpuExecutableRunOptions::gpu_global_device_ids() const {
   return gpu_global_device_ids_;
 }
@@ -72,9 +69,9 @@ NcclExecuteParams::NcclExecuteParams(
 StatusOr<GlobalDeviceId> NcclExecuteParams::GetGlobalDeviceId() const {
   int64_t local_device_ordinal = stream->parent()->device_ordinal();
   if (gpu_global_device_ids) {
-    auto it = gpu_global_device_ids->find(local_device_ordinal);
-    TF_RET_CHECK(it != gpu_global_device_ids->end()) << local_device_ordinal;
-    return it->second;
+    TF_RET_CHECK(0 <= local_device_ordinal &&
+                 local_device_ordinal < gpu_global_device_ids->size());
+    return (*gpu_global_device_ids)[local_device_ordinal];
   } else {
     // No local -> global mapping was provided; assume the identity mapping.
     return GlobalDeviceId(local_device_ordinal);

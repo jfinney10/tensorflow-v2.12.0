@@ -15,9 +15,7 @@ limitations under the License.
 
 #include "tensorflow/lite/tools/benchmark/benchmark_model.h"
 
-#ifdef __linux__
 #include <unistd.h>
-#endif  // __linux__
 
 #include <iostream>
 #include <memory>
@@ -43,7 +41,7 @@ void GetRssStats(size_t* vsize, size_t* rss, size_t* shared, size_t* code) {
   *shared = 0;
   *code = 0;
   if (fp == nullptr) return;
-  (void)!fscanf(fp, "%zu %zu %zu %zu", vsize, rss, shared, code);
+  fscanf(fp, "%zu %zu %zu %zu", vsize, rss, shared, code);
   fclose(fp);
   *vsize = *vsize * getpagesize() >> 20;
   *rss = *rss * getpagesize() >> 20;
@@ -94,9 +92,8 @@ void BenchmarkLoggingListener::OnBenchmarkEnd(const BenchmarkResults& results) {
          "following is only APPROXIMATE to the actual memory footprint of the "
          "model at runtime. Take the information at your discretion.";
   TFLITE_LOG(INFO) << "Memory footprint delta from the start of the tool (MB): "
-                   << "init=" << init_mem_usage.mem_footprint_kb / 1024.0
-                   << " overall="
-                   << overall_mem_usage.mem_footprint_kb / 1024.0;
+                   << "init=" << init_mem_usage.max_rss_kb / 1024.0
+                   << " overall=" << overall_mem_usage.max_rss_kb / 1024.0;
 
   auto peak_mem_mb = results.peak_mem_mb();
   if (peak_mem_mb > 0) {

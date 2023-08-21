@@ -134,7 +134,7 @@ LogicalResult LiftVariablesFromSession(
       return module.emitOpError()
              << "failed to convert tensor (name: " << name.str() << ")";
     }
-    ElementsAttr tensor_attr = tensor_attr_or.value();
+    ElementsAttr tensor_attr = tensor_attr_or.ValueOrDie();
 
     builder.create<tf_saved_model::GlobalTensorOp>(
         NameLoc::get(builder.getStringAttr(name.str())),
@@ -197,7 +197,7 @@ LogicalResult LiftVariables(ModuleOp module, Session* session) {
       // If the arg type already matches the global_tensor type, we don't need
       // to do anything.
       if (!underlying_type.empty() &&
-          underlying_type[0] == global_tensor.getType()) {
+          underlying_type[0] == global_tensor.type()) {
         assert(underlying_type.size() == 1);
         continue;
       }
@@ -206,7 +206,7 @@ LogicalResult LiftVariables(ModuleOp module, Session* session) {
       auto new_arg_type = mlir::RankedTensorType::get(
           /*shape=*/{},
           mlir::TF::ResourceType::get(
-              /*subtypes=*/{global_tensor.getType().cast<TensorType>()},
+              /*subtypes=*/{global_tensor.type().cast<TensorType>()},
               module.getContext()));
 
       arg.setType(new_arg_type);

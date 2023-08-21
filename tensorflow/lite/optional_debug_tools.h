@@ -13,18 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 /// \file
-///
 /// Optional debugging functionality.
 /// For small sized binaries, these are not needed.
 #ifndef TENSORFLOW_LITE_OPTIONAL_DEBUG_TOOLS_H_
 #define TENSORFLOW_LITE_OPTIONAL_DEBUG_TOOLS_H_
 
-#include "tensorflow/lite/core/interpreter.h"
+#include "tensorflow/lite/interpreter.h"
 
 namespace tflite {
 
 // Prints a dump of what tensors and what nodes are in the interpreter.
-void PrintInterpreterState(const impl::Interpreter* interpreter);
+void PrintInterpreterState(const Interpreter* interpreter);
 
 }  // namespace tflite
 

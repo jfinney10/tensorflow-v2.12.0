@@ -1,12 +1,7 @@
-load("//tensorflow:pytype.default.bzl", "pytype_strict_library")
-load("//tensorflow:strict.default.bzl", "py_strict_test")
-load(
-    "//tensorflow/core/platform:build_config.bzl",
-    "tf_proto_library",
-)
+load("//tensorflow:tensorflow.bzl", "pytype_strict_library")
+load("//tensorflow:tensorflow.bzl", "py_strict_test")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     licenses = ["notice"],
 )
 
@@ -18,7 +13,7 @@ pytype_strict_library(
     srcs_version = "PY3",
     visibility = ["//tensorflow:internal"],
     deps = [
-        ":function_type",
+        "//tensorflow/python/types",
     ],
 )
 
@@ -27,7 +22,6 @@ py_strict_test(
     srcs = ["type_dispatch_test.py"],
     python_version = "PY3",
     deps = [
-        ":function_type",
         ":type_dispatch",
         "//tensorflow/python/platform:client_testlib",
         "//tensorflow/python/types",
@@ -39,10 +33,9 @@ pytype_strict_library(
     srcs = ["function_cache.py"],
     srcs_version = "PY3",
     visibility = [
-        "//tensorflow/python/eager:__subpackages__",
+        "//tensorflow/python/eager:__pkg__",
     ],
     deps = [
-        ":function_type",
         "//tensorflow/core/function/polymorphism:type_dispatch",
         "//tensorflow/core/function/trace_type",
         "//tensorflow/python/types",
@@ -58,63 +51,10 @@ py_strict_test(
     visibility = ["//learning/brain/contrib/eager/python/examples:__pkg__"],
     deps = [
         ":function_cache",
-        "//tensorflow/core/function/polymorphism:function_type",
         "//tensorflow/core/function/trace_type",
         "//tensorflow/python:array_ops",
+        "//tensorflow/python/eager:function_context",
         "//tensorflow/python/platform:client_testlib",
         "//tensorflow/python/types",
-    ],
-)
-
-pytype_strict_library(
-    name = "function_type",
-    srcs = [
-        "function_type.py",
-    ],
-    srcs_version = "PY3",
-    visibility = ["//tensorflow:internal"],
-    deps = [
-        "//tensorflow/core/function/polymorphism:function_type_proto_py",
-        "//tensorflow/core/function/trace_type",
-        "//tensorflow/core/function/trace_type:serialization",
-        "//tensorflow/python/types",
-        "@absl_py//absl/logging",
-    ],
-)
-
-tf_proto_library(
-    name = "function_type_proto",
-    srcs = [
-        "function_type.proto",
-    ],
-    cc_api_version = 2,
-    protodeps = [
-        "//tensorflow/core/function/trace_type:serialization_proto",
-    ],
-    visibility = ["//tensorflow:internal"],
-)
-
-# copybara:uncomment_begin(google-only)
-# py_proto_library(
-#     name = "function_type_py_pb2",
-#     api_version = 2,
-#     visibility = ["//tensorflow:internal"],
-#     deps = [":function_type_proto"],
-# )
-# copybara:uncomment_end
-
-py_strict_test(
-    name = "function_type_test",
-    srcs = ["function_type_test.py"],
-    python_version = "PY3",
-    deps = [
-        ":function_type",
-        "//tensorflow/core/function/polymorphism:function_type_proto_py",
-        "//tensorflow/core/function/trace_type",
-        "//tensorflow/core/function/trace_type:serialization",
-        "//tensorflow/python/framework:func_graph",
-        "//tensorflow/python/platform:client_testlib",
-        "//tensorflow/python/types",
-        "@absl_py//absl/testing:parameterized",
     ],
 )

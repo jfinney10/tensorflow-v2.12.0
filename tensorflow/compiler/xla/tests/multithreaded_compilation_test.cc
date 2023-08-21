@@ -29,10 +29,10 @@ limitations under the License.
 #include "tensorflow/compiler/xla/test_helpers.h"
 #include "tensorflow/compiler/xla/tests/hlo_test_base.h"
 #include "tensorflow/compiler/xla/tests/test_macros.h"
-#include "tensorflow/tsl/lib/core/status_test_util.h"
-#include "tensorflow/tsl/platform/status.h"
-#include "tensorflow/tsl/platform/statusor.h"
-#include "tensorflow/tsl/platform/threadpool.h"
+#include "tensorflow/core/lib/core/status_test_util.h"
+#include "tensorflow/core/platform/status.h"
+#include "tensorflow/core/platform/statusor.h"
+#include "tensorflow/core/platform/threadpool.h"
 
 namespace xla {
 
@@ -76,18 +76,18 @@ XLA_TEST_F(MultithreadedCompilation, EightModuleCompilation) {
     absl::MutexLock lock(&mu);
     executables.push_back(std::move(executable));
     VLOG(2) << "Adding executable obtained from thread: " << iteration;
-    return tsl::OkStatus();
+    return tensorflow::OkStatus();
   };
 
   {
-    tsl::thread::ThreadPool thread_pool(tsl::Env::Default(), "threads-",
-                                        num_threads);
+    tensorflow::thread::ThreadPool thread_pool(tensorflow::Env::Default(),
+                                               "threads-", num_threads);
     for (int i = 0; i < num_threads; i++) {
       thread_pool.Schedule([&, i]() { TF_EXPECT_OK(do_compilation(i)); });
     }
   }
 
-  ::tsl::protobuf::util::MessageDifferencer differencer;
+  ::tensorflow::protobuf::util::MessageDifferencer differencer;
   bool first_time = true;
   HloProto first_hlo_proto;
   for (const auto &exec : executables) {

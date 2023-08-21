@@ -18,9 +18,7 @@ limitations under the License.
 
 // GrpcServer manages the lifecycle of an Eager, Worker and Master service.
 
-#include <map>
 #include <memory>
-#include <string>
 
 #include "grpcpp/grpcpp.h"
 #include "grpcpp/security/credentials.h"
@@ -28,6 +26,7 @@ limitations under the License.
 #include "tensorflow/core/common_runtime/process_util.h"
 #include "tensorflow/core/common_runtime/stats_publisher_interface.h"
 #include "tensorflow/core/distributed_runtime/master_env.h"
+#include "tensorflow/core/distributed_runtime/rpc/async_service_interface.h"
 #include "tensorflow/core/distributed_runtime/rpc/grpc_channel.h"
 #include "tensorflow/core/distributed_runtime/rpc/grpc_worker_cache.h"
 #include "tensorflow/core/distributed_runtime/rpc/grpc_worker_service.h"
@@ -37,8 +36,7 @@ limitations under the License.
 #include "tensorflow/core/framework/collective.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/platform/env.h"
-#include "tensorflow/tsl/distributed_runtime/rpc/async_service_interface.h"
-#include "tensorflow/tsl/profiler/protobuf/profiler_service.grpc.pb.h"
+#include "tensorflow/core/profiler/profiler_service.grpc.pb.h"
 
 namespace tensorflow {
 
@@ -118,7 +116,7 @@ class GrpcServer : public ServerInterface {
   Status UpdateServerDef(const ServerDef& server_def) override;
   // Pass coordination service agent instance to server's RPC handler
   Status SetCoordinationServiceAgentInstance(
-      tsl::CoordinationServiceAgent* agent) override;
+      CoordinationServiceAgent* agent) override;
   // TODO(hanyangtay): Remove this method once gRPC server clean shutdown is
   // supported.
   Status StopCoordinationService() override;
@@ -148,13 +146,12 @@ class GrpcServer : public ServerInterface {
   // GrpcServer. Each service will have its HandleRPCsLoop called in a separate
   // thread. An example usage would be to add a RDMA based partial worker
   // service to offload tensor and data buffer transfers.
-  virtual std::map<std::string, tsl::AsyncServiceInterface*> ExtraServices(
+  virtual std::map<std::string, AsyncServiceInterface*> ExtraServices(
       ::grpc::ServerBuilder*) {
     return {};
   }
 
-  virtual std::map<std::string, tsl::AsyncServiceInterface*>
-  GetExtraServices() {
+  virtual std::map<std::string, AsyncServiceInterface*> GetExtraServices() {
     return extra_services_;
   }
 
@@ -172,9 +169,6 @@ class GrpcServer : public ServerInterface {
   const ServerDef& server_def() const { return server_def_; }
   GrpcWorker* worker_impl() const { return worker_impl_.get(); }
   GrpcWorkerEnv* grpc_worker_env() const { return grpc_worker_env_.get(); }
-
-  Status SetCoordinationServiceInstance(
-      tsl::CoordinationServiceInterface* service);
 
  private:
   Env* env_;
@@ -203,10 +197,10 @@ class GrpcServer : public ServerInterface {
   // Implementation of a TensorFlow master, and RPC polling thread.
   MasterEnv master_env_;
   std::unique_ptr<Master> master_impl_;
-  tsl::AsyncServiceInterface* master_service_ = nullptr;
+  AsyncServiceInterface* master_service_ = nullptr;
   std::unique_ptr<Thread> master_thread_ TF_GUARDED_BY(mu_);
 
-  std::map<std::string, tsl::AsyncServiceInterface*> extra_services_;
+  std::map<std::string, AsyncServiceInterface*> extra_services_;
   std::vector<std::unique_ptr<Thread>> extra_service_threads_
       TF_GUARDED_BY(mu_);
 
@@ -214,17 +208,17 @@ class GrpcServer : public ServerInterface {
   WorkerEnv worker_env_;
   std::unique_ptr<const DeviceMgr> owned_device_manager_;
   std::unique_ptr<GrpcWorker> worker_impl_;
-  tsl::AsyncServiceInterface* worker_service_ = nullptr;
+  AsyncServiceInterface* worker_service_ = nullptr;
   std::unique_ptr<Thread> worker_thread_ TF_GUARDED_BY(mu_);
   std::unique_ptr<GrpcWorkerEnv> grpc_worker_env_;
 
   // TensorFlow Eager implementation, and RPC polling thread.
-  tsl::AsyncServiceInterface* eager_service_ = nullptr;
+  AsyncServiceInterface* eager_service_ = nullptr;
   std::unique_ptr<Thread> eager_thread_ TF_GUARDED_BY(mu_);
   std::shared_ptr<WorkerSession> worker_session_;
 
   // Experimental coordination service implementation, and RPC polling thread.
-  tsl::AsyncServiceInterface* coordination_service_ = nullptr;
+  AsyncServiceInterface* coordination_service_ = nullptr;
   std::unique_ptr<Thread> coordination_thread_ TF_GUARDED_BY(mu_);
 
   // TensorFlow profiler service implementation.

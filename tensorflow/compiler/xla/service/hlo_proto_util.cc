@@ -14,12 +14,10 @@ limitations under the License.
 ==============================================================================*/
 
 #include "tensorflow/compiler/xla/service/hlo_proto_util.h"
-
-#include <memory>
-#include <string>
-#include <vector>
-
 #include "tensorflow/compiler/xla/service/hlo_verifier.h"
+
+#include <string>
+
 #include "tensorflow/compiler/xla/util.h"
 
 namespace xla {
@@ -50,7 +48,7 @@ StatusOr<std::unique_ptr<HloModule>> CreateModuleFromProto(
                   /*allow_mixed_precision=*/is_module_post_optimizations)
           .Run(module.get())
           .status());
-  return module;
+  return std::move(module);
 }
 
 StatusOr<std::vector<const ShapeProto*>> EntryComputationParameterShapes(

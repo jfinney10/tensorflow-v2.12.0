@@ -20,6 +20,7 @@ import typing
 from typing import Any, Dict, Callable, List, Optional, Text, Tuple, TypeVar, Union
 
 from absl import logging
+import six
 
 from tensorflow.core.protobuf.tpu import optimization_parameters_pb2
 from tensorflow.core.protobuf.tpu import tpu_embedding_configuration_pb2
@@ -41,7 +42,8 @@ SlotVarCreationFnType = Callable[
 ClipValueType = Union[Tuple[float, float], float]
 
 
-class _Optimizer(metaclass=abc.ABCMeta):
+@six.add_metaclass(abc.ABCMeta)
+class _Optimizer(object):
   """Base class for all optimizers, with common parameters."""
 
   def __init__(
@@ -53,9 +55,7 @@ class _Optimizer(metaclass=abc.ABCMeta):
       weight_decay_factor: Optional[float],
       multiply_weight_decay_factor_by_learning_rate: bool,
       clipvalue: Optional[ClipValueType] = None,
-      slot_variable_creation_fn: Optional[SlotVarCreationFnType] = None,
-      low_dimensional_packing_status: bool = False,
-  ):
+      slot_variable_creation_fn: Optional[SlotVarCreationFnType] = None):
     self.learning_rate = learning_rate
     self.use_gradient_accumulation = use_gradient_accumulation
     self.clip_weight_min = clip_weight_min
@@ -81,7 +81,6 @@ class _Optimizer(metaclass=abc.ABCMeta):
           f"Argument `slot_variable_creation_fn` must be either None or a "
           f"callable. Received: {slot_variable_creation_fn}")
     self.slot_variable_creation_fn = slot_variable_creation_fn
-    self.low_dimensional_packing_status = low_dimensional_packing_status
 
   @abc.abstractmethod
   def _slot_names(self) -> List[Text]:
@@ -127,10 +126,6 @@ class _Optimizer(metaclass=abc.ABCMeta):
       parameters.weight_decay_factor = self.weight_decay_factor
       if self.multiply_weight_decay_factor_by_learning_rate:
         parameters.multiply_weight_decay_factor_by_learning_rate = True
-
-    parameters.low_dimensional_packing_status = (
-        self.low_dimensional_packing_status
-    )
 
   @abc.abstractmethod
   def _load(self) -> Callable[..., ops.Operation]:
@@ -227,17 +222,14 @@ class SGD(_Optimizer):
   algorithm.
   """
 
-  def __init__(
-      self,
-      learning_rate: Union[float, Callable[[], float]] = 0.01,
-      use_gradient_accumulation: bool = True,
-      clip_weight_min: Optional[float] = None,
-      clip_weight_max: Optional[float] = None,
-      weight_decay_factor: Optional[float] = None,
-      multiply_weight_decay_factor_by_learning_rate: bool = None,
-      clipvalue: Optional[ClipValueType] = None,
-      low_dimensional_packing_status: bool = False,
-  ):
+  def __init__(self,
+               learning_rate: Union[float, Callable[[], float]] = 0.01,
+               use_gradient_accumulation: bool = True,
+               clip_weight_min: Optional[float] = None,
+               clip_weight_max: Optional[float] = None,
+               weight_decay_factor: Optional[float] = None,
+               multiply_weight_decay_factor_by_learning_rate: bool = None,
+               clipvalue: Optional[ClipValueType] = None):
     """Optimization parameters for stochastic gradient descent.
 
     Args:
@@ -261,22 +253,11 @@ class SGD(_Optimizer):
         accuracy). See
         'tensorflow/core/protobuf/tpu/optimization_parameters.proto' for more
         information on gradient accumulation and its impact on tpu embeddings.
-      low_dimensional_packing_status: Status of the low-dimensional embedding
-        packing optimization controls whether to optimize the packing of
-        1-dimensional, 2-dimensional, and 4-dimensional embedding tables in
-        memory.
     """
-    super().__init__(
-        learning_rate,
-        use_gradient_accumulation,
-        clip_weight_min,
-        clip_weight_max,
-        weight_decay_factor,
-        multiply_weight_decay_factor_by_learning_rate,
-        clipvalue,
-        None,
-        low_dimensional_packing_status,
-    )
+    super(SGD, self).__init__(
+        learning_rate, use_gradient_accumulation, clip_weight_min,
+        clip_weight_max, weight_decay_factor,
+        multiply_weight_decay_factor_by_learning_rate, clipvalue)
 
   def _slot_names(self) -> List[Text]:
     return []
@@ -286,7 +267,7 @@ class SGD(_Optimizer):
 
   def _set_optimization_parameters(
       self, parameters: optimization_parameters_pb2.OptimizationParameters):
-    super()._set_optimization_parameters(parameters)
+    super(SGD, self)._set_optimization_parameters(parameters)
     parameters.stochastic_gradient_descent.SetInParent()
 
   def _load(self) -> Callable[..., ops.Operation]:
@@ -353,9 +334,7 @@ class Adagrad(_Optimizer):
       weight_decay_factor: Optional[float] = None,
       multiply_weight_decay_factor_by_learning_rate: bool = None,
       slot_variable_creation_fn: Optional[SlotVarCreationFnType] = None,
-      clipvalue: Optional[ClipValueType] = None,
-      low_dimensional_packing_status: bool = False,
-  ):
+      clipvalue: Optional[ClipValueType] = None):
     """Optimization parameters for Adagrad.
 
     Args:
@@ -372,31 +351,21 @@ class Adagrad(_Optimizer):
         `weight_decay_factor` is multiplied by the current learning rate.
       slot_variable_creation_fn: If you wish do directly control the creation of
         the slot variables, set this to a callable taking three parameters: a
-        table variable, a list of slot names to create for it, and a list of
-        initializers. This function should return a dict with the slot names as
-        keys and the created variables as values with types matching the table
-        variable. When set to None (the default), uses the built-in variable
-        creation.
+          table variable, a list of slot names to create for it, and a list of
+          initializers. This function should return a dict with the slot names
+          as keys and the created variables as values with types matching the
+          table variable. When set to None (the default), uses the built-in
+          variable creation.
       clipvalue: Controls clipping of the gradient. Set to either a single
         positive scalar value to get clipping or a tuple of scalar values (min,
         max) to set a separate maximum or minimum. If one of the two entries is
         None, then there will be no clipping that direction.
-      low_dimensional_packing_status: Status of the low-dimensional embedding
-        packing optimization controls whether to optimize the packing of
-        1-dimensional, 2-dimensional, and 4-dimensional embedding tables in
-        memory.
     """
-    super().__init__(
-        learning_rate,
-        use_gradient_accumulation,
-        clip_weight_min,
-        clip_weight_max,
-        weight_decay_factor,
-        multiply_weight_decay_factor_by_learning_rate,
-        clipvalue,
-        slot_variable_creation_fn,
-        low_dimensional_packing_status,
-    )
+    super(Adagrad, self).__init__(
+        learning_rate, use_gradient_accumulation, clip_weight_min,
+        clip_weight_max, weight_decay_factor,
+        multiply_weight_decay_factor_by_learning_rate, clipvalue,
+        slot_variable_creation_fn)
     if initial_accumulator_value <= 0:
       raise ValueError(
           f"Argument `initial_accumulator_value` must be a positive float. "
@@ -411,7 +380,7 @@ class Adagrad(_Optimizer):
 
   def _set_optimization_parameters(
       self, parameters: optimization_parameters_pb2.OptimizationParameters):
-    super()._set_optimization_parameters(parameters)
+    super(Adagrad, self)._set_optimization_parameters(parameters)
     parameters.adagrad.SetInParent()
 
   def _load(self) -> Callable[..., ops.Operation]:
@@ -482,9 +451,7 @@ class AdagradMomentum(_Optimizer):
       weight_decay_factor: Optional[float] = None,
       multiply_weight_decay_factor_by_learning_rate: bool = None,
       slot_variable_creation_fn: Optional[SlotVarCreationFnType] = None,
-      clipvalue: Optional[ClipValueType] = None,
-      low_dimensional_packing_status: bool = False,
-  ):
+      clipvalue: Optional[ClipValueType] = None):
     """Optimization parameters for Adagrad + Momentum.
 
     Args:
@@ -506,31 +473,21 @@ class AdagradMomentum(_Optimizer):
         `weight_decay_factor` is multiplied by the current learning rate.
       slot_variable_creation_fn: If you wish do directly control the creation of
         the slot variables, set this to a callable taking three parameters: a
-        table variable, a list of slot names to create for it, and a list of
-        initializers. This function should return a dict with the slot names as
-        keys and the created variables as values with types matching the table
-        variable. When set to None (the default), uses the built-in variable
-        creation.
+          table variable, a list of slot names to create for it, and a list of
+          initializers. This function should return a dict with the slot names
+          as keys and the created variables as values with types matching the
+          table variable. When set to None (the default), uses the built-in
+          variable creation.
       clipvalue: Controls clipping of the gradient. Set to either a single
         positive scalar value to get clipping or a tuple of scalar values (min,
         max) to set a separate maximum or minimum. If one of the two entries is
         None, then there will be no clipping that direction.
-      low_dimensional_packing_status: Status of the low-dimensional embedding
-        packing optimization controls whether to optimize the packing of
-        1-dimensional, 2-dimensional, and 4-dimensional embedding tables in
-        memory.
     """
-    super().__init__(
-        learning_rate,
-        use_gradient_accumulation,
-        clip_weight_min,
-        clip_weight_max,
-        weight_decay_factor,
-        multiply_weight_decay_factor_by_learning_rate,
-        clipvalue,
-        slot_variable_creation_fn,
-        low_dimensional_packing_status,
-    )
+    super(AdagradMomentum,
+          self).__init__(learning_rate, use_gradient_accumulation,
+                         clip_weight_min, clip_weight_max, weight_decay_factor,
+                         multiply_weight_decay_factor_by_learning_rate,
+                         clipvalue, slot_variable_creation_fn)
     if epsilon <= 0:
       raise ValueError("Adagrad momentum: epsilon must be positive")
     if exponent <= 0:
@@ -549,7 +506,7 @@ class AdagradMomentum(_Optimizer):
 
   def _set_optimization_parameters(
       self, parameters: optimization_parameters_pb2.OptimizationParameters):
-    super()._set_optimization_parameters(parameters)
+    super(AdagradMomentum, self)._set_optimization_parameters(parameters)
     parameters.adagrad_momentum.SetInParent()
     parameters.adagrad_momentum.momentum = self.momentum
     parameters.adagrad_momentum.use_nesterov = self.use_nesterov
@@ -630,9 +587,7 @@ class FTRL(_Optimizer):
       slot_variable_creation_fn: Optional[SlotVarCreationFnType] = None,
       clipvalue: Optional[ClipValueType] = None,
       multiply_linear_by_learning_rate: bool = False,
-      allow_zero_accumulator: bool = False,
-      low_dimensional_packing_status: bool = False,
-  ):
+      allow_zero_accumulator: bool = False):
     """Optimization parameters for Adagrad.
 
     Args:
@@ -658,11 +613,11 @@ class FTRL(_Optimizer):
         `weight_decay_factor` is multiplied by the current learning rate.
       slot_variable_creation_fn: If you wish do directly control the creation of
         the slot variables, set this to a callable taking three parameters: a
-        table variable, a list of slot names to create for it, and a list of
-        initializers. This function should return a dict with the slot names as
-        keys and the created variables as values with types matching the table
-        variable. When set to None (the default), uses the built-in variable
-        creation.
+          table variable, a list of slot names to create for it, and a list of
+          initializers. This function should return a dict with the slot names
+          as keys and the created variables as values with types matching the
+          table variable. When set to None (the default), uses the built-in
+          variable creation.
       clipvalue: Controls clipping of the gradient. Set to either a single
         positive scalar value to get clipping or a tuple of scalar values (min,
         max) to set a separate maximum or minimum. If one of the two entries is
@@ -680,22 +635,11 @@ class FTRL(_Optimizer):
         allow zero and near-zero accumulator values at the cost of some
         performance; this only needs to be set if you are using an initial
         accumulator value of zero, which is uncommon.
-      low_dimensional_packing_status: Status of the low-dimensional embedding
-        packing optimization controls whether to optimize the packing of
-        1-dimensional, 2-dimensional, and 4-dimensional embedding tables in
-        memory.
     """
-    super().__init__(
-        learning_rate,
-        use_gradient_accumulation,
-        clip_weight_min,
-        clip_weight_max,
-        weight_decay_factor,
-        multiply_weight_decay_factor_by_learning_rate,
-        clipvalue,
-        slot_variable_creation_fn,
-        low_dimensional_packing_status,
-    )
+    super().__init__(learning_rate, use_gradient_accumulation, clip_weight_min,
+                     clip_weight_max, weight_decay_factor,
+                     multiply_weight_decay_factor_by_learning_rate, clipvalue,
+                     slot_variable_creation_fn)
     if initial_accumulator_value <= 0:
       raise ValueError(
           f"Argument `initial_accumulator_value` must be a positive float. "
@@ -800,9 +744,7 @@ class Adam(_Optimizer):
       weight_decay_factor: Optional[float] = None,
       multiply_weight_decay_factor_by_learning_rate: bool = None,
       slot_variable_creation_fn: Optional[SlotVarCreationFnType] = None,
-      clipvalue: Optional[ClipValueType] = None,
-      low_dimensional_packing_status: bool = False,
-  ):
+      clipvalue: Optional[ClipValueType] = None):
     """Optimization parameters for Adam.
 
     See 'tensorflow/core/protobuf/tpu/optimization_parameters.proto' for a
@@ -832,31 +774,21 @@ class Adam(_Optimizer):
         `weight_decay_factor` is multiplied by the current learning rate.
       slot_variable_creation_fn: If you wish do directly control the creation of
         the slot variables, set this to a callable taking three parameters: a
-        table variable, a list of slot names to create for it, and a list of
-        initializers. This function should return a dict with the slot names as
-        keys and the created variables as values with types matching the table
-        variable. When set to None (the default), uses the built-in variable
-        creation.
+          table variable, a list of slot names to create for it, and a list of
+          initializers. This function should return a dict with the slot names
+          as keys and the created variables as values with types matching the
+          table variable. When set to None (the default), uses the built-in
+          variable creation.
       clipvalue: Controls clipping of the gradient. Set to either a single
         positive scalar value to get clipping or a tiple of scalar values (min,
         max) to set a separate maximum or minimum. If one of the two entries is
         None, then there will be no clipping that direction.
-      low_dimensional_packing_status: Status of the low-dimensional embedding
-        packing optimization controls whether to optimize the packing of
-        1-dimensional, 2-dimensional, and 4-dimensional embedding tables in
-        memory.
     """
     super(Adam, self).__init__(
-        learning_rate,
-        use_gradient_accumulation,
-        clip_weight_min,
-        clip_weight_max,
-        weight_decay_factor,
-        multiply_weight_decay_factor_by_learning_rate,
-        clipvalue,
-        slot_variable_creation_fn,
-        low_dimensional_packing_status,
-    )
+        learning_rate, use_gradient_accumulation, clip_weight_min,
+        clip_weight_max, weight_decay_factor,
+        multiply_weight_decay_factor_by_learning_rate, clipvalue,
+        slot_variable_creation_fn)
     if beta_1 < 0. or beta_1 >= 1.:
       raise ValueError(
           f"Argument `beta_1` must be >= 0 and < 1. Received: {beta_1}.")
@@ -899,72 +831,8 @@ class Adam(_Optimizer):
     return tpu_ops.retrieve_tpu_embedding_adam_parameters
 
 
-@tf_export("tpu.experimental.embedding.QuantizationConfig")
-class QuantizationConfig:
-  """Settings for simulated quantization of the tpu embedding table.
-
-  When simulated quantization is enabled, the results of the embedding lookup
-  are clipped and quantized according to the settings here before the combiner
-  is applied.
-
-  For example, to quantize `input` the following is done:
-  ```python
-  if input < lower
-    input = lower
-  if input > upper
-    input = upper
-  quantum = (upper - lower) / (num_buckets - 1)
-  input = math.floor((input - lower) / quantum + 0.5) * quantium + lower
-  ```
-
-  See tensorflow/core/protobuf/tpu/optimization_parameters.proto for more
-  details.
-
-  NOTE: This does not change the storage type of the embedding table, that will
-  continue to be float32 as will the saved variable in the checkpoint. You will
-  have to manually quantize the variable (typically with the same algorithm and
-  settings as above) manually.
-  """
-
-  def __init__(self, num_buckets: int, lower: float, upper: float):
-    """Simulated quantizaiton configuration.
-
-    Args:
-      num_buckets: The number of quantization buckets, must be atleast 2.
-      lower: The lower bound for the quantization range.
-      upper: The upper bound for the quantization range.
-
-    Returns:
-      `QuantizationConfig`.
-
-    Raises:
-      ValueError: if `num_buckets` is less than 2.
-    """
-    if num_buckets < 2:
-      raise ValueError(f"num_buckets is {num_buckets}, must be at least 2 for "
-                       f"simulated quantization.")
-
-    self.num_buckets = num_buckets
-    self.lower = lower
-    self.upper = upper
-
-  def _set_optimization_parameters(
-      self, parameters: optimization_parameters_pb2.OptimizationParameters):
-    parameters.simulated_quantization.enabled = True
-    parameters.simulated_quantization.num_buckets = self.num_buckets
-    parameters.simulated_quantization.clipping_limits.lower.value = self.lower
-    parameters.simulated_quantization.clipping_limits.upper.value = self.upper
-
-  def __repr__(self):
-    return ("QuantizationConfig(num_buckets={num_buckets!r}, lower={lower!r}, "
-            "upper={upper!r})".format(
-                num_buckets=self.num_buckets,
-                lower=self.lower,
-                upper=self.upper))
-
-
 @tf_export("tpu.experimental.embedding.TableConfig")
-class TableConfig:
+class TableConfig(object):
   """Configuration data for one embedding table.
 
   This class holds the configuration data for a single embedding table. It is
@@ -1006,8 +874,7 @@ class TableConfig:
                initializer: Optional[Callable[[Any], None]] = None,
                optimizer: Optional[_Optimizer] = None,
                combiner: Text = "mean",
-               name: Optional[Text] = None,
-               quantization_config: QuantizationConfig = None):
+               name: Optional[Text] = None):
     """Embedding table configuration.
 
     Args:
@@ -1029,9 +896,6 @@ class TableConfig:
         with bag-of-words columns. For more information, see
         `tf.nn.embedding_lookup_sparse`.
       name: An optional string used to name the table. Useful for debugging.
-      quantization_config: The simulated quantization config. An instance of
-        `tf.tpu.experimental.embedding.QuantizationConfig`. See the class for
-        more documentation.
 
     Returns:
       `TableConfig`.
@@ -1071,7 +935,6 @@ class TableConfig:
     self.optimizer = optimizer
     self.combiner = combiner
     self.name = name
-    self.quantization_config = quantization_config
 
   def __repr__(self):
     # If using the default initializer, just print "None" for clarity.
@@ -1081,59 +944,24 @@ class TableConfig:
       # PY2 type checking can't infer type of initializer even after if.
       initializer = typing.cast(init_ops_v2.TruncatedNormal, initializer)
       if (initializer.mean == 0.0
-          and math.isclose(initializer.stddev, 1/math.sqrt(self.dim))):
+          and math.isclose(initializer.stddev, 1/math.sqrt(self.dim))):  # pytype: disable=module-attr (math.isclose not in PY2)
         initializer = None
 
-    return ("TableConfig(vocabulary_size={vocabulary_size!r}, dim={dim!r}, "
-            "initializer={initializer!r}, optimizer={optimizer!r}, "
-            "combiner={combiner!r}, name={name!r}, "
-            "quantization_config={quantization!r})".format(
-                vocabulary_size=self.vocabulary_size,
-                dim=self.dim,
-                initializer=initializer,
-                optimizer=self.optimizer,
-                combiner=self.combiner,
-                name=self.name,
-                quantization=self.quantization_config,
-            ))
-
-  def _set_table_descriptor(
-      self,
-      table_descriptor: tpu_embedding_configuration_pb2
-      .TPUEmbeddingConfiguration.TableDescriptor,
-      num_hosts: int,
-      learning_rate_index: Dict[Callable[[], Any], int]):
-    """Set the table descriptor from the table data."""
-    table_descriptor.name = self.name
-
-    # For small tables, we pad to the number of hosts so that at least one
-    # id will be assigned to each host.
-    table_descriptor.vocabulary_size = max(self.vocabulary_size, num_hosts)
-    table_descriptor.dimension = self.dim
-
-    parameters = table_descriptor.optimization_parameters
-
-    # We handle the learning rate separately here and don't allow the
-    # optimization class to handle this, as it doesn't know about dynamic
-    # rates.
-    if callable(self.optimizer.learning_rate):
-      parameters.learning_rate.dynamic.tag = (
-          learning_rate_index[self.optimizer.learning_rate])
-    else:
-      parameters.learning_rate.constant = self.optimizer.learning_rate
-
-    if self.optimizer.low_dimensional_packing_status:
-      parameters.low_dimensional_packing_status = (
-          optimization_parameters_pb2.LowDimensionalPackingStatus.Status.ENABLED
-      )
-    # Use optimizer to handle the rest of the parameters.
-    self.optimizer._set_optimization_parameters(parameters)  # pylint: disable=protected-access
-    if self.quantization_config:
-      self.quantization_config._set_optimization_parameters(parameters)  # pylint: disable=protected-access
+    return (
+        "TableConfig(vocabulary_size={vocabulary_size!r}, dim={dim!r}, "
+        "initializer={initializer!r}, optimizer={optimizer!r}, "
+        "combiner={combiner!r}, name={name!r})".format(
+            vocabulary_size=self.vocabulary_size,
+            dim=self.dim,
+            initializer=initializer,
+            optimizer=self.optimizer,
+            combiner=self.combiner,
+            name=self.name,)
+    )
 
 
 @tf_export("tpu.experimental.embedding.FeatureConfig")
-class FeatureConfig:
+class FeatureConfig(object):
   """Configuration data for one embedding feature.
 
   This class holds the configuration data for a single embedding feature. The
@@ -1240,12 +1068,11 @@ class FeatureConfig:
   def __repr__(self):
     return ("FeatureConfig(table={table!r}, "
             "max_sequence_length={max_sequence_length!r}, "
-            "validate_weights_and_indices={validate_weights_and_indices!r}, "
-            "output_shape={output_shape!r}, name={name!r})".format(
+            "validate_weights_and_indices={"
+            "validate_weights_and_indices!r}, name={name!r})".format(
                 table=self.table,
                 max_sequence_length=self.max_sequence_length,
                 validate_weights_and_indices=self.validate_weights_and_indices,
-                output_shape=self.output_shape,
                 name=self.name))
 
 

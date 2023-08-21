@@ -50,7 +50,6 @@ Status ReduceDatasetOp::DoCompute(OpKernelContext* ctx) {
       profiler::kInfo);
   tensorflow::ResourceTagger tag(kTFDataResourceTag,
                                  ctx->op_kernel().type_string());
-  metrics::RecordTFDataFetchOp("ReduceDatasetOp");
   DatasetBase* dataset;
   TF_RETURN_IF_ERROR(GetDatasetFromVariantTensor(ctx->input(0), &dataset));
   OpInputList inputs;

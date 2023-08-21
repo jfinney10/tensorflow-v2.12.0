@@ -18,11 +18,11 @@ limitations under the License.
 #include <cstdlib>
 #include <string>
 
-#include "tensorflow/compiler/xla/stream_executor/dnn.h"
-#include "tensorflow/tsl/platform/env.h"
-#include "tensorflow/tsl/platform/path.h"
-#include "tensorflow/tsl/platform/resource_loader.h"
-#include "tensorflow/tsl/platform/test.h"
+#include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/path.h"
+#include "tensorflow/core/platform/resource_loader.h"
+#include "tensorflow/core/platform/test.h"
+#include "tensorflow/stream_executor/dnn.h"
 
 namespace xla {
 namespace gpu {
@@ -37,12 +37,13 @@ class DenylistTest : public testing::Test {
       existing_xla_flags = absl::StrCat(env, " ");
     }
 
-    tsl::setenv(
+    tensorflow::setenv(
         "XLA_FLAGS",
         absl::StrCat(
             existing_xla_flags, "--xla_gpu_algorithm_denylist_path=",
-            tsl::io::JoinPath(tsl::testing::XlaSrcRoot(), "service", "gpu",
-                              "data", "hlo_algorithm_denylist.pbtxt"))
+            tensorflow::GetDataDependencyFilepath(tensorflow::io::JoinPath(
+                "tensorflow", "compiler", "xla", "service", "gpu", "data",
+                "hlo_algorithm_denylist.pbtxt")))
             .data(),
         /*overwrite=*/true);
   }

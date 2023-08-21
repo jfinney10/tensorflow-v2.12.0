@@ -33,6 +33,7 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_remaining_ops.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_types.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes_detail.h"
 #include "tensorflow/compiler/mlir/tensorflow/utils/verify_suitable_for_graph_export.h"
 
 namespace mlir {
@@ -47,11 +48,8 @@ static constexpr ResourceId kInvalidResourceId =
 using OperationSetTy = SmallPtrSet<Operation*, 4>;
 using ResourceToOpsMapTy = DenseMap<ResourceId, OperationSetTy>;
 
-#define GEN_PASS_DEF_EXECUTORCONVERTCONTROLTODATAOUTPUTSPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
-
 class ConvertControlToDataOutputsPass
-    : public impl::ExecutorConvertControlToDataOutputsPassBase<
+    : public TF::ExecutorConvertControlToDataOutputsPassBase<
           ConvertControlToDataOutputsPass> {
  public:
   void runOnOperation() override;
@@ -140,7 +138,7 @@ bool IsNoOpControlBarrier(Value control) {
   // All islands perfectly wrap a single op is an invariant of this pass and
   // is checked at the very beginning of the pass.
   assert(control_island.WrapsSingleOp());
-  return control_island.getOutputs().empty() &&
+  return control_island.outputs().empty() &&
          isa<TF::NoOp>(control_island.GetBody().front());
 }
 
@@ -156,13 +154,13 @@ bool RemoveAllControlOutputs(func::FuncOp func) {
 
   std::queue<Value> control_barrier_worklist;
   for (Value control_output :
-       fetch.getFetches().drop_front(graph_op->getNumResults())) {
+       fetch.fetches().drop_front(graph_op->getNumResults())) {
     if (IsNoOpControlBarrier(control_output))
       control_barrier_worklist.push(control_output);
   }
 
   // Erase all control outputs at the end from fetch.
-  fetch.getFetchesMutable().erase(
+  fetch.fetchesMutable().erase(
       graph_op.getNumResults(),
       fetch.getNumOperands() - graph_op.getNumResults());
 
@@ -178,7 +176,7 @@ bool RemoveAllControlOutputs(func::FuncOp func) {
     // Only values defined by IslandOp were inserted in the worklist.
     IslandOp current_island = cast<IslandOp>(control_barrier.getDefiningOp());
 
-    for (auto control_input : current_island.getControlInputs()) {
+    for (auto control_input : current_island.controlInputs()) {
       if (IsNoOpControlBarrier(control_input))
         control_barrier_worklist.push(control_input);
     }
@@ -232,9 +230,10 @@ void AppendFunctionResults(func::FuncOp func, int num_resources,
   graph_op.erase();
   func::ReturnOp return_op = cast<func::ReturnOp>(block.getTerminator());
   int num_old_arguments = return_op.getNumOperands();
-  return_op->insertOperands(
-      num_old_arguments,
-      new_graph_op.getResults().slice(num_old_arguments, num_resources));
+  for (int i = 0; i < num_resources; ++i) {
+    return_op.operandsMutable().append(
+        new_graph_op.getResult(num_old_arguments + i));
+  }
 }
 
 // Creates a wrapper island enclosing the `sub_op` dependent on
@@ -245,10 +244,10 @@ IslandOp CreateIsland(Operation* sub_op, ValueRange control_inputs,
   auto control_type = ControlType::get(builder.getContext());
   auto island = builder.create<IslandOp>(
       sub_op->getLoc(), sub_op->getResultTypes(), control_type, control_inputs);
-  island.getBody().push_back(new Block);
-  Block* block = &island.getBody().back();
+  island.body().push_back(new Block);
+  Block* block = &island.body().back();
   builder.setInsertionPointToEnd(block);
-  sub_op->replaceAllUsesWith(island.getOutputs());
+  sub_op->replaceAllUsesWith(island.outputs());
   sub_op->moveBefore(block, block->begin());
   builder.create<YieldOp>(sub_op->getLoc(), sub_op->getResults());
   return island;
@@ -294,7 +293,7 @@ void ChainResourceOps(
         CreateIsland(sink_identity, {}, builder_chain_sink);
 
     // Add the chain sink data output to fetch.
-    fetch.getFetchesMutable().append(chain_sink_island.getOutputs().front());
+    fetch.fetchesMutable().append(chain_sink_island.outputs().front());
 
     // Iterate over all members of the current equivalence class (represented
     // by `class_iter`). Keep track of ops that have already been processed.
@@ -315,9 +314,8 @@ void ChainResourceOps(
 
         IslandOp wrapper = op->getParentOfType<IslandOp>();
         assert(wrapper);
-        wrapper.getControlInputsMutable().append(chain_src_island.getControl());
-        chain_sink_island.getControlInputsMutable().append(
-            wrapper.getControl());
+        wrapper.controlInputsMutable().append(chain_src_island.control());
+        chain_sink_island.controlInputsMutable().append(wrapper.control());
         processed_ops.insert(op);
       }
     }
@@ -346,13 +344,13 @@ TF::WhileOp RewriteWhileOp(TF::WhileOp while_op, int num_resource_inputs,
   // Get the dummy constant.
   OpBuilder builder(while_wrapper);
   auto loc = NameLoc::get(
-      builder.getStringAttr("chain_control_outputs@" + while_op.getBody()));
+      builder.getStringAttr("chain_control_outputs@" + while_op.body()));
   IslandOp const_wrapper = GetDummyConstant(builder, const_type, loc);
 
   // Get new operand and result types.
   auto new_operands = llvm::to_vector<4>(while_op->getOperands());
   auto new_result_types = llvm::to_vector<4>(while_op->getResultTypes());
-  Value const_output = const_wrapper.getOutputs()[0];
+  Value const_output = const_wrapper.outputs()[0];
   for (int i = 0; i < num_resource_inputs; ++i) {
     new_operands.push_back(const_output);
     new_result_types.push_back(const_output.getType());
@@ -362,12 +360,12 @@ TF::WhileOp RewriteWhileOp(TF::WhileOp while_op, int num_resource_inputs,
   auto new_while_op = builder.create<TF::WhileOp>(
       while_op.getLoc(), new_result_types, new_operands, while_op->getAttrs());
   auto new_while_wrapper =
-      CreateIsland(new_while_op, while_wrapper.getControlInputs(), builder);
-  for (auto result : while_wrapper.getOutputs()) {
+      CreateIsland(new_while_op, while_wrapper.controlInputs(), builder);
+  for (auto result : while_wrapper.outputs()) {
     result.replaceAllUsesWith(
-        new_while_wrapper.getOutputs()[result.getResultNumber()]);
+        new_while_wrapper.outputs()[result.getResultNumber()]);
   }
-  while_wrapper.getControl().replaceAllUsesWith(new_while_wrapper.getControl());
+  while_wrapper.control().replaceAllUsesWith(new_while_wrapper.control());
   while_wrapper.erase();
   return new_while_op;
 }

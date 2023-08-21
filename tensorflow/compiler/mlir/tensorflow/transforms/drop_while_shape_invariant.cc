@@ -17,6 +17,7 @@ limitations under the License.
 #include "mlir/Pass/PassRegistry.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_device.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes_detail.h"
 
 namespace mlir {
 namespace TF {
@@ -25,20 +26,13 @@ namespace {
 
 constexpr char kShapeInvariantAttr[] = "shape_invariant";
 
-#define GEN_PASS_DEF_DROPWHILESHAPEINVARIANTPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
-
 class DropWhileShapeInvariantPass
-    : public impl::DropWhileShapeInvariantPassBase<
-          DropWhileShapeInvariantPass> {
+    : public DropWhileShapeInvariantPassBase<DropWhileShapeInvariantPass> {
   void runOnOperation() override;
 };
 
-#define GEN_PASS_DEF_DROPWHILESHAPEINVARIANTINDEVICECLUSTERPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
-
 class DropWhileShapeInvariantInDeviceClusterPass
-    : public impl::DropWhileShapeInvariantInDeviceClusterPassBase<
+    : public DropWhileShapeInvariantInDeviceClusterPassBase<
           DropWhileShapeInvariantInDeviceClusterPass> {
   void runOnOperation() override;
 };

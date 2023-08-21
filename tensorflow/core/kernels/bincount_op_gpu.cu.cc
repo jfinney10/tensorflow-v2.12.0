@@ -47,7 +47,7 @@ struct BincountFunctor<GPUDevice, Tidx, T, false> {
           "handled by unsorted_segment_sum");
     }
     if (output.size() == 0) {
-      return OkStatus();
+      return Status::OK();
     }
     if (tensorflow::OpDeterminismRequired()) {
       // TODO(reedwm): Is this really nondeterministic?
@@ -108,7 +108,7 @@ struct BincountFunctor<GPUDevice, Tidx, T, false> {
       return errors::Internal(
           "Could not launch HistogramEven: ", GpuGetErrorString(err), ".");
     }
-    return OkStatus();
+    return Status::OK();
   }
 };
 

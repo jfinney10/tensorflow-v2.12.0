@@ -16,7 +16,7 @@ limitations under the License.
 #include "tensorflow/compiler/xla/service/cpu/xfeed_manager.h"
 
 #include "tensorflow/compiler/xla/shape_util.h"
-#include "tensorflow/tsl/platform/logging.h"
+#include "tensorflow/core/platform/logging.h"
 
 namespace xla {
 namespace cpu {
@@ -70,7 +70,7 @@ XfeedBuffer* XfeedQueueManager::BlockingDequeueBuffer() {
 void XfeedQueueManager::ReleaseCurrentBuffer(int32_t length, void* data,
                                              StatusOr<Shape> shape) {
   VLOG(3) << "Releasing buffer with shape: "
-          << (shape.ok() ? ShapeUtil::HumanString(shape.value())
+          << (shape.ok() ? ShapeUtil::HumanString(shape.ValueOrDie())
                          : "<error status>");
   absl::MutexLock l(&mu_);
   CHECK(current_buffer_ != nullptr);

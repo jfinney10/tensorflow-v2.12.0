@@ -13,9 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow/compiler/xla/pjrt/pjrt_client_test.h"
+#include "tensorflow/compiler/xla/pjrt/pjrt_client.h"
 
-#include <functional>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -25,58 +24,31 @@ limitations under the License.
 #include "tensorflow/compiler/xla/test.h"
 #include "tensorflow/compiler/xla/tests/literal_test_util.h"
 
+#if defined(PJRT_CLIENT_TEST_CPU)
+#include "tensorflow/compiler/xla/pjrt/tfrt_cpu_pjrt_client.h"
+
+static xla::StatusOr<std::unique_ptr<xla::PjRtClient>> GetClient() {
+  return xla::GetTfrtCpuClient(/*asynchronous=*/true, /*cpu_device_count=*/4);
+}
+#elif defined(PJRT_CLIENT_TEST_GPU)
+#include "tensorflow/compiler/xla/pjrt/gpu_device.h"
+
+static xla::StatusOr<std::unique_ptr<xla::PjRtClient>> GetClient() {
+  return xla::GetGpuClient(/*asynchronous=*/true, xla::GpuAllocatorConfig{},
+                           /*distributed_client=*/nullptr,
+                           /*node_id=*/0);
+}
+#endif
+
 namespace xla {
 namespace {
 
-class TestClientFactory {
- public:
-  void Register(
-      std::function<StatusOr<std::unique_ptr<PjRtClient>>()> factory) {
-    absl::MutexLock lock(&mu_);
-    CHECK(!factory_);
-    factory_ = std::move(factory);
-  }
-
-  std::function<StatusOr<std::unique_ptr<PjRtClient>>()> Get() const {
-    absl::MutexLock lock(&mu_);
-    return factory_;
-  }
-
- private:
-  mutable absl::Mutex mu_;
-  std::function<StatusOr<std::unique_ptr<PjRtClient>>()> factory_
-      ABSL_GUARDED_BY(mu_);
-};
-
-TestClientFactory& GetGlobalTestClientFactory() {
-  static auto* const factory = new TestClientFactory;
-  return *factory;
-}
-
-StatusOr<std::unique_ptr<PjRtClient>> GetClient() {
-  return GetGlobalTestClientFactory().Get()();
-}
-
-}  // namespace
-
-void RegisterTestClientFactory(
-    std::function<StatusOr<std::unique_ptr<PjRtClient>>()> factory) {
-  GetGlobalTestClientFactory().Register(std::move(factory));
-}
-
-namespace {
-
-std::unique_ptr<PjRtLoadedExecutable> MakeIncrementProgram(
-    PjRtClient* client, bool alias, int device, bool tuplize_arg = false) {
+std::unique_ptr<PjRtLoadedExecutable> MakeIncrementProgram(PjRtClient* client,
+                                                           bool alias,
+                                                           int device) {
   Shape shape = ShapeUtil::MakeShape(S32, {4});
   XlaBuilder builder("inc");
-  if (tuplize_arg) {
-    shape = ShapeUtil::MakeTupleShape({shape});
-  }
   auto inp = Parameter(&builder, 0, shape, "inp");
-  if (tuplize_arg) {
-    inp = GetTupleElement(inp, 0);
-  }
   auto one = ConstantR0<int32_t>(&builder, 1);
   auto inc = Add(inp, one);
   if (alias) {
@@ -86,15 +58,11 @@ std::unique_ptr<PjRtLoadedExecutable> MakeIncrementProgram(
   DeviceAssignment assignment(1, 1);
   assignment(0, 0) = device;
   CompileOptions options;
-  options.parameter_is_tupled_arguments = tuplize_arg;
   options.executable_build_options.set_device_assignment(assignment);
   return client->Compile(computation, options).value();
 }
 
-class PjRtClientTest
-    : public ::testing::TestWithParam<ExecuteOptions::ExecutionMode> {};
-
-TEST_P(PjRtClientTest, Execute) {
+TEST(PjRtClientTest, Execute) {
   TF_ASSERT_OK_AND_ASSIGN(auto client, GetClient());
   auto executable =
       MakeIncrementProgram(client.get(), /*alias=*/false, /*device=*/0);
@@ -109,40 +77,8 @@ TEST_P(PjRtClientTest, Execute) {
           PjRtClient::HostBufferSemantics::kImmutableOnlyDuringCall, nullptr,
           client->addressable_devices()[0]));
 
-  ExecuteOptions options;
-  options.execution_mode = GetParam();
-
-  TF_ASSERT_OK_AND_ASSIGN(auto results,
-                          executable->Execute({{buffer.get()}}, options));
-  ASSERT_EQ(results.size(), 1);
-  ASSERT_EQ(results[0].size(), 1);
-  TF_ASSERT_OK_AND_ASSIGN(auto literal, results[0][0]->ToLiteralSync());
-
-  std::vector<int32_t> expected(4, 1);
-  EXPECT_TRUE(LiteralTestUtil::Equal(LiteralUtil::CreateR1<int32_t>(expected),
-                                     *literal));
-}
-
-TEST_P(PjRtClientTest, ExecuteWithImmutableUntilTransferCompletes) {
-  TF_ASSERT_OK_AND_ASSIGN(auto client, GetClient());
-  auto executable =
-      MakeIncrementProgram(client.get(), /*alias=*/false, /*device=*/0);
-
-  std::vector<int32_t> data(4, 0);
-  Shape shape = ShapeUtil::MakeShape(S32, {4});
   TF_ASSERT_OK_AND_ASSIGN(
-      auto buffer,
-      client->BufferFromHostBuffer(
-          data.data(), shape.element_type(), shape.dimensions(),
-          /*byte_strides=*/std::nullopt,
-          PjRtClient::HostBufferSemantics::kImmutableUntilTransferCompletes,
-          nullptr, client->addressable_devices()[0]));
-
-  ExecuteOptions options;
-  options.execution_mode = GetParam();
-
-  TF_ASSERT_OK_AND_ASSIGN(auto results,
-                          executable->Execute({{buffer.get()}}, options));
+      auto results, executable->Execute({{buffer.get()}}, /*options=*/{}));
   ASSERT_EQ(results.size(), 1);
   ASSERT_EQ(results[0].size(), 1);
   TF_ASSERT_OK_AND_ASSIGN(auto literal, results[0][0]->ToLiteralSync());
@@ -152,49 +88,7 @@ TEST_P(PjRtClientTest, ExecuteWithImmutableUntilTransferCompletes) {
                                      *literal));
 }
 
-TEST_P(PjRtClientTest, ExecuteWithTupleZeroCopy) {
-  TF_ASSERT_OK_AND_ASSIGN(auto client, GetClient());
-  auto executable = MakeIncrementProgram(client.get(), /*alias=*/false,
-                                         /*device=*/0, /*tuplize_arg=*/true);
-
-  std::vector<int32_t> data(4, 0);
-  Shape shape = ShapeUtil::MakeShape(S32, {4});
-  TF_ASSERT_OK_AND_ASSIGN(
-      auto buffer, client->BufferFromHostBuffer(
-                       data.data(), shape.element_type(), shape.dimensions(),
-                       /*byte_strides=*/std::nullopt,
-                       // Use kZeroCopy to test the correctness of
-                       // `on_done_with_host_buffer`.
-                       PjRtClient::HostBufferSemantics::kZeroCopy,
-                       /*on_done_with_host_buffer=*/
-                       [&data]() {
-                         // Deliberately modifying the content of `data`. A
-                         // correct implementation of PjRt should not use `data`
-                         // after `on_done_with_host_buffer` is called.
-                         std::fill(data.begin(), data.end(), 1);
-                       },
-                       client->addressable_devices()[0]));
-
-  ExecuteOptions options;
-  options.execution_mode = GetParam();
-
-  TF_ASSERT_OK_AND_ASSIGN(auto results,
-                          executable->Execute({{buffer.get()}}, options));
-  // Immediately release the input buffer. A correct implementation will not
-  // invoke `on_done_with_host_buffer` until the execution, which can be in a
-  // separate thread, finishes.
-  buffer.reset();
-
-  ASSERT_EQ(results.size(), 1);
-  ASSERT_EQ(results[0].size(), 1);
-  TF_ASSERT_OK_AND_ASSIGN(auto literal, results[0][0]->ToLiteralSync());
-
-  std::vector<int32_t> expected(4, 1);
-  EXPECT_TRUE(LiteralTestUtil::Equal(LiteralUtil::CreateR1<int32_t>(expected),
-                                     *literal));
-}
-
-TEST_P(PjRtClientTest, ExecuteWithDonation) {
+TEST(PjRtClientTest, ExecuteWithDonation) {
   TF_ASSERT_OK_AND_ASSIGN(auto client, GetClient());
   auto executable =
       MakeIncrementProgram(client.get(), /*alias=*/true, /*device=*/0);
@@ -208,11 +102,8 @@ TEST_P(PjRtClientTest, ExecuteWithDonation) {
                        PjRtClient::HostBufferSemantics::kZeroCopy, nullptr,
                        client->addressable_devices()[0]));
 
-  ExecuteOptions options;
-  options.execution_mode = GetParam();
-
-  TF_ASSERT_OK_AND_ASSIGN(auto results,
-                          executable->Execute({{buffer.get()}}, options));
+  TF_ASSERT_OK_AND_ASSIGN(
+      auto results, executable->Execute({{buffer.get()}}, /*options=*/{}));
   ASSERT_EQ(results.size(), 1);
   ASSERT_EQ(results[0].size(), 1);
   TF_ASSERT_OK_AND_ASSIGN(auto literal, results[0][0]->ToLiteralSync());
@@ -222,38 +113,7 @@ TEST_P(PjRtClientTest, ExecuteWithDonation) {
                                      *literal));
 }
 
-TEST_P(PjRtClientTest, ExecuteWithDonationAbort) {
-  TF_ASSERT_OK_AND_ASSIGN(auto client, GetClient());
-  if (client->platform_id() == CpuId()) {
-    // The CPU platform currently copies donated buffers if there is an
-    // external reference.
-    return;
-  }
-  auto executable =
-      MakeIncrementProgram(client.get(), /*alias=*/true, /*device=*/0);
-
-  std::vector<int32_t> data(4, 0);
-  Shape shape = ShapeUtil::MakeShape(S32, {4});
-  TF_ASSERT_OK_AND_ASSIGN(
-      auto buffer, client->BufferFromHostBuffer(
-                       data.data(), shape.element_type(), shape.dimensions(),
-                       /*byte_strides=*/std::nullopt,
-                       PjRtClient::HostBufferSemantics::kZeroCopy, nullptr,
-                       client->addressable_devices()[0]));
-
-  auto external_reference = buffer->AcquireExternalReference();
-
-  ExecuteOptions options;
-  options.execution_mode = GetParam();
-
-  auto resultsor = executable->Execute({{buffer.get()}}, options);
-  ASSERT_FALSE(resultsor.ok());
-  EXPECT_THAT(resultsor.status().error_message(),
-              ::testing::HasSubstr(
-                  "Donation requested for buffer with external reference"));
-}
-
-TEST_P(PjRtClientTest, ExecuteWithConcurrentUsage) {
+TEST(PjRtClientTest, ExecuteWithConcurrentUsage) {
   TF_ASSERT_OK_AND_ASSIGN(auto client, GetClient());
   auto executable =
       MakeIncrementProgram(client.get(), /*alias=*/false, /*device=*/0);
@@ -267,20 +127,18 @@ TEST_P(PjRtClientTest, ExecuteWithConcurrentUsage) {
           /*byte_strides=*/std::nullopt,
           PjRtClient::HostBufferSemantics::kImmutableOnlyDuringCall, nullptr,
           client->addressable_devices()[0]));
-
-  ExecuteOptions options;
-  options.execution_mode = GetParam();
 
   constexpr int kNumThreads = 4;
-  tsl::thread::ThreadPool thread_pool(
-      tsl::Env::Default(), "ExecuteWithConcurrentUsage", kNumThreads);
+  tensorflow::thread::ThreadPool thread_pool(
+      tensorflow::Env::Default(), "ExecuteWithConcurrentUsage", kNumThreads);
 
   constexpr int kConcurrency = 16;
   absl::BlockingCounter blocking_counter(kConcurrency);
   std::vector<std::unique_ptr<PjRtBuffer>> results(kConcurrency);
   for (int i = 0; i < kConcurrency; ++i) {
     thread_pool.Schedule([&, &result = results[i]]() {
-      auto results = executable->Execute({{buffer.get()}}, options).value();
+      auto results =
+          executable->Execute({{buffer.get()}}, /*options=*/{}).value();
       CHECK_EQ(results.size(), 1);
       CHECK_EQ(results[0].size(), 1);
       result = std::move(results[0][0]);
@@ -298,7 +156,7 @@ TEST_P(PjRtClientTest, ExecuteWithConcurrentUsage) {
   }
 }
 
-TEST_P(PjRtClientTest, ExecuteWithConcurrentUsageAndDonation) {
+TEST(PjRtClientTest, ExecuteWithConcurrentUsageAndDonation) {
   TF_ASSERT_OK_AND_ASSIGN(auto client, GetClient());
   auto executable =
       MakeIncrementProgram(client.get(), /*alias=*/false, /*device=*/0);
@@ -315,20 +173,17 @@ TEST_P(PjRtClientTest, ExecuteWithConcurrentUsageAndDonation) {
                        PjRtClient::HostBufferSemantics::kZeroCopy, nullptr,
                        client->addressable_devices()[0]));
 
-  ExecuteOptions options;
-  options.execution_mode = GetParam();
-
   constexpr int kNumThreads = 4;
-  tsl::thread::ThreadPool thread_pool(tsl::Env::Default(),
-                                      "ExecuteWithConcurrentUsageAndDonation",
-                                      kNumThreads);
+  tensorflow::thread::ThreadPool thread_pool(
+      tensorflow::Env::Default(), "ExecuteWithConcurrentUsageAndDonation",
+      kNumThreads);
 
   constexpr int kConcurrentUsage = 16;
   absl::BlockingCounter blocking_counter(kConcurrentUsage + 1);
 
   for (int i = 0; i < kConcurrentUsage; ++i) {
     thread_pool.Schedule([&]() {
-      auto results_or = executable->Execute({{buffer.get()}}, options);
+      auto results_or = executable->Execute({{buffer.get()}}, /*options=*/{});
       // For this test, we don't care whether this execution will fail or not,
       // as this test is to test donation logic. But if the execution succeeds,
       // the result should be correct.
@@ -348,7 +203,8 @@ TEST_P(PjRtClientTest, ExecuteWithConcurrentUsageAndDonation) {
   // The donation must succeed with concurrent usages.
   thread_pool.Schedule([&]() {
     auto results =
-        executable_with_donation->Execute({{buffer.get()}}, options).value();
+        executable_with_donation->Execute({{buffer.get()}}, /*options=*/{})
+            .value();
     CHECK_EQ(results.size(), 1);
     CHECK_EQ(results[0].size(), 1);
     result = std::move(results[0][0]);
@@ -361,11 +217,6 @@ TEST_P(PjRtClientTest, ExecuteWithConcurrentUsageAndDonation) {
   EXPECT_TRUE(LiteralTestUtil::Equal(LiteralUtil::CreateR1<int32_t>(expected),
                                      *literal));
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    PjRtClientTestSuite, PjRtClientTest,
-    ::testing::Values(ExecuteOptions::ExecutionMode::kSynchronous,
-                      ExecuteOptions::ExecutionMode::kAsynchronous));
 
 TEST(PjRtClientTest, CopyToDevice) {
   TF_ASSERT_OK_AND_ASSIGN(auto client, GetClient());
@@ -409,8 +260,8 @@ TEST(PjRtClientTest, CopyToDeviceAsync) {
   auto* device_1 = client->addressable_devices()[1];
 
   constexpr int kNumThreads = 4;
-  tsl::thread::ThreadPool thread_pool(tsl::Env::Default(), "CopyToDeviceAsync",
-                                      kNumThreads);
+  tensorflow::thread::ThreadPool thread_pool(tensorflow::Env::Default(),
+                                             "CopyToDeviceAsync", kNumThreads);
 
   constexpr int kConcurrentCopy = 16;
   std::vector<std::unique_ptr<PjRtBuffer>> results(kConcurrentCopy);
@@ -432,11 +283,11 @@ TEST(PjRtClientTest, CopyToDeviceAsync) {
 }
 
 TEST(PjRtClientTest, CopyToDeviceAsyncExternalCpuOnly) {
+#if defined(PJRT_CLIENT_TEST_GPU)
+  return;
+#endif
   TF_ASSERT_OK_AND_ASSIGN(auto client, GetClient());
   ASSERT_GT(client->addressable_devices().size(), 1);
-
-  // Skip non-CPU platforms.
-  if (client->platform_id() != CpuId()) return;
 
   std::vector<int32_t> data(4, 0);
   auto* data_ptr = data.data();
@@ -453,8 +304,8 @@ TEST(PjRtClientTest, CopyToDeviceAsyncExternalCpuOnly) {
   auto* device_1 = client->addressable_devices()[1];
 
   constexpr int kNumThreads = 4;
-  tsl::thread::ThreadPool thread_pool(tsl::Env::Default(),
-                                      "CopyToDeviceAsyncExternal", kNumThreads);
+  tensorflow::thread::ThreadPool thread_pool(
+      tensorflow::Env::Default(), "CopyToDeviceAsyncExternal", kNumThreads);
 
   constexpr int kConcurrentCopy = 16;
   std::vector<std::unique_ptr<PjRtBuffer>> results(kConcurrentCopy);

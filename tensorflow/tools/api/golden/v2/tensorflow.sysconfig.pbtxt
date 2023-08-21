@@ -5,10 +5,6 @@ tf_module {
     mtype: "<type \'int\'>"
   }
   member {
-    name: "CXX_VERSION"
-    mtype: "<type \'int\'>"
-  }
-  member {
     name: "MONOLITHIC_BUILD"
     mtype: "<type \'int\'>"
   }

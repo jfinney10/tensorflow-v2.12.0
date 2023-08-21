@@ -17,11 +17,9 @@ limitations under the License.
 
 #include "tensorflow/compiler/jit/xla_compile_on_demand_op.h"
 
-#include <memory>
 #include <utility>
 
 #include "absl/memory/memory.h"
-#include "tensorflow/compiler/jit/device_compilation_profiler.h"
 #include "tensorflow/compiler/jit/xla_device.h"
 #include "tensorflow/compiler/jit/xla_launch_util.h"
 #include "tensorflow/compiler/jit/xla_platform_info.h"
@@ -33,18 +31,25 @@ limitations under the License.
 #include "tensorflow/core/lib/core/refcount.h"
 
 namespace tensorflow {
-namespace {
-using XlaDeviceCompiler =
-    DeviceCompiler<xla::LocalExecutable, xla::LocalClient>;
-}  // namespace
+
+// Returns argument indices corresponding to the resource variable inputs of
+// kernel context `ctx`.
+static std::vector<int> GetResourceVariableIndices(OpKernelContext* ctx) {
+  std::vector<int> out;
+  for (int64_t i = 0; i < ctx->num_inputs(); i++) {
+    if (ctx->input(i).dtype() == DT_RESOURCE) {
+      out.push_back(i);
+    }
+  }
+  return out;
+}
 
 Status XlaCompileOnDemandOp::Run(OpKernelContext* ctx,
-                                 XlaDeviceCompiler* xla_device_compiler,
+                                 XlaCompilationCache* cache,
                                  const XlaCompiler::CompilationResult* result,
                                  xla::LocalExecutable* executable,
                                  const ResourceVarsSnapshot& variable_args) {
-  xla::LocalClient* client =
-      static_cast<xla::LocalClient*>(xla_device_compiler->client());
+  xla::LocalClient* client = static_cast<xla::LocalClient*>(cache->client());
 
   se::Stream* stream =
       ctx->op_device_context() ? ctx->op_device_context()->stream() : nullptr;
@@ -104,11 +109,17 @@ Status XlaCompileOnDemandOp::Run(OpKernelContext* ctx,
 
 Status XlaCompileOnDemandOp::Compile(
     OpKernelContext* ctx, const XlaCompiler::CompilationResult** result,
-    XlaDeviceCompiler** xla_device_compiler,
-    DeviceCompilationProfiler** profiler, ResourceVarsSnapshot* variable_args,
+    XlaCompilationCache** cache, ResourceVarsSnapshot* variable_args,
     xla::LocalExecutable** executable) {
-  TF_ASSIGN_OR_RETURN(std::vector<int> constant_input_indices,
-                      GetConstantInputIndicesFromContext(ctx));
+
+  std::vector<int> constant_input_indices;
+  TF_RETURN_IF_ERROR(GetCompileTimeConstInputs(
+      &ctx->op_kernel(), &constant_input_indices, ctx->function_library()));
+  if (!absl::c_all_of(constant_input_indices, [&](int idx) {
+        return ctx->input_memory_type(idx) == HOST_MEMORY;
+      })) {
+    return errors::Internal("Unexpected device placement for a constant input");
+  }
   std::vector<const Tensor*> inputs = InputsFromContext(ctx);
 
   // We store information about the JIT-compiled XLA computation
@@ -116,22 +127,15 @@ Status XlaCompileOnDemandOp::Compile(
   ResourceMgr* rm = ctx->resource_manager();
   CHECK(rm);
 
-  TF_RETURN_IF_ERROR(rm->LookupOrCreate<XlaDeviceCompiler>(
-      rm->default_container(), "xla_device_compiler", xla_device_compiler,
-      [&](XlaDeviceCompiler** xla_device_compiler) {
-        return BuildXlaDeviceCompiler(ctx->device(), ctx->function_library(),
-                                      platform_info_, xla_device_compiler);
-      }));
-
-  TF_RETURN_IF_ERROR(rm->LookupOrCreate<DeviceCompilationProfiler>(
-      rm->default_container(), "device_compilation_profiler", profiler,
-      [](DeviceCompilationProfiler** profiler) {
-        *profiler = new DeviceCompilationProfiler();
-        return OkStatus();
+  TF_RETURN_IF_ERROR(rm->LookupOrCreate<XlaCompilationCache>(
+      rm->default_container(), "xla_cache", cache,
+      [&](XlaCompilationCache** write_into_cache) {
+        return BuildXlaCompilationCache(ctx->device(), ctx->function_library(),
+                                        platform_info_, write_into_cache);
       }));
 
   XlaCompiler::Options options = GenerateCompilerOptions(
-      **xla_device_compiler, *ctx->function_library(), ctx->device(),
+      **cache, *ctx->function_library(), ctx->device(),
       ctx->op_device_context() ? ctx->op_device_context()->stream() : nullptr,
       platform_info_, /*has_ref_vars=*/true);
   // No detailed logging from on demand op.
@@ -142,8 +146,7 @@ Status XlaCompileOnDemandOp::Compile(
   // rather than a one-element tuple.
   compile_options.always_return_tuple = false;
 
-  std::vector<int> variables_indices =
-      GetResourceVariableIndicesFromContext(ctx);
+  std::vector<int> variables_indices = GetResourceVariableIndices(ctx);
   StatusOr<std::vector<XlaCompiler::Argument>> args;
   {
     std::vector<VariableInfo> variable_infos;
@@ -161,29 +164,25 @@ Status XlaCompileOnDemandOp::Compile(
     TF_RETURN_IF_ERROR(args.status());
   }
 
-  return (*xla_device_compiler)
-      ->CompileSingleOpIfNeeded(options, *args, compile_options, ctx, *profiler,
-                                result, executable);
+  return (*cache)->CompileSingleOp(options, *args, ctx, compile_options, result,
+                                   executable);
 }
 
 void XlaCompileOnDemandOp::Compute(OpKernelContext* ctx) {
   const XlaCompiler::CompilationResult* result;
   xla::LocalExecutable* executable;
   ResourceVarsSnapshot variable_args;
-  XlaDeviceCompiler* xla_device_compiler;
-  DeviceCompilationProfiler* profiler;
+  XlaCompilationCache* cache;
   OP_REQUIRES(ctx, ctx->function_library(),
               errors::Internal("Function library missing"));
-  OP_REQUIRES_OK(ctx, Compile(ctx, &result, &xla_device_compiler, &profiler,
-                              &variable_args, &executable));
+  OP_REQUIRES_OK(ctx,
+                 Compile(ctx, &result, &cache, &variable_args, &executable));
 
-  // Hold the reference to the XLA device compiler and profiler during
-  // evaluation. (We could probably free them sooner because the ResourceMgr
-  // will retain references, but this is more obviously correct.)
-  core::ScopedUnref xla_device_compiler_ref(xla_device_compiler);
-  core::ScopedUnref profiler_ref(profiler);
-  OP_REQUIRES_OK(
-      ctx, Run(ctx, xla_device_compiler, result, executable, variable_args));
+  // Hold the reference to the JIT during evaluation. (We could probably
+  // free it sooner because the ResourceMgr will retain a reference, but
+  // this is more obviously correct.)
+  core::ScopedUnref cache_ref(cache);
+  OP_REQUIRES_OK(ctx, Run(ctx, cache, result, executable, variable_args));
 }
 
 }  // namespace tensorflow

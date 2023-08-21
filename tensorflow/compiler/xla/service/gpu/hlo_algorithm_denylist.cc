@@ -64,9 +64,10 @@ absl::Span<const stream_executor::dnn::AlgorithmDesc> GetDisabledConvAlgorithms(
     std::string file_path =
         GetDebugOptionsFromFlags().xla_gpu_algorithm_denylist_path();
     if (!file_path.empty()) {
-      TF_CHECK_OK(tsl::ReadTextProto(tsl::Env::Default(), file_path, &proto));
+      TF_CHECK_OK(tensorflow::ReadTextProto(tensorflow::Env::Default(),
+                                            file_path, &proto));
     } else {
-      CHECK(tsl::protobuf::TextFormat::ParseFromString(
+      CHECK(tensorflow::protobuf::TextFormat::ParseFromString(
           std::string(kDefaultDenylist), &proto));
     }
     for (const auto& entry : proto.entries()) {

@@ -14,20 +14,21 @@ limitations under the License.
 ==============================================================================*/
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_device.h"
 #include "tensorflow/compiler/mlir/tfrt/jit/transforms/tf_jitrt_passes.h"
 namespace tensorflow {
 namespace {
 
-#define GEN_PASS_DEF_LINALGTRIVIALBUFFERFORWARDING
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/tfrt/jit/transforms/tf_jitrt_passes.h.inc"
 
 // Returns true if all linalg.generic operation iterators are "parallel".
 bool AllIteratorsAreParallel(mlir::linalg::GenericOp op) {
-  return llvm::all_of(op.getIteratorTypesArray(),
-                      mlir::linalg::isParallelIterator);
+  return llvm::all_of(op.iterator_types(), [](mlir::Attribute attr) -> bool {
+    auto str_attr = attr.dyn_cast<mlir::StringAttr>();
+    return str_attr && str_attr.getValue() == "parallel";
+  });
 }
 
 // Returns buffer inputs that can be safely used as buffer outputs.
@@ -35,7 +36,7 @@ llvm::SmallVector<mlir::OpOperand*> FindBufferForwardingCandidates(
     mlir::linalg::GenericOp op) {
   llvm::SmallVector<mlir::OpOperand*> candidates;
 
-  for (mlir::OpOperand* input_buffer : op.getDpsInputOperands()) {
+  for (mlir::OpOperand* input_buffer : op.getInputOperands()) {
     // Input must be a contiguous memref ...
     if (!IsContiguousMemref(input_buffer->get())) continue;
 
@@ -92,7 +93,7 @@ struct LinalgTrivialBufferForwardingPattern
     llvm::DenseSet<mlir::OpOperand*> reused_inputs;
 
     // Try to match output buffers to forwarding candidates.
-    for (mlir::OpOperand* output_buffer : op.getDpsInitOperands()) {
+    for (mlir::OpOperand* output_buffer : op.getOutputOperands()) {
       // Output must be allocated in the same function.
       auto* alloc = output_buffer->get().getDefiningOp();
       if (!alloc || !mlir::isa<mlir::memref::AllocOp>(alloc)) continue;
@@ -114,8 +115,8 @@ struct LinalgTrivialBufferForwardingPattern
         if (input_buffer->get().getType() != output_buffer->get().getType())
           continue;
 
-        mlir::AffineMap src_map = op.getMatchingIndexingMap(input_buffer);
-        mlir::AffineMap dst_map = op.getMatchingIndexingMap(output_buffer);
+        mlir::AffineMap src_map = op.getTiedIndexingMap(input_buffer);
+        mlir::AffineMap dst_map = op.getTiedIndexingMap(output_buffer);
 
         // Only support identity maps for the output for now.
         if (!dst_map.isIdentity()) continue;
@@ -191,7 +192,7 @@ struct LinalgTrivialBufferForwardingPattern
 // Trivial buffer forwarding for the linalg.generic operations.
 // -------------------------------------------------------------------------- //
 struct LinalgTrivialBufferForwardingPass
-    : public impl::LinalgTrivialBufferForwardingBase<
+    : public LinalgTrivialBufferForwardingBase<
           LinalgTrivialBufferForwardingPass> {
   void runOnOperation() override {
     mlir::func::FuncOp function = getOperation();

@@ -17,18 +17,15 @@ limitations under the License.
 #include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/transforms/lower_tf.h"
-#include "tensorflow/compiler/mlir/tensorflow/transforms/test_passes.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/test_passes_detail.h"
 
 namespace mlir {
 namespace tf_test {
 namespace {
 
-#define GEN_PASS_DEF_TESTTENSORFLOWLOWERTFPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/test_passes.h.inc"
-
 // Lowers some of the TensorFlow operations that can be represented using other
 // TensorFlow operations.
-struct LowerTF : public impl::TestTensorFlowLowerTFPassBase<LowerTF> {
+struct LowerTF : public TestTensorFlowLowerTFPassBase<LowerTF> {
   void runOnOperation() override {
     // Add lowering patterns to the list.
     RewritePatternSet patterns(&getContext());

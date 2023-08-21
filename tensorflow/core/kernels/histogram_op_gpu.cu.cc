@@ -51,12 +51,8 @@ struct HistogramFixedWidthFunctor<GPUDevice, T, Tout> {
         pinned_allocator));
     auto levels = levels_tensor.flat<T>();
 
-    // Avoid overflow in step computation.
-    const double step = (nbins == 1) ? 0
-                                     : static_cast<double>(value_range(1)) /
-                                               static_cast<double>(nbins) -
-                                           static_cast<double>(value_range(0)) /
-                                               static_cast<double>(nbins);
+    const double step = static_cast<double>(value_range(1) - value_range(0)) /
+                        static_cast<double>(nbins);
     levels(0) = std::numeric_limits<T>::lowest();
     for (int i = 1; i < nbins; i++) {
       levels(i) =
@@ -113,7 +109,7 @@ struct HistogramFixedWidthFunctor<GPUDevice, T, Tout> {
           "Could not launch HistogramRange: ", GpuGetErrorString(err), ".");
     }
 
-    return OkStatus();
+    return Status::OK();
   }
 };
 

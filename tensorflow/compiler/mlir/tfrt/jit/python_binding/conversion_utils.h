@@ -17,7 +17,7 @@ limitations under the License.
 #define TENSORFLOW_COMPILER_MLIR_TFRT_JIT_PYTHON_BINDING_CONVERSION_UTILS_H_
 
 #include "pybind11/numpy.h"
-#include "tensorflow/compiler/xla/runtime/arguments.h"
+#include "tfrt/jitrt/arguments.h"  // from @tf_runtime
 #include "tfrt/dtype/dtype.h"  // from @tf_runtime
 
 namespace tensorflow {
@@ -26,10 +26,10 @@ namespace tensorflow {
 const char* ToPythonStructFormat(tfrt::DType dtype_kind);
 
 // Returns TFRT's dtype for the Python buffer protocol's type string.
-xla::PrimitiveType FromPythonStructFormat(char dtype);
+tfrt::DType FromPythonStructFormat(char dtype);
 
 // Converts Python array to the Memref Descriptor.
-xla::runtime::MemrefDesc ConvertPyArrayMemrefDesc(const pybind11::array& array);
+tfrt::jitrt::MemrefDesc ConvertPyArrayMemrefDesc(const pybind11::array& array);
 
 }  // namespace tensorflow
 

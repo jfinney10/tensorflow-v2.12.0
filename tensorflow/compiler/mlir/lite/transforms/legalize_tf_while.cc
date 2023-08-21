@@ -28,13 +28,12 @@ limitations under the License.
 namespace mlir {
 namespace TFL {
 namespace {
-#define GEN_PASS_DEF_LEGALIZEWHILEPASS
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/lite/transforms/passes.h.inc"
 
 // Legalize TF While to TFL While with calls to the original functions from the
 // cond and body regions.
-struct LegalizeWhilePass
-    : public impl::LegalizeWhilePassBase<LegalizeWhilePass> {
+struct LegalizeWhilePass : public LegalizeWhilePassBase<LegalizeWhilePass> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LegalizeWhilePass)
   void RunOnFunction(func::FuncOp func);
 
@@ -63,10 +62,10 @@ void RunOnWhile(TF::WhileOp while_op) {
   // Create new TFL While op that will be used to replace TF While op.
   auto new_op = OpBuilder(op).create<TFL::WhileOp>(
       op->getLoc(), op->getResultTypes(), op->getOperands(),
-      while_op.getIsStateless());
+      while_op.is_stateless());
   Location loc = while_op->getLoc();
-  CreateRegionWithCall(while_op.cond_function(), new_op.getCond(), loc);
-  CreateRegionWithCall(while_op.body_function(), new_op.getBody(), loc);
+  CreateRegionWithCall(while_op.cond_function(), new_op.cond(), loc);
+  CreateRegionWithCall(while_op.body_function(), new_op.body(), loc);
 
   op->replaceAllUsesWith(new_op.getResults());
   op->erase();

@@ -13,7 +13,7 @@ load(
     "generated_test_models_all",
 )
 load("//tensorflow/lite/testing:tflite_model_test.bzl", "tflite_model_test")
-load("//tensorflow:tensorflow.default.bzl", "pybind_extension")
+load("//tensorflow:tensorflow.bzl", "pybind_extension")
 load(
     "//tensorflow:tensorflow.bzl",
     "tf_cc_binary",
@@ -22,7 +22,6 @@ load(
 )
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [
         "//visibility:public",
     ],
@@ -132,6 +131,7 @@ py_library(
         "//tensorflow/lite/python:test_util",
         "//tensorflow/python:graph_util",
         "//third_party/py/numpy",
+        "@six_archive//:six",
     ],
 )
 
@@ -184,6 +184,7 @@ py_binary(
         ":zip_test_utils",
         "//tensorflow:tensorflow_py",
         "//third_party/py/numpy",
+        "@six_archive//:six",
     ],
 )
 
@@ -202,7 +203,6 @@ cc_library(
         ":split",
         ":test_runner",
         "//tensorflow/lite:framework",
-        "//tensorflow/lite/core:headers",
     ],
 )
 
@@ -266,13 +266,12 @@ cc_library(
         ":split",
         ":test_runner",
         "@com_google_absl//absl/strings",
-        "//tensorflow/lite/core/c:c_api_types",
-        "//tensorflow/lite/core:framework",
-        "//tensorflow/lite/core/c:common",
+        "//tensorflow/lite/c:c_api_types",
+        "//tensorflow/lite/c:common",
         "//tensorflow/lite:builtin_op_data",
         "//tensorflow/lite:framework",
         "//tensorflow/lite:string_util",
-        "//tensorflow/lite/core/kernels:builtin_ops",
+        "//tensorflow/lite/kernels:builtin_ops",
         "//tensorflow/lite/kernels:custom_ops",
         "//tensorflow/lite/kernels/gradient:gradient_ops",
         "//tensorflow/lite/kernels:reference_ops",
@@ -479,10 +478,10 @@ cc_library(
             "//tensorflow/core:lib",
         ],
         "//tensorflow:android": [
-            "//tensorflow/core:portable_tensorflow_lib_lite",
+            "//tensorflow/core:portable_tensorflow_lib",
         ],
         "//tensorflow:ios": [
-            "//tensorflow/core:portable_tensorflow_lib_lite",
+            "//tensorflow/core:portable_tensorflow_lib",
         ],
     }),
 )
@@ -613,7 +612,7 @@ cc_test(
         ":test_tflite_lib",
         "//tensorflow/core:tflite_portable_logging",
         "//tensorflow/lite:framework",
-        "//tensorflow/lite/core/c:common",
+        "//tensorflow/lite/c:common",
         "@com_google_googletest//:gtest_main",
     ],
 )
@@ -638,7 +637,6 @@ tflite_portable_test_suite()
 
 tflite_custom_android_library(
     name = "customized_tflite_for_add_ops",
-    experimental = True,
     models = ["//tensorflow/lite:testdata/add.bin"],
     visibility = ["//visibility:public"],
 )

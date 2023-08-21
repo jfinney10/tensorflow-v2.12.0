@@ -386,7 +386,7 @@ class _GroupByReducerDataset(dataset_ops.UnaryDataset):
 
 
 @tf_export("data.experimental.Reducer")
-class Reducer:
+class Reducer(object):
   """A reducer is used for reducing a set of elements.
 
   A reducer is represented as a tuple of the three functions:

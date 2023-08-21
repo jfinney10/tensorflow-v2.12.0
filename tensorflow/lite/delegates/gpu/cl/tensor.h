@@ -70,9 +70,8 @@ class Tensor : public GPUObject, public GpuSpatialTensor {
   TensorStorageType GetStorageType() const {
     return descriptor_.GetStorageType();
   }
-  uint64_t GetMemorySizeInBytes() const {
-    return descriptor_.GetMemorySizeInBytes();
-  }
+
+  uint64_t GetMemorySizeInBytes() const;
 
   cl_mem GetMemoryPtr() const;
 
@@ -96,6 +95,7 @@ class Tensor : public GPUObject, public GpuSpatialTensor {
   absl::Status WriteData(const void* ptr, CLCommandQueue* queue);
   absl::Status ReadData(void* ptr, CLCommandQueue* queue) const;
 
+  int3 GetFullTensorRegion() const;
   void Release();
 
   cl_mem memory_;

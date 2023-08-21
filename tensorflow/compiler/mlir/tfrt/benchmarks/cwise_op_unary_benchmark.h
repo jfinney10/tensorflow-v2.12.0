@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_COMPILER_MLIR_TFRT_BENCHMARKS_CWISE_OP_UNARY_BENCHMARK_H_
-#define TENSORFLOW_COMPILER_MLIR_TFRT_BENCHMARKS_CWISE_OP_UNARY_BENCHMARK_H_
+#ifndef TENSORFLOW_COMPILER_MLIR_TFRT_BENCHMARKS_CWISE_UNARY_BENCHMARK_H_
+#define TENSORFLOW_COMPILER_MLIR_TFRT_BENCHMARKS_CWISE_UNARY_BENCHMARK_H_
 
 #include <utility>
 
@@ -35,13 +35,11 @@ using ::tfrt::RCReference;
 using ::tfrt::RemainingResults;
 using ::tfrt::RequestContext;
 using ::tfrt::RequestContextBuilder;
-
+using ::tfrt::jitrt::Executable;
 using ::tfrt::jitrt::HostContextAsyncTaskRunner;
-using ::tfrt::jitrt::RemainingResultsConverter;
-
-using ::xla::runtime::Executable;
-using ::xla::runtime::JitExecutable;
-using ::xla::runtime::MemrefDesc;
+using ::tfrt::jitrt::JitExecutable;
+using ::tfrt::jitrt::MemrefDesc;
+using ::tfrt::jitrt::ReturnValueConverter;
 
 // -------------------------------------------------------------------------- //
 // Run benchmark by compiling MLIR function using TFRT JitRt API.
@@ -53,7 +51,7 @@ struct MlirBenchmark {
   const Executable* executable;
   tfrt::ExecutionContext exec_ctx;
   std::unique_ptr<ResultConversionCtx> conversion_ctx;
-  RemainingResultsConverter<ResultConversionCtx> converter;
+  ReturnValueConverter<ResultConversionCtx> converter;
 };
 
 template <typename T, int rank>
@@ -87,19 +85,20 @@ MlirBenchmark<T, rank> PrepareUnaryMlirBenchmark(
 
   // Free memory owned by the returned memrefs.
   auto ctx = std::make_unique<ResultConversionCtx>(std::move(input_ptrs));
-  RemainingResultsConverter<ResultConversionCtx> converter(results, *ctx);
+  ReturnValueConverter<ResultConversionCtx> converter(results, *ctx);
   converter.AddConversion(FreeReturnedMemref);
 
   // Get an executable that might be specialized to the operands.
-  absl::StatusOr<AsyncValuePtr<Executable>> executable =
+  llvm::Expected<AsyncValuePtr<Executable>> executable =
       jit_executable.GetExecutable(operands);
-  if (!executable.ok()) LOG(FATAL) << "Failed to specialize executable";
+  if (auto err = executable.takeError())
+    LOG(FATAL) << "Failed to specialize executable";
 
   // Wait for the compilation completion.
   host->Await({executable->CopyRef()});
 
   CHECK(!executable->IsError())
-      << "Failed to get executable: " << executable->GetError().message();
+      << "Failed to get executable: " << StrCat(executable->GetError());
   CHECK(!(*executable)->IsAsync()) << "async results are not supported";
 
   return {std::move(host), &executable->get(), exec_ctx, std::move(ctx),
@@ -126,8 +125,7 @@ void TestUnaryMlirBenchmark(llvm::StringRef mlir_input,
 
   // Initialize call frame with MemrefDesc operands.
   Executable::CallFrame call_frame;
-  if (auto st = b.executable->InitializeCallFrame(operands, &call_frame);
-      !st.ok())
+  if (auto err = b.executable->InitializeCallFrame(operands, &call_frame))
     LOG(FATAL) << "Failed to initialize call frame";
 
   // Execute async tasks in the HostContext work queue.
@@ -137,7 +135,7 @@ void TestUnaryMlirBenchmark(llvm::StringRef mlir_input,
 
   // Execute once.
   b.executable->Execute(call_frame, opts);
-  if (auto st = b.executable->ReturnResults(b.converter, &call_frame); !st.ok())
+  if (auto err = b.executable->ReturnResults(b.converter, &call_frame))
     LOG(FATAL) << "Failed to return compiled kernel results";
 }
 
@@ -160,8 +158,7 @@ void RunUnaryMlirBenchmark(::testing::benchmark::State& state,
 
   // Initialize call frame with MemrefDesc operands.
   Executable::CallFrame call_frame;
-  if (auto st = b.executable->InitializeCallFrame(operands, &call_frame);
-      !st.ok())
+  if (auto err = b.executable->InitializeCallFrame(operands, &call_frame))
     LOG(FATAL) << "Failed to initialize call frame";
 
   // Execute async tasks in the HostContext work queue.
@@ -172,8 +169,7 @@ void RunUnaryMlirBenchmark(::testing::benchmark::State& state,
   for (auto _ : state) {
     call_frame.args[0] = nullptr;  // reset kernel context argument
     b.executable->Execute(call_frame, opts);
-    if (auto st = b.executable->ReturnResults(b.converter, &call_frame);
-        !st.ok())
+    if (auto err = b.executable->ReturnResults(b.converter, &call_frame))
       LOG(FATAL) << "Failed to return compiled kernel results";
   }
 
@@ -291,4 +287,4 @@ void RunUnaryEigenBenchmark(::testing::benchmark::State& state,
   }                                                                          \
   BENCHMARK(BM_eigen_v_##NAME##_##TYPE##_##NUM_THREADS)->MeasureProcessCPUTime()
 
-#endif  // TENSORFLOW_COMPILER_MLIR_TFRT_BENCHMARKS_CWISE_OP_UNARY_BENCHMARK_H_
+#endif  // TENSORFLOW_COMPILER_MLIR_TFRT_BENCHMARKS_CWISE_UNARY_BENCHMARK_H_

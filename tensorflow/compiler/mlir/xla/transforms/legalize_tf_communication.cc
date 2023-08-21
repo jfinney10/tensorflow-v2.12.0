@@ -26,7 +26,6 @@ limitations under the License.
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
-#include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"  // from @llvm-project
 #include "mlir/IR/Attributes.h"  // from @llvm-project
 #include "mlir/IR/Builders.h"  // from @llvm-project
 #include "mlir/IR/BuiltinOps.h"  // from @llvm-project
@@ -37,12 +36,13 @@ limitations under the License.
 #include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "mlir/Support/LLVM.h"  // from @llvm-project
 #include "mlir/Support/LogicalResult.h"  // from @llvm-project
+#include "tensorflow/compiler/mlir/hlo/include/mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
+#include "tensorflow/compiler/mlir/xla/transforms/tf_xla_passes_detail.h"
+#include "tensorflow/compiler/mlir/xla/type_to_shape.h"
 #include "tensorflow/compiler/xla/client/sharding_builder.h"
-#include "tensorflow/compiler/xla/mlir_hlo/mhlo/IR/hlo_ops.h"
 #include "tensorflow/compiler/xla/primitive_util.h"
 #include "tensorflow/compiler/xla/side_effect_util.h"
-#include "tensorflow/compiler/xla/translate/mhlo_to_hlo/type_to_shape.h"
 
 namespace mlir {
 
@@ -56,16 +56,13 @@ constexpr char kFrontendAttributesAttr[] = "mhlo.frontend_attributes";
 // TPU core that sends to and receives from host.
 constexpr int64_t kShardingTpuCore = 0;
 
-#define GEN_PASS_DEF_LEGALIZETFCOMMUNICATIONPASS
-#include "tensorflow/compiler/mlir/xla/transforms/tf_xla_passes.h.inc"
-
 // A pass that legalizes TF/XLA communication ops, propagate their respective
 // tokens (for ordering), and rewrite their respective functions and control
 // flow ops when necessary.
 // Note, this currently does not handle nested modules/functions or region based
 // ops other than certain control flow ops (`mhlo.if`, `mhlo.while`).
 class LegalizeTFCommunication
-    : public impl::LegalizeTFCommunicationPassBase<LegalizeTFCommunication> {
+    : public LegalizeTFCommunicationPassBase<LegalizeTFCommunication> {
   void runOnOperation() override;
 };
 
@@ -330,18 +327,18 @@ Value RewriteHostComputeOp(OpBuilder& builder, int64_t& channel_id,
   Location loc = host_compute.getLoc();
 
   SmallVector<Value, 4> send_tokens;
-  for (auto operand : llvm::enumerate(host_compute.getInputs())) {
+  for (auto operand : llvm::enumerate(host_compute.inputs())) {
     auto send_token = CreateSendOp(
-        builder, channel_id, loc, operand.value(), host_compute.getSendKey(),
+        builder, channel_id, loc, operand.value(), host_compute.send_key(),
         operand.index(), token, xla::kXlaHostTransferTfRendezvousHandlerName);
     send_tokens.push_back(send_token);
   }
   token = CreateSinkToken(builder, loc, send_tokens, token);
 
   SmallVector<Value, 4> recv_tokens;
-  for (auto result : llvm::enumerate(host_compute.getOutputs())) {
+  for (auto result : llvm::enumerate(host_compute.outputs())) {
     auto recv_token = CreateRecvOp(
-        builder, channel_id, loc, result.value(), host_compute.getRecvKey(),
+        builder, channel_id, loc, result.value(), host_compute.recv_key(),
         result.index(), token, xla::kXlaHostTransferTfRendezvousHandlerName);
     recv_tokens.push_back(recv_token);
   }
@@ -356,7 +353,7 @@ Value RewriteSendToHostOp(OpBuilder& builder, int64_t& channel_id,
                           TF::XlaSendToHostOp send_to_host, Value token) {
   builder.setInsertionPoint(send_to_host);
   token = CreateSendOp(builder, channel_id, send_to_host.getLoc(),
-                       send_to_host.getInput(), send_to_host.getKey(),
+                       send_to_host.input(), send_to_host.key(),
                        /*index=*/0, token,
                        xla::kXlaHostTransferTfRendezvousHandlerName);
 
@@ -369,7 +366,7 @@ Value RewriteRecvFromHostOp(OpBuilder& builder, int64_t& channel_id,
                             TF::XlaRecvFromHostOp recv_from_host, Value token) {
   builder.setInsertionPoint(recv_from_host);
   token = CreateRecvOp(builder, channel_id, recv_from_host.getLoc(),
-                       recv_from_host.getOutput(), recv_from_host.getKey(),
+                       recv_from_host.output(), recv_from_host.key(),
                        /*index=*/0, token,
                        xla::kXlaHostTransferTfRendezvousHandlerName);
 
@@ -559,7 +556,8 @@ Value UpdateControlFlowBlockArgWithToken(OpBuilder& builder, Block& block,
   ReplaceWithTupleResult(builder, old_args, new_args, /*flatten_tuple=*/true);
   auto new_arg = new_args[new_args.size() - 1];
 
-  block.eraseArguments(0, old_args_size);
+  block.eraseArguments(
+      llvm::to_vector(llvm::seq((unsigned)0, (unsigned)old_args_size)));
 
   return new_arg;
 }
@@ -572,7 +570,7 @@ void RewriteControlFlowTerminator(OpBuilder& builder, Operation* terminator,
   // `mhlo.while` cond terminator does not need to be rewritten as it always
   // returns a tensor<i1> predicate value.
   if (auto while_parent = dyn_cast_or_null<WhileOp>(terminator->getParentOp()))
-    if (terminator->getParentRegion() == &while_parent.getCond()) return;
+    if (terminator->getParentRegion() == &while_parent.cond()) return;
 
   builder.setInsertionPoint(terminator);
   llvm::SmallDenseMap<Value, Value> rewritten_operands;
@@ -597,11 +595,11 @@ void RewriteRegionIfOp(OpBuilder& builder, IfOp region_if,
 
   // Create new `mhlo.if` op with extra token operands and result.
   auto new_if = builder.create<IfOp>(region_if.getLoc(), new_result_types,
-                                     region_if.getPred());
+                                     region_if.pred());
 
   // Move all regions from the old `mhlo.if` op to its replacement.
-  new_if.getTrueBranch().takeBody(region_if.getTrueBranch());
-  new_if.getFalseBranch().takeBody(region_if.getFalseBranch());
+  new_if.true_branch().takeBody(region_if.true_branch());
+  new_if.false_branch().takeBody(region_if.false_branch());
 
   // Forward result from old `mhlo.if` with replacement.
   SmallVector<Value> old_if_results = region_if.getResults();
@@ -638,8 +636,8 @@ void RewriteControlFlowOpRegion(
                                                         block_arg_types);
 
   if (control_flow_blocks.contains(&region.front())) {
-    ops_to_visit.push_back(
-        {/*region_idx=*/llvm::None, block_token, &region.front().front()});
+      ops_to_visit.push_back(
+          {/*region_idx=*/llvm::None, block_token, &region.front().front()});
     return;
   }
 
@@ -659,7 +657,8 @@ void ReplaceBlockArgumentsWithImplicitOperands(mlir::Operation* op,
 
   auto& region = op->getRegion(region_idx);
   region.getArgument(0).replaceAllUsesWith(implicit_operand);
-  region.front().eraseArguments(0, region.getNumArguments());
+  region.front().eraseArguments(
+      llvm::to_vector(llvm::seq<unsigned>(0, region.getNumArguments())));
 }
 
 // Rewrites an `mhlo.if` op or its region. If `region_idx` is not set, the op
@@ -725,8 +724,8 @@ void RewriteRegionWhileOp(OpBuilder& builder, WhileOp region_while,
                                            new_result_types, new_val_operands);
 
   // Move all regions from the old `mhlo.while` op to its replacement.
-  new_while.getCond().takeBody(region_while.getCond());
-  new_while.getBody().takeBody(region_while.getBody());
+  new_while.cond().takeBody(region_while.cond());
+  new_while.body().takeBody(region_while.body());
 
   // Forward result from old `mhlo.while` with replacement.
   SmallVector<Value> old_while_results = region_while.getResults();
@@ -761,7 +760,7 @@ bool ProcessRegionWhileOp(
 
   if (*region_idx < region_while.getNumRegions()) {
     SmallVector<Type> operand_types;
-    for (auto operand : region_while.getOperand())
+    for (auto operand : region_while.operand())
       operand_types.push_back(operand.getType());
     RewriteControlFlowOpRegion(builder, region_while, *region_idx,
                                operand_types, ops_to_visit, control_flow_blocks,

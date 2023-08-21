@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package xla.gpu;
 
-import "tensorflow/compiler/xla/stream_executor/dnn.proto";
 import "tensorflow/compiler/xla/xla_data.proto";
+import "tensorflow/stream_executor/dnn.proto";
 
 // Backend configs for XLA:GPU.
 //
@@ -62,12 +62,6 @@ message GemmBackendConfig {
   enum Epilogue {
     DEFAULT = 0;
     BIAS = 1;
-    RELU = 2;
-    BIAS_RELU = 3;
-    GELU = 4;
-    GELU_AUX = 5;
-    BIAS_GELU = 6;
-    BIAS_GELU_AUX = 7;
   }
 
   Epilogue epilogue = 13;

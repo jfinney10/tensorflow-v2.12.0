@@ -34,16 +34,16 @@ limitations under the License.
 // Note that while the use of gmock matchers is allowed in the xla project, the
 // use of mocks is disallowed in the whole tensorflow project!
 
-#include "tensorflow/tsl/platform/platform.h"
+#include "tensorflow/core/platform/platform.h"
 
 #if defined(PLATFORM_GOOGLE) || defined(PLATFORM_GOOGLE_ANDROID)
-#include <gmock/gmock.h>  // IWYU pragma: export
+#include <gmock/gmock.h>
 #else
-#include <gmock/gmock-actions.h>
-#include <gmock/gmock-matchers.h>            // IWYU pragma: export
-#include <gmock/gmock-more-matchers.h>       // IWYU pragma: export
+#include <gmock/gmock-generated-matchers.h>
+#include <gmock/gmock-matchers.h>
+#include <gmock/gmock-more-matchers.h>
 #endif
 
-#include "tensorflow/tsl/platform/test.h"  // IWYU pragma: export
+#include "tensorflow/core/platform/test.h"
 
 #endif  // TENSORFLOW_COMPILER_XLA_TEST_H_

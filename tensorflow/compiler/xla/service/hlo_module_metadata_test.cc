@@ -13,10 +13,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow/compiler/xla/hlo/ir/hlo_module_metadata.h"
+#include "tensorflow/compiler/xla/service/hlo_module_metadata.h"
 
 #include "tensorflow/compiler/xla/test.h"
 #include "tensorflow/compiler/xla/test_helpers.h"
+#include "tensorflow/stream_executor/lib/statusor.h"
 
 namespace xla {
 namespace {
@@ -25,7 +26,7 @@ using ::testing::ElementsAre;
 using ::testing::Property;
 using ::testing::StrEq;
 
-class TestEnv : public tsl::EnvWrapper {
+class TestEnv : public tensorflow::EnvWrapper {
  public:
   TestEnv() : EnvWrapper(Env::Default()) {}
 
@@ -77,16 +78,18 @@ TEST(HloModuleMetadata, RecordsPassEndInNestedMetadata) {
 }
 
 TEST(HloModuleMetadata, RecordPassEndReturnsNotFound) {
-  HloModuleMetadata module_metadata(tsl::Env::Default());
-  EXPECT_EQ(module_metadata.RecordPassEnd().code(), tsl::error::NOT_FOUND);
+  HloModuleMetadata module_metadata(tensorflow::Env::Default());
+  EXPECT_EQ(module_metadata.RecordPassEnd().code(),
+            tensorflow::error::NOT_FOUND);
 
   module_metadata.RecordPassStart();
   EXPECT_IS_OK(module_metadata.RecordPassEnd());
-  EXPECT_EQ(module_metadata.RecordPassEnd().code(), tsl::error::NOT_FOUND);
+  EXPECT_EQ(module_metadata.RecordPassEnd().code(),
+            tensorflow::error::NOT_FOUND);
 }
 
 TEST(HloModuleMetadata, SetsHloPassMetadataFields) {
-  HloModuleMetadata module_metadata(tsl::Env::Default());
+  HloModuleMetadata module_metadata(tensorflow::Env::Default());
   module_metadata.RecordPassStart();
   EXPECT_IS_OK(module_metadata.set_current_pass_name("fake name"));
   EXPECT_THAT(
@@ -95,7 +98,7 @@ TEST(HloModuleMetadata, SetsHloPassMetadataFields) {
 }
 
 TEST(HloModuleMetadata, SetsHloPassMetadataFieldsInNestedMetadata) {
-  HloModuleMetadata module_metadata(tsl::Env::Default());
+  HloModuleMetadata module_metadata(tensorflow::Env::Default());
   module_metadata.RecordPassStart();
   module_metadata.RecordPassStart();
   EXPECT_IS_OK(module_metadata.set_current_pass_name("fake name"));
@@ -106,13 +109,13 @@ TEST(HloModuleMetadata, SetsHloPassMetadataFieldsInNestedMetadata) {
 }
 
 TEST(HloModuleMetadata, SetterReturnsNotFound) {
-  HloModuleMetadata module_metadata(tsl::Env::Default());
+  HloModuleMetadata module_metadata(tensorflow::Env::Default());
   EXPECT_EQ(module_metadata.set_current_pass_name("fake name").code(),
-            tsl::error::NOT_FOUND);
+            tensorflow::error::NOT_FOUND);
 }
 
 TEST(HloModuleMetadata, CopiesRunningPrepartitioningPasses) {
-  HloModuleMetadata old_module_metadata(tsl::Env::Default());
+  HloModuleMetadata old_module_metadata(tensorflow::Env::Default());
   old_module_metadata.RecordPassStart();
   EXPECT_IS_OK(old_module_metadata.set_current_pass_name("outer pass"));
 
@@ -123,7 +126,7 @@ TEST(HloModuleMetadata, CopiesRunningPrepartitioningPasses) {
   old_module_metadata.RecordPassStart();
   EXPECT_IS_OK(old_module_metadata.set_current_pass_name("inner pass"));
 
-  HloModuleMetadata new_module_metadata(tsl::Env::Default());
+  HloModuleMetadata new_module_metadata(tensorflow::Env::Default());
   new_module_metadata.set_prepartitioning_metadata(old_module_metadata);
 
   // Passes that are still running go in the new module.

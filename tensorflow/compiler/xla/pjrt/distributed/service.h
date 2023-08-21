@@ -16,7 +16,6 @@ limitations under the License.
 #ifndef TENSORFLOW_COMPILER_XLA_PJRT_DISTRIBUTED_SERVICE_H_
 #define TENSORFLOW_COMPILER_XLA_PJRT_DISTRIBUTED_SERVICE_H_
 
-#include <memory>
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
@@ -28,10 +27,10 @@ limitations under the License.
 #include "tensorflow/compiler/xla/pjrt/distributed/protocol.grpc.pb.h"
 #include "tensorflow/compiler/xla/statusor.h"
 #include "tensorflow/compiler/xla/types.h"
-#include "tensorflow/tsl/distributed_runtime/coordination/coordination_service.h"
-#include "tensorflow/tsl/distributed_runtime/rpc/async_service_interface.h"
-#include "tensorflow/tsl/platform/env.h"
-#include "tensorflow/tsl/platform/threadpool.h"
+#include "tensorflow/core/distributed_runtime/coordination/coordination_service.h"
+#include "tensorflow/core/distributed_runtime/rpc/async_service_interface.h"
+#include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/threadpool.h"
 
 namespace xla {
 
@@ -44,7 +43,7 @@ class DistributedRuntimeServiceImpl final
     // Number of nodes in the job. Mandatory. Must be non-negative.
     int num_nodes = -1;
 
-    tsl::Env* env = tsl::Env::Default();
+    tensorflow::Env* env = tensorflow::Env::Default();
 
     // Interval at which the service should check for missed heartbeat RPCs
     // from the clients.
@@ -60,7 +59,7 @@ class DistributedRuntimeServiceImpl final
 
     // How long should we wait for all clients to call Shutdown() before giving
     // up and returning a failure?
-    absl::Duration shutdown_timeout = absl::Minutes(5);
+    absl::Duration shutdown_timeout = absl::Seconds(60);
   };
   explicit DistributedRuntimeServiceImpl(const Options& options);
   ~DistributedRuntimeServiceImpl() override;
@@ -153,7 +152,7 @@ class DistributedRuntimeServiceImpl final
   absl::Notification stop_heartbeat_thread_;
 
   // Thread that checks for missing hearbeats from the clients periodically.
-  std::unique_ptr<tsl::Thread> heartbeat_thread_;
+  std::unique_ptr<tensorflow::Thread> heartbeat_thread_;
 };
 
 class CoordinationServiceImpl {
@@ -171,11 +170,11 @@ class CoordinationServiceImpl {
   CoordinationServiceImpl&& operator=(CoordinationServiceImpl&&) = delete;
 
  private:
-  tsl::Env* env_ = nullptr;  // Not owned.
-  std::unique_ptr<tsl::CoordinationServiceInterface> coord_service_;
-  std::unique_ptr<tsl::thread::ThreadPool> coord_compute_pool_;
-  std::unique_ptr<tsl::AsyncServiceInterface> coord_rpc_service_;
-  std::unique_ptr<tsl::Thread> coord_rpc_thread_;
+  tensorflow::Env* env_ = nullptr;  // Not owned.
+  std::unique_ptr<tensorflow::CoordinationServiceInterface> coord_service_;
+  std::unique_ptr<tensorflow::thread::ThreadPool> coord_compute_pool_;
+  std::unique_ptr<tensorflow::AsyncServiceInterface> coord_rpc_service_;
+  std::unique_ptr<tensorflow::Thread> coord_rpc_thread_;
 };
 
 class DistributedRuntimeService {

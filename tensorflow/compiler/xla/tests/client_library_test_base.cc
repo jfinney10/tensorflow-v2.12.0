@@ -30,7 +30,7 @@ limitations under the License.
 #include "tensorflow/compiler/xla/status_macros.h"
 #include "tensorflow/compiler/xla/statusor.h"
 #include "tensorflow/compiler/xla/test_helpers.h"
-#include "tensorflow/tsl/platform/logging.h"
+#include "tensorflow/core/platform/logging.h"
 
 namespace xla {
 namespace {
@@ -39,20 +39,20 @@ namespace {
 constexpr char kInterpreter[] = "interpreter";
 
 // Wrapper function that creates a nicer error message (than a bare
-// value()) if the platform we intend to test is not available.
+// ValueOrDie()) if the platform we intend to test is not available.
 LocalClient* GetOrCreateLocalClientOrDie(
     const LocalClientOptions& client_options) {
   StatusOr<LocalClient*> result =
       ClientLibrary::GetOrCreateLocalClient(client_options);
   TF_CHECK_OK(result.status()) << " could not create local client for testing";
-  return result.value();
+  return result.ValueOrDie();
 }
 
 // Helper functions to get the reference platform.
 se::Platform* GetReferencePlatform() {
   auto result = PlatformUtil::GetPlatform(kInterpreter);
   TF_CHECK_OK(result.status()) << "could not get interpreter platform";
-  return result.value();
+  return result.ValueOrDie();
 }
 
 }  // namespace
@@ -154,12 +154,12 @@ std::string ClientLibraryTestBase::ExecuteToString(
   if (!result.ok()) {
     return result.status().ToString();
   } else {
-    return result.value().ToString();
+    return result.ValueOrDie().ToString();
   }
 }
 
 void ClientLibraryTestBase::ComputeAndCompareR1(
-    XlaBuilder* builder, const tsl::core::Bitmap& expected,
+    XlaBuilder* builder, const tensorflow::core::Bitmap& expected,
     absl::Span<GlobalData* const> arguments) {
   Literal expected_literal = LiteralUtil::CreateR1(expected);
   ClientLibraryTestBase::ComputeAndCompareLiteral(builder, expected_literal,
@@ -195,7 +195,7 @@ Status ClientLibraryTestBase::ComputeAndCompareLiteralWithAllOutputLayouts(
   std::vector<int64_t> minor_to_major(expected.shape().rank());
   std::iota(minor_to_major.begin(), minor_to_major.end(), 0);
   do {
-    auto layout = ShapeUtil::MakeShapeWithDenseLayout(
+    auto layout = ShapeUtil::MakeShapeWithLayout(
         expected.shape().element_type(), expected.shape().dimensions(),
         minor_to_major);
     TF_ASSIGN_OR_RETURN(auto actual,

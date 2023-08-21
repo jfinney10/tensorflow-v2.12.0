@@ -168,26 +168,11 @@ Status TensorShapeBase<Shape>::BuildTensorShapeBase(
   } else {
     out->set_ndims_byte(0);
     out->set_num_elements(1);
-    int64_t num_elements_excluding_zero_dims = 1;
     Status s = OkStatus();
     for (const auto& d : proto.dim()) {
       s = out->AddDimWithStatus(d.size());
       if (!s.ok()) {
         return s;
-      }
-      // If one of the dimensions has size 0, multiplying the dimensions in
-      // ascending order isn't sufficient to prevent all multiplication orders
-      // from overflowing. To do that, we need to check that there would be no
-      // overflow if all zero-length dimensions were multiplied last, which is
-      // equivalent to ensuring that there's no overflow if zero-length
-      // dimensions are skipped. Unknown dimensions are also ignored.
-      if (d.size() > 0) {
-        num_elements_excluding_zero_dims =
-            MultiplyWithoutOverflow(num_elements_excluding_zero_dims, d.size());
-        if (TF_PREDICT_FALSE(num_elements_excluding_zero_dims < 0)) {
-          return errors::InvalidArgument(
-              "Encountered overflow when multiplying shape dimensions");
-        }
       }
     }
   }
@@ -881,7 +866,7 @@ PartialTensorShape PartialTensorShape::Concatenate(int64_t size) const {
 
 Status PartialTensorShape::ConcatenateWithStatus(
     int64_t size, PartialTensorShape* out) const {
-  *out = *this;
+  out = const_cast<PartialTensorShape*>(this);
   return out->AddDimWithStatus(size);
 }
 
@@ -901,7 +886,7 @@ Status PartialTensorShape::ConcatenateWithStatus(
     *out = PartialTensorShape();
     return OkStatus();
   }
-  *out = *this;
+  out = const_cast<PartialTensorShape*>(this);
   for (auto dim : shape) {
     Status s = out->AddDimWithStatus(dim.size);
     if (!s.ok()) return s;
@@ -929,7 +914,7 @@ Status PartialTensorShape::MergeWith(const PartialTensorShape& shape,
 
   if (result == this) {
     return errors::Internal(
-        "PartialTensorShape::MergeWith: Cannot output result to itself");
+        "PartialTensorShape::MergeWith: cannot merge shape with itself");
   }
 
   result->Clear();

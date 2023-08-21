@@ -16,8 +16,6 @@ limitations under the License.
 
 #include <cstdint>
 #include <deque>
-#include <memory>
-#include <numeric>
 #include <string>
 #include <tuple>
 #include <utility>

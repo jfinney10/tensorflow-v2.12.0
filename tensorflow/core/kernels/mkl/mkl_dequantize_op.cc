@@ -56,8 +56,8 @@ class MklDequantizeOp : public OpKernel {
 
       // Get the inputs
       const Tensor& src_tensor = ctx->input(kSrcIndex);
-      const float min_range = ctx->input(kMinIndex).template scalar<float>()();
-      const float max_range = ctx->input(kMaxIndex).template scalar<float>()();
+      const float min_range = ctx->input(kMinIndex).template flat<float>()(0);
+      const float max_range = ctx->input(kMaxIndex).template flat<float>()(0);
 
       // Get MklShape
       auto src_tf_shape = src_tensor.shape();
@@ -127,6 +127,7 @@ class MklDequantizeOp : public OpKernel {
       // The quantization logic here for mode SCALED is similar to the logic
       // in QuantizeAndDequantizeV2 and QuantizeAndDequantizeV3.
       static constexpr int num_bits = sizeof(T) * 8;
+      const float max_abs = std::max(std::abs(min_range), std::abs(max_range));
       bool is_signed = std::is_signed<T>::value;
 
       const int target_bits = is_signed ? (num_bits - 1) : num_bits;

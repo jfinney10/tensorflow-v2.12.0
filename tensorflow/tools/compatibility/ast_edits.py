@@ -24,7 +24,8 @@ import tempfile
 import traceback
 
 import pasta
-
+import six
+from six.moves import range
 
 # Some regular expressions we will need for parsing
 FIND_OPEN = re.compile(r"^\s*(\[).*$")
@@ -52,7 +53,7 @@ def full_name_node(name, ctx=ast.Load()):
   Returns:
     A Name or Attribute node.
   """
-  names = name.split(".")
+  names = six.ensure_str(name).split(".")
   names.reverse()
   node = ast.Name(id=names.pop(), ctx=ast.Load())
   while names:
@@ -183,7 +184,7 @@ def excluded_from_module_rename(module, import_rename_spec):
   return False
 
 
-class APIChangeSpec:
+class APIChangeSpec(object):
   """This class defines the transformations that need to happen.
 
   This class must provide the following fields:
@@ -297,7 +298,7 @@ class _PastaEditVisitor(ast.NodeVisitor):
     function_transformers = getattr(self._api_change_spec,
                                     transformer_field, {})
 
-    glob_name = "*." + name if name else None
+    glob_name = "*." + six.ensure_str(name) if name else None
     transformers = []
     if full_name in function_transformers:
       transformers.append(function_transformers[full_name])
@@ -314,7 +315,7 @@ class _PastaEditVisitor(ast.NodeVisitor):
     function_transformers = getattr(self._api_change_spec,
                                     transformer_field, {})
 
-    glob_name = "*." + name if name else None
+    glob_name = "*." + six.ensure_str(name) if name else None
     transformers = function_transformers.get("*", {}).copy()
     transformers.update(function_transformers.get(glob_name, {}))
     transformers.update(function_transformers.get(full_name, {}))
@@ -347,7 +348,7 @@ class _PastaEditVisitor(ast.NodeVisitor):
     function_warnings = self._api_change_spec.function_warnings
     if full_name in function_warnings:
       level, message = function_warnings[full_name]
-      message = message.replace("<function name>", full_name)
+      message = six.ensure_str(message).replace("<function name>", full_name)
       self.add_log(level, node.lineno, node.col_offset,
                    "%s requires manual check. %s" % (full_name, message))
       return True
@@ -359,7 +360,8 @@ class _PastaEditVisitor(ast.NodeVisitor):
     warnings = self._api_change_spec.module_deprecations
     if full_name in warnings:
       level, message = warnings[full_name]
-      message = message.replace("<function name>", whole_name)
+      message = six.ensure_str(message).replace("<function name>",
+                                                six.ensure_str(whole_name))
       self.add_log(level, node.lineno, node.col_offset,
                    "Using member %s in deprecated module %s. %s" % (whole_name,
                                                                     full_name,
@@ -390,7 +392,7 @@ class _PastaEditVisitor(ast.NodeVisitor):
     # an attribute.
     warned = False
     if isinstance(node.func, ast.Attribute):
-      warned = self._maybe_add_warning(node, "*." + name)
+      warned = self._maybe_add_warning(node, "*." + six.ensure_str(name))
 
     # All arg warnings are handled here, since only we have the args
     arg_warnings = self._get_applicable_dict("function_arg_warnings",
@@ -402,7 +404,8 @@ class _PastaEditVisitor(ast.NodeVisitor):
       present, _ = get_arg_value(node, kwarg, arg) or variadic_args
       if present:
         warned = True
-        warning_message = warning.replace("<function name>", full_name or name)
+        warning_message = six.ensure_str(warning).replace(
+            "<function name>", six.ensure_str(full_name or name))
         template = "%s called with %s argument, requires manual check: %s"
         if variadic_args:
           template = ("%s called with *args or **kwargs that may include %s, "
@@ -452,23 +455,20 @@ class _PastaEditVisitor(ast.NodeVisitor):
                      "script cannot handle these automatically." % full_name)
 
       reordered = function_reorders[full_name]
-      new_args = []
       new_keywords = []
       idx = 0
       for arg in node.args:
         if sys.version_info[:2] >= (3, 5) and isinstance(arg, ast.Starred):
           continue  # Can't move Starred to keywords
         keyword_arg = reordered[idx]
-        if keyword_arg:
-          new_keywords.append(ast.keyword(arg=keyword_arg, value=arg))
-        else:
-          new_args.append(arg)
+        keyword = ast.keyword(arg=keyword_arg, value=arg)
+        new_keywords.append(keyword)
         idx += 1
 
       if new_keywords:
         self.add_log(INFO, node.lineno, node.col_offset,
                      "Added keywords to args of function %r" % full_name)
-        node.args = new_args
+        node.args = []
         node.keywords = new_keywords + (node.keywords or [])
         return True
     return False
@@ -621,13 +621,13 @@ class _PastaEditVisitor(ast.NodeVisitor):
     # This loop processes imports in the format
     # import foo as f, bar as b
     for import_alias in node.names:
-      all_import_components = import_alias.name.split(".")
+      all_import_components = six.ensure_str(import_alias.name).split(".")
       # Look for rename, starting with longest import levels.
       found_update = False
       for i in reversed(list(range(1, max_submodule_depth + 1))):
         import_component = all_import_components[0]
         for j in range(1, min(i, len(all_import_components))):
-          import_component += "." + all_import_components[j]
+          import_component += "." + six.ensure_str(all_import_components[j])
         import_rename_spec = import_renames.get(import_component, None)
 
         if not import_rename_spec or excluded_from_module_rename(
@@ -670,7 +670,8 @@ class _PastaEditVisitor(ast.NodeVisitor):
           if old_suffix is None:
             old_suffix = os.linesep
           if os.linesep not in old_suffix:
-            pasta.base.formatting.set(node, "suffix", old_suffix + os.linesep)
+            pasta.base.formatting.set(node, "suffix",
+                                      six.ensure_str(old_suffix) + os.linesep)
 
           # Apply indentation to new node.
           pasta.base.formatting.set(new_line_node, "prefix",
@@ -716,7 +717,7 @@ class _PastaEditVisitor(ast.NodeVisitor):
 
     # Look for rename based on first component of from-import.
     # i.e. based on foo in foo.bar.
-    from_import_first_component = from_import.split(".")[0]
+    from_import_first_component = six.ensure_str(from_import).split(".")[0]
     import_renames = getattr(self._api_change_spec, "import_renames", {})
     import_rename_spec = import_renames.get(from_import_first_component, None)
     if not import_rename_spec:
@@ -775,7 +776,7 @@ class _PastaEditVisitor(ast.NodeVisitor):
     self.generic_visit(node)
 
 
-class AnalysisResult:
+class AnalysisResult(object):
   """This class represents an analysis result and how it should be logged.
 
   This class must provide the following fields:
@@ -787,7 +788,7 @@ class AnalysisResult:
   """
 
 
-class APIAnalysisSpec:
+class APIAnalysisSpec(object):
   """This class defines how `AnalysisResult`s should be generated.
 
   It specifies how to map imports and symbols to `AnalysisResult`s.
@@ -881,7 +882,7 @@ class PastaAnalyzeVisitor(_PastaEditVisitor):
     self.generic_visit(node)
 
 
-class ASTCodeUpgrader:
+class ASTCodeUpgrader(object):
   """Handles upgrading a set of Python files using a given API change spec."""
 
   def __init__(self, api_change_spec):
@@ -921,7 +922,7 @@ class ASTCodeUpgrader:
   def format_log(self, log, in_filename):
     log_string = "%d:%d: %s: %s" % (log[1], log[2], log[0], log[3])
     if in_filename:
-      return in_filename + ":" + log_string
+      return six.ensure_str(in_filename) + ":" + log_string
     else:
       return log_string
 
@@ -948,12 +949,12 @@ class ASTCodeUpgrader:
     return 1, pasta.dump(t), logs, errors
 
   def _format_log(self, log, in_filename, out_filename):
-    text = "-" * 80 + "\n"
+    text = six.ensure_str("-" * 80) + "\n"
     text += "Processing file %r\n outputting to %r\n" % (in_filename,
                                                          out_filename)
-    text += "-" * 80 + "\n\n"
+    text += six.ensure_str("-" * 80) + "\n\n"
     text += "\n".join(log) + "\n"
-    text += "-" * 80 + "\n\n"
+    text += six.ensure_str("-" * 80) + "\n\n"
     return text
 
   def process_opened_file(self, in_filename, in_file, out_filename, out_file):
@@ -1020,8 +1021,10 @@ class ASTCodeUpgrader:
     files_to_process = []
     files_to_copy = []
     for dir_name, _, file_list in os.walk(root_directory):
-      py_files = [f for f in file_list if f.endswith(".py")]
-      copy_files = [f for f in file_list if not f.endswith(".py")]
+      py_files = [f for f in file_list if six.ensure_str(f).endswith(".py")]
+      copy_files = [
+          f for f in file_list if not six.ensure_str(f).endswith(".py")
+      ]
       for filename in py_files:
         fullpath = os.path.join(dir_name, filename)
         fullpath_output = os.path.join(output_root_directory,
@@ -1039,9 +1042,9 @@ class ASTCodeUpgrader:
     file_count = 0
     tree_errors = {}
     report = ""
-    report += ("=" * 80) + "\n"
+    report += six.ensure_str(("=" * 80)) + "\n"
     report += "Input tree: %r\n" % root_directory
-    report += ("=" * 80) + "\n"
+    report += six.ensure_str(("=" * 80)) + "\n"
 
     for input_path, output_path in files_to_process:
       output_directory = os.path.dirname(output_path)
@@ -1078,16 +1081,18 @@ class ASTCodeUpgrader:
     files_to_process = []
     for dir_name, _, file_list in os.walk(root_directory):
       py_files = [
-          os.path.join(dir_name, f) for f in file_list if f.endswith(".py")
+          os.path.join(dir_name, f)
+          for f in file_list
+          if six.ensure_str(f).endswith(".py")
       ]
       files_to_process += py_files
 
     file_count = 0
     tree_errors = {}
     report = ""
-    report += ("=" * 80) + "\n"
+    report += six.ensure_str(("=" * 80)) + "\n"
     report += "Input tree: %r\n" % root_directory
-    report += ("=" * 80) + "\n"
+    report += six.ensure_str(("=" * 80)) + "\n"
 
     for path in files_to_process:
       if os.path.islink(path):

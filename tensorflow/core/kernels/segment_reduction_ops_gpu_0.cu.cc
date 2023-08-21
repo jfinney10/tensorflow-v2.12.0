@@ -21,6 +21,8 @@ limitations under the License.
 namespace tensorflow {
 
 bool UseDeterministicSegmentReductions() {
+  // See comment below regarding CI build error on Windows.
+#if !defined(PLATFORM_WINDOWS)
   static bool cached_result = [] {
     bool result = false;
     TF_CHECK_OK(tensorflow::ReadBoolFromEnvVar(
@@ -29,6 +31,9 @@ bool UseDeterministicSegmentReductions() {
     return result;
   }();
   return cached_result;
+#else
+  return false;
+#endif
 }
 
 bool DisableSegmentReductionOpDeterminismExceptions() {
@@ -89,6 +94,14 @@ TF_CALL_GPU_NUMBER_TYPES(DEFINE_SUM_GPU_SPECS);
 #undef DEFINE_REAL_GPU_SPECS
 #undef DEFINE_SUM_GPU_SPECS
 
+// TODO(benbarsdell): These kernels are disabled on Windows as a workaround for
+// a CI build error: "formal parameter with requested alignment of 128 won't be
+// aligned". The root cause is suspected to be an aligned type (AlignedVector)
+// being passed to a function by value, possibly inside the CUB library
+// somewhere, but I have not yet been able to reproduce it in isolation outside
+// of the GitHub CI.
+#if !defined(PLATFORM_WINDOWS)
+
 #define DEFINE_SPARSE_SEGMENT_REDUCTION_FUNCTOR(T)                \
   template struct SparseSegmentReductionFunctor<T, int32, int32>; \
   template struct SparseSegmentReductionFunctor<T, int32, int64_t>;
@@ -100,6 +113,8 @@ TF_CALL_GPU_NUMBER_TYPES(DEFINE_SPARSE_SEGMENT_REDUCTION_FUNCTOR);
   template struct SparseSegmentGradFunctor<GPUDevice, T, int32, int64_t>;
 TF_CALL_GPU_NUMBER_TYPES(DEFINE_SPARSE_SEGMENT_GRAD_FUNCTOR);
 #undef DEFINE_SPARSE_SEGMENT_GRAD_FUNCTOR
+
+#endif  // !defined(PLATFORM_WINDOWS)
 
 }  // namespace functor
 }  // namespace tensorflow

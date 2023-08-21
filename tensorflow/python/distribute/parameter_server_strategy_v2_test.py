@@ -178,7 +178,7 @@ class ParameterServerStrategyV2Test(test.TestCase):
         "coordinator, which can be slow. To properly dispatch functions to "
         "run on workers, methods like `run` or `reduce` should be used "
         "within a function passed to `tf.distribute.experimental.coordinator."
-        "ClusterCoordinator.schedule`.", "".join(logs.output))
+        "ClusterCoordinator.schedule`.", logs.output[0])
 
   def testRunNotUsedWithClusterCoordinator(self):
     strategy = parameter_server_strategy_v2.ParameterServerStrategyV2(

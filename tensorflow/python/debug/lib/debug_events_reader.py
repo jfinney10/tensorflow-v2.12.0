@@ -18,6 +18,8 @@ import collections
 import os
 import threading
 
+import six
+
 from tensorflow.core.protobuf import debug_event_pb2
 from tensorflow.python.framework import errors
 from tensorflow.python.framework import tensor_util
@@ -30,7 +32,7 @@ DebugEventWithOffset = collections.namedtuple(
     "DebugEventWithOffset", "debug_event offset")
 
 
-class DebugEventsReader:
+class DebugEventsReader(object):
   """Reader class for a tfdbg v2 DebugEvents directory."""
 
   # Number of digests after which a read lock is released and re-acquired during
@@ -313,7 +315,7 @@ class DebugEventsReader:
         del self._readers[file_path]
 
 
-class BaseDigest:
+class BaseDigest(object):
   """Base class for digest.
 
   Properties:
@@ -365,7 +367,7 @@ class ExecutionDigest(BaseDigest):
                locator,
                op_type,
                output_tensor_device_ids=None):
-    super().__init__(wall_time, locator)
+    super(ExecutionDigest, self).__init__(wall_time, locator)
     self._op_type = op_type
     self._output_tensor_device_ids = _tuple_or_none(output_tensor_device_ids)
 
@@ -378,7 +380,7 @@ class ExecutionDigest(BaseDigest):
     return self._output_tensor_device_ids
 
   def to_json(self):
-    output = super().to_json()
+    output = super(ExecutionDigest, self).to_json()
     output.update({
         "op_type": self.op_type,
         "output_tensor_device_ids": self.output_tensor_device_ids,
@@ -427,7 +429,7 @@ class Execution(ExecutionDigest):
                input_tensor_ids=None,
                output_tensor_ids=None,
                debug_tensor_values=None):
-    super().__init__(
+    super(Execution, self).__init__(
         execution_digest.wall_time,
         execution_digest.locator,
         execution_digest.op_type,
@@ -473,7 +475,7 @@ class Execution(ExecutionDigest):
     return self._debug_tensor_values
 
   def to_json(self):
-    output = super().to_json()
+    output = super(Execution, self).to_json()
     output.update({
         "host_name": self.host_name,
         "stack_frame_ids": self.stack_frame_ids,
@@ -486,7 +488,7 @@ class Execution(ExecutionDigest):
     return output
 
 
-class DebuggedGraph:
+class DebuggedGraph(object):
   """Data object representing debugging information about a tf.Graph.
 
   Includes `FuncGraph`s.
@@ -519,7 +521,7 @@ class DebuggedGraph:
     Args:
       inner_graph_id: The debugger-generated ID of the nested inner graph.
     """
-    assert isinstance(inner_graph_id, str)
+    assert isinstance(inner_graph_id, six.string_types)
     self._inner_graph_ids.append(inner_graph_id)
 
   def add_op(self, graph_op_creation_digest):
@@ -600,7 +602,7 @@ class DebuggedGraph:
     }
 
 
-class DebuggedDevice:
+class DebuggedDevice(object):
   """Debugger data regarding a device involved in the debugged program.
 
   Properties:
@@ -662,7 +664,7 @@ class GraphOpCreationDigest(BaseDigest):
                stack_frame_ids,
                input_names=None,
                device_name=None):
-    super().__init__(wall_time, locator)
+    super(GraphOpCreationDigest, self).__init__(wall_time, locator)
     self._graph_id = graph_id
     self._op_type = op_type
     self._op_name = op_name
@@ -709,7 +711,7 @@ class GraphOpCreationDigest(BaseDigest):
     return self._stack_frame_ids
 
   def to_json(self):
-    output = super().to_json()
+    output = super(GraphOpCreationDigest, self).to_json()
     output.update({
         "graph_id": self.graph_id,
         "op_type": self.op_type,
@@ -739,7 +741,7 @@ class GraphExecutionTraceDigest(BaseDigest):
 
   def __init__(self, wall_time, locator, op_type, op_name, output_slot,
                graph_id):
-    super().__init__(wall_time, locator)
+    super(GraphExecutionTraceDigest, self).__init__(wall_time, locator)
     self._op_type = op_type
     self._op_name = op_name
     self._output_slot = output_slot
@@ -762,7 +764,7 @@ class GraphExecutionTraceDigest(BaseDigest):
     return self._graph_id
 
   def to_json(self):
-    output = super().to_json()
+    output = super(GraphExecutionTraceDigest, self).to_json()
     output.update({
         "op_type": self.op_type,
         "op_name": self.op_name,
@@ -793,12 +795,13 @@ class GraphExecutionTrace(GraphExecutionTraceDigest):
                tensor_debug_mode,
                debug_tensor_value=None,
                device_name=None):
-    super().__init__(graph_execution_trace_digest.wall_time,
-                     graph_execution_trace_digest.locator,
-                     graph_execution_trace_digest.op_type,
-                     graph_execution_trace_digest.op_name,
-                     graph_execution_trace_digest.output_slot,
-                     graph_execution_trace_digest.graph_id)
+    super(GraphExecutionTrace,
+          self).__init__(graph_execution_trace_digest.wall_time,
+                         graph_execution_trace_digest.locator,
+                         graph_execution_trace_digest.op_type,
+                         graph_execution_trace_digest.op_name,
+                         graph_execution_trace_digest.output_slot,
+                         graph_execution_trace_digest.graph_id)
     self._graph_ids = tuple(graph_ids)
     self._tensor_debug_mode = tensor_debug_mode
     self._debug_tensor_value = debug_tensor_value
@@ -825,7 +828,7 @@ class GraphExecutionTrace(GraphExecutionTraceDigest):
     return self._device_name
 
   def to_json(self):
-    output = super().to_json()
+    output = super(GraphExecutionTrace, self).to_json()
     output.update({
         "graph_ids": self.graph_ids,
         "tensor_debug_mode": self.tensor_debug_mode,
@@ -907,7 +910,7 @@ def _execution_from_debug_event_proto(debug_event, locator):
       debug_tensor_values=_tuple_or_none(debug_tensor_values))
 
 
-class DebugDataReader:
+class DebugDataReader(object):
   """A reader that reads structured debugging data in the tfdbg v2 format.
 
   The set of data read by an object of this class concerns the execution history

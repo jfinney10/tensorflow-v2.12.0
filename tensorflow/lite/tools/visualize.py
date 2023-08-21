@@ -230,7 +230,7 @@ def NameListToString(name_list):
     return result
 
 
-class OpCodeMapper:
+class OpCodeMapper(object):
   """Maps an opcode index to an op name."""
 
   def __init__(self, data):
@@ -248,7 +248,7 @@ class OpCodeMapper:
     return "%s (%d)" % (s, x)
 
 
-class DataSizeMapper:
+class DataSizeMapper(object):
   """For buffers, report the number of bytes."""
 
   def __call__(self, x):
@@ -258,7 +258,7 @@ class DataSizeMapper:
       return "--"
 
 
-class TensorMapper:
+class TensorMapper(object):
   """Maps a list of tensor indices to a tooltip hoverable indicator of more."""
 
   def __init__(self, subgraph_data):

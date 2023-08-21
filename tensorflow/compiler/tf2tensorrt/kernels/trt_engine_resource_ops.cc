@@ -32,7 +32,6 @@ limitations under the License.
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/mutex.h"
 #include "tensorflow/core/platform/thread_annotations.h"
-#include "tensorflow/core/profiler/lib/traceme.h"
 
 #if GOOGLE_CUDA && GOOGLE_TENSORRT
 #include "third_party/tensorrt/NvInfer.h"
@@ -48,9 +47,6 @@ class CreateTRTResourceHandle : public OpKernel {
   }
 
   void Compute(OpKernelContext* ctx) override {
-    tensorflow::profiler::TraceMe activity(
-        "CreateTRTResourceHandle::Compute",
-        tensorflow::profiler::TraceMeLevel::kInfo);
     {
       mutex_lock l(mutex_);
       if (!initialized_) {
@@ -92,9 +88,6 @@ class InitializeTRTResource : public OpKernel {
   }
 
   void Compute(OpKernelContext* ctx) override {
-    tensorflow::profiler::TraceMe activity(
-        "InitializeTRTResource::Compute",
-        tensorflow::profiler::TraceMeLevel::kInfo);
     ResourceHandle handle = HandleFromInput(ctx, 0);
     core::RefCountPtr<TRTEngineCacheResource> resource;
     OP_REQUIRES_OK(
@@ -103,7 +96,7 @@ class InitializeTRTResource : public OpKernel {
                  [this, ctx](TRTEngineCacheResource** resource) -> Status {
                    *resource = new TRTEngineCacheResource(
                        ctx, this->max_cached_engines_);
-                   return OkStatus();
+                   return Status::OK();
                  }));
 
     auto allocator = resource->allocator_.get();
@@ -193,9 +186,6 @@ class SerializeTRTResource : public OpKernel {
   }
 
   void Compute(OpKernelContext* ctx) override {
-    tensorflow::profiler::TraceMe activity(
-        "SerializeTRTResource::Compute",
-        tensorflow::profiler::TraceMeLevel::kInfo);
     const string& resource_name = ctx->input(0).scalar<tstring>()();
     const string& filename = ctx->input(1).scalar<tstring>()();
     OP_REQUIRES(ctx, !filename.empty(),

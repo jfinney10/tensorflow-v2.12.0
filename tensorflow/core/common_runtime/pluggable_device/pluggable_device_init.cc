@@ -40,7 +40,7 @@ se::Platform* PluggableDeviceMachineManager(const string& platform_name) {
                << platform_name;
     return nullptr;
   }
-  return result.value();
+  return result.ValueOrDie();
 }
 
 }  // namespace tensorflow

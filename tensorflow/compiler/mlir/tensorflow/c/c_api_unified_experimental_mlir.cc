@@ -15,7 +15,6 @@ limitations under the License.
 
 #include <cstddef>
 #include <memory>
-#include <optional>
 
 #include "absl/strings/str_cat.h"
 #include "llvm/ADT/StringRef.h"
@@ -248,9 +247,9 @@ class MlirFunctionContext : public TracingContext {
     RegisterDialects(*context_);
     // TODO(aminim) figure out the location story here
     module_ = ModuleOp::create(builder_.getUnknownLoc());
-    func_ = func::FuncOp::create(
-        builder_.getUnknownLoc(), name,
-        builder_.getFunctionType(std::nullopt, std::nullopt));
+    func_ =
+        func::FuncOp::create(builder_.getUnknownLoc(), name,
+                             builder_.getFunctionType(llvm::None, llvm::None));
     module_->push_back(func_);
     builder_ = OpBuilder::atBlockBegin(func_.addEntryBlock());
   }
@@ -370,7 +369,7 @@ Status MlirAbstractOp::Create(ArrayRef<Value> operands,
           return InvalidArgument("Missing attribute '", output_arg.type_attr(),
                                  "' required for output '", output_arg.name(),
                                  "'");
-        TypedAttr type_attr = attr.dyn_cast<TypedAttr>();
+        TypeAttr type_attr = attr.dyn_cast<TypeAttr>();
         if (!type_attr)
           return InvalidArgument("Attribute '", output_arg.type_attr(),
                                  "' required for output '", output_arg.name(),

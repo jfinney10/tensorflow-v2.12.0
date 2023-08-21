@@ -50,7 +50,11 @@ class ComputeTask {
 
   void Init(std::unique_ptr<GPUOperation>&& operation);
 
+  const OperationDef& GetDefinition() const;
   const GPUOperation& GetGpuOperation() const { return *operation_; }
+  bool IsLinkable() const;
+
+  absl::Status AddTask(ComputeTask* task);
 
   absl::Status Compile(MetalDevice* device);
 

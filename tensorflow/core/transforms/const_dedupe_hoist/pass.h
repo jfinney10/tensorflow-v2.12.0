@@ -23,9 +23,6 @@ limitations under the License.
 namespace mlir {
 namespace tfg {
 
-#define GEN_PASS_DECL_DEDUPEANDHOISTCONSTANT
-#include "tensorflow/core/transforms/passes.h.inc"
-
 std::unique_ptr<mlir::Pass> CreateDedupeAndHoistConstantPass();
 
 }  // namespace tfg

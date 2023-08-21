@@ -22,7 +22,6 @@ include "tfrt/core_runtime/opdefs/corert_base.td"
 include "tfrt/core_runtime/opdefs/corert_traits.td"
 include "tfrt_fallback.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
-include "tensorflow/compiler/mlir/tensorflow/ir/tf_op_base.td"
 
 def FallbackSync_Dialect : Dialect {
   let name = "tfrt_fallback_sync";
@@ -32,7 +31,8 @@ def FallbackSync_Dialect : Dialect {
   }];
 
   let cppNamespace = "::tfrt::fallback_sync";
-  let useFoldAPI = kEmitFoldAdaptorFolder;
+
+  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 
 class FallbackSync_Op<string mnemonic, list<Trait> traits = []> :
@@ -83,7 +83,7 @@ def GetResourceOp : FallbackSync_Op<"get_resource",
   let assemblyFormat = "attr-dict `:` type($results)";
 }
 
-def CreateOp: FallbackSync_Op<"createop", []> {
+def CreateOp: FallbackSync_Op<"createop", [CoreRT_TypedAttributeTrait]> {
   let summary = "The Fallback CreateOp";
 
   let description = [{
@@ -96,21 +96,22 @@ def CreateOp: FallbackSync_Op<"createop", []> {
     op_name: The tensorflow op name. eg. "tf.AddV2"
 
     Example:
-      tfrt_fallback_sync.createop() key(0) device("/CPU:0")
+      tfrt_fallback_async.createop() key(0) device("/CPU:0")
         "some.op"() {attr1 = value, attr2 = value2} {f_attr1 = "fn1", f_attr2 = "fn2"} num_args(1)
   }];
 
   let arguments = (ins
-    StrAttr:$node_def,
-    I32Attr:$op_key
+    I64Attr:$num_args,
+    ArrayAttr:$op_attrs,
+    I64Attr:$op_key,
+    StrAttr:$op_name
   );
 
   let results = (outs);
-
-  let assemblyFormat = "attr-dict";
 }
 
-def SyncExecuteOp : FallbackSync_Op<"executeop", [Pure]> {
+def ExecuteOp : FallbackSync_Op<"executeop",
+    [NoSideEffect, CoreRT_TypedAttributeTrait]> {
   let summary = "The Fallback Sync ExecuteOp";
   let description = [{
     The ExecuteOp executes an operation on the specified device.
@@ -122,14 +123,28 @@ def SyncExecuteOp : FallbackSync_Op<"executeop", [Pure]> {
   }];
 
   let arguments = (ins
-    Variadic<TFTensorType>,
-    StrAttr:$node_def,
-    I32Attr:$op_key
+    Variadic<TensorType>:$operands,
+    ArrayAttr:$op_attrs,
+    I64Attr:$op_key,
+    StrAttr:$op_name
   );
 
-  let results = (outs Variadic<TFTensorType>);
+  let results = (outs
+    Variadic<TensorType>:$results
+  );
 
-  let assemblyFormat = "`(`operands`)` attr-dict `:` functional-type(operands, results)";
+  let extraClassDeclaration = [{
+    void getOpAttrs(SmallVectorImpl<std::pair<StringRef, Attribute>>* op_attrs);
+  }];
+
+  let builders = [
+    OpBuilder<(ins "ArrayRef<Type>":$results, "ValueRange":$operands,
+      "ArrayRef<std::pair<StringRef, Attribute>>":$op_attrs,
+      "StringRef":$op_name)>];
+
+  let hasVerifier = 1;
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 

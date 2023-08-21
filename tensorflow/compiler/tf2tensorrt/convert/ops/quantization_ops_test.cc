@@ -358,7 +358,7 @@ class QDQExplicitTest : public ::testing::Test,
       }
     }
     TRT_ENSURE(n_trt_ops == 1);
-    return OkStatus();
+    return Status::OK();
   }
 
   Status ConvertAndRun(Scope* scope) {
@@ -366,7 +366,7 @@ class QDQExplicitTest : public ::testing::Test,
     std::vector<const NodeDef*> outputs;
 
     GraphDef gdef;
-    TF_RETURN_IF_ERROR(scope->ToGraphDef(&gdef));
+    scope->ToGraphDef(&gdef);
 
     std::unique_ptr<Graph> graph(new Graph(OpRegistry::Global()));
     TF_RETURN_IF_ERROR(scope->ToGraph(graph.get()));

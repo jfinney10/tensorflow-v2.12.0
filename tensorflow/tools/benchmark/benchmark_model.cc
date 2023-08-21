@@ -82,10 +82,6 @@ void CreateTensorsFromInputInfo(
         InitializeTensor<int32>(input.initialization_values, &input_tensor);
         break;
       }
-      case DT_INT64: {
-        InitializeTensor<int64>(input.initialization_values, &input_tensor);
-        break;
-      }
       case DT_FLOAT: {
         InitializeTensor<float>(input.initialization_values, &input_tensor);
         break;

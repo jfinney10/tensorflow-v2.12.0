@@ -6,8 +6,10 @@ load(
 )
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
-    default_visibility = ["//learning/brain:__subpackages__"],
+    default_visibility = [
+        "//learning/brain:__subpackages__",
+        "//tensorflow/compiler:__subpackages__",
+    ],
     licenses = ["notice"],
 )
 

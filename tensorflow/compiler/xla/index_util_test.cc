@@ -16,7 +16,6 @@ limitations under the License.
 #include "tensorflow/compiler/xla/index_util.h"
 
 #include <initializer_list>
-#include <vector>
 
 #include "tensorflow/compiler/xla/shape_util.h"
 #include "tensorflow/compiler/xla/test.h"

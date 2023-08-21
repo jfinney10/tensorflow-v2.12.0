@@ -62,11 +62,6 @@ typedef struct HloProto {
   int32_t size;
 } HloProto;
 
-typedef struct DebugOptions {
-  void* buffer;
-  int32_t size;
-} DebugOptions;
-
 // DeviceAssignment is a serialized xla::DeviceAssignmentProto buffer.
 typedef struct DeviceAssignment {
   void* bytes;
@@ -119,13 +114,9 @@ typedef struct TpuStatus*(PrototypeTpuDriver_DelinearizeShape)(
     struct TpuDriver* driver, void* dst, const void* src,
     const struct TpuAllocationShape shape);
 
-typedef struct TpuCompiledProgramHandle*(
-    PrototypeTpuDriver_CompileProgram)(struct TpuDriver* driver,
-                                       const struct HloProto hlo_proto,
-                                       int32_t num_replicas,
-                                       const struct DebugOptions debug_options,
-                                       int32_t eventc,
-                                       struct TpuEvent** eventv);
+typedef struct TpuCompiledProgramHandle*(PrototypeTpuDriver_CompileProgram)(
+    struct TpuDriver* driver, const struct HloProto hlo_proto,
+    int32_t num_replicas, int32_t eventc, struct TpuEvent** eventv);
 
 typedef struct TpuCompiledProgramHandle*(
     PrototypeTpuDriver_CompileProgramFromText)(struct TpuDriver* driver,

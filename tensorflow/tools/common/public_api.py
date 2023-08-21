@@ -16,10 +16,12 @@
 
 import re
 
+import six
+
 from tensorflow.python.util import tf_inspect
 
 
-class PublicAPIVisitor:
+class PublicAPIVisitor(object):
   """Visitor to use with `traverse` to visit exactly the public TF API."""
 
   def __init__(self, visitor):
@@ -49,7 +51,6 @@ class PublicAPIVisitor:
             # tensorflow/dtensor package.
             'dtensor',
             'python',
-            'tsl',  # TODO(tlongeri): Remove after TSL is moved out of TF.
         ],
         # Some implementations have this internal module that we shouldn't
         # expose.
@@ -113,7 +114,8 @@ class PublicAPIVisitor:
     # TODO(wicke): Find out what names to exclude.
     del obj  # Unused.
     return ((path in self._private_map and name in self._private_map[path]) or
-            (name.startswith('_') and not re.match('__.*__$', name) or
+            (six.ensure_str(name).startswith('_') and
+             not re.match('__.*__$', six.ensure_str(name)) or
              name in ['__base__', '__class__', '__next_in_mro__']))
 
   def _do_not_descend(self, path, name):
@@ -125,7 +127,8 @@ class PublicAPIVisitor:
     """Visitor interface, see `traverse` for details."""
 
     # Avoid long waits in cases of pretty unambiguous failure.
-    if tf_inspect.ismodule(parent) and len(path.split('.')) > 10:
+    if tf_inspect.ismodule(parent) and len(
+        six.ensure_str(path).split('.')) > 10:
       raise RuntimeError('Modules nested too deep:\n%s.%s\n\nThis is likely a '
                          'problem with an accidental public import.' %
                          (self._root_name, path))

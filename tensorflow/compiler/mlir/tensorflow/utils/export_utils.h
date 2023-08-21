@@ -32,6 +32,7 @@ limitations under the License.
 #include "tensorflow/core/framework/node_def.pb.h"
 #include "tensorflow/core/framework/node_def_util.h"
 #include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/stream_executor/lib/statusor.h"
 
 namespace mlir {
 class ShapedType;
@@ -39,7 +40,7 @@ class ShapedType;
 
 namespace tensorflow {
 
-using tsl::StatusOr;
+using stream_executor::port::StatusOr;
 
 // Add custom op prefix for TensorFlow dialects.
 Status AddTensorFlowOpPrefix(std::string);
@@ -70,7 +71,7 @@ template <typename ShapeContainerT>
 void SetTensorShapeProto(ShapeContainerT shape, TensorShapeProto* proto) {
   if (shape.hasRank()) {
     for (int64_t dim : shape.getShape()) {
-      proto->add_dim()->set_size(mlir::ShapedType::isDynamic(dim) ? -1 : dim);
+      proto->add_dim()->set_size(dim);
     }
   } else {
     proto->set_unknown_rank(true);

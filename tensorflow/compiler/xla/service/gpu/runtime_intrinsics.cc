@@ -21,14 +21,13 @@ limitations under the License.
 #include "absl/cleanup/cleanup.h"
 #include "tensorflow/compiler/xla/service/custom_call_status.h"
 #include "tensorflow/compiler/xla/service/custom_call_target_registry.h"
-#include "tensorflow/compiler/xla/service/platform_util.h"
 #include "tensorflow/compiler/xla/shape.h"
 #include "tensorflow/compiler/xla/shape_util.h"
 #include "tensorflow/compiler/xla/status.h"
 #include "tensorflow/compiler/xla/statusor.h"
-#include "tensorflow/compiler/xla/stream_executor/multi_platform_manager.h"
-#include "tensorflow/compiler/xla/stream_executor/stream.h"
 #include "tensorflow/compiler/xla/util.h"
+#include "tensorflow/stream_executor/multi_platform_manager.h"
+#include "tensorflow/stream_executor/stream.h"
 
 namespace xla {
 
@@ -36,10 +35,8 @@ extern const char* const kXlaGpuAssertCustomCallTag = "__xla_gpu_assert";
 
 static Status AssertOnGpu(void* stream_handle, void* buffer,
                           absl::string_view error_msg) {
-  TF_ASSIGN_OR_RETURN(
-      se::Platform * platform,
-      se::MultiPlatformManager::PlatformWithName(absl::AsciiStrToUpper(
-          PlatformUtil::CanonicalPlatformName("gpu").value())));
+  TF_ASSIGN_OR_RETURN(se::Platform * platform,
+                      se::MultiPlatformManager::PlatformWithName("CUDA"));
   se::StreamExecutorConfig config;
   config.gpu_stream = stream_handle;
   TF_ASSIGN_OR_RETURN(se::StreamExecutor * executor,
@@ -60,7 +57,7 @@ static Status AssertOnGpu(void* stream_handle, void* buffer,
     return InternalError("%s", error_msg);
   }
 
-  return OkStatus();
+  return Status::OK();
 }
 
 static void AssertionCustomCall(void* stream_handle, void** buffers,
@@ -75,8 +72,7 @@ static void AssertionCustomCall(void* stream_handle, void** buffers,
   }
 }
 
-XLA_REGISTER_CUSTOM_CALL_TARGET_WITH_SYM(
-    kXlaGpuAssertCustomCallTag, AssertionCustomCall,
-    absl::AsciiStrToUpper(PlatformUtil::CanonicalPlatformName("gpu").value()));
+XLA_REGISTER_CUSTOM_CALL_TARGET_WITH_SYM(kXlaGpuAssertCustomCallTag,
+                                         AssertionCustomCall, "CUDA");
 
 }  // namespace xla

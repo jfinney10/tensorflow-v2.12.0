@@ -28,6 +28,7 @@ limitations under the License.
 #include "tensorflow/lite/delegates/gpu/common/task/buffer_desc.h"
 #include "tensorflow/lite/delegates/gpu/common/task/gpu_operation.h"
 #include "tensorflow/lite/delegates/gpu/common/task/tensor_desc.h"
+#include "tensorflow/lite/delegates/gpu/common/task/texture2d_desc.h"
 #include "tensorflow/lite/delegates/gpu/common/tensor.h"
 #include "tensorflow/lite/delegates/gpu/common/types.h"
 
@@ -106,11 +107,12 @@ void DepthwiseConv3x3::UploadWeightsAndBiases(
     args_.AddObject("weights",
                     std::make_unique<BufferDescriptor>(std::move(desc)));
   } else {
-    TensorDescriptor desc = CreateConstantHWVec4TensorDescriptor(
-        fp32_weights ? DataType::FLOAT32 : DataType::FLOAT16,
-        TensorStorageType::TEXTURE_2D, texture_width, texture_height,
-        data.data());
-    args_.AddObject("weights", std::make_unique<TensorDescriptor>(desc));
+    Texture2DDescriptor desc;
+    desc.element_type = fp32_weights ? DataType::FLOAT32 : DataType::FLOAT16;
+    desc.size = int2(texture_width, texture_height);
+    desc.data = std::move(data);
+    args_.AddObject("weights",
+                    std::make_unique<Texture2DDescriptor>(std::move(desc)));
   }
 }
 

@@ -15,7 +15,6 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/service/llvm_ir/dynamic_update_slice_util.h"
 
-#include "tensorflow/compiler/xla/service/cpu/backend_config.pb.h"
 #include "tensorflow/compiler/xla/service/gpu/launch_dimensions.h"
 #include "tensorflow/compiler/xla/service/gpu/parallel_loop_emitter.h"
 #include "tensorflow/compiler/xla/service/llvm_ir/llvm_util.h"
@@ -30,9 +29,7 @@ bool MayBeImplementedAsInPlaceDynamicUpdateSlice(const HloInstruction* instr) {
   // then ParallelTaskAssigner would have to somehow know whether a node *will*
   // be emitted as an in-place DUS, and it can't, because it doesn't have a
   // buffer assignment when it runs.
-  auto cpu_backend_config_or = instr->backend_config<xla::cpu::BackendConfig>();
-  if (cpu_backend_config_or.ok() &&
-      !cpu_backend_config_or->outer_dimension_partitions().empty()) {
+  if (!instr->outer_dimension_partitions().empty()) {
     return false;
   }
 

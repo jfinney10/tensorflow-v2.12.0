@@ -15,8 +15,6 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/service/llvm_ir/sort_util.h"
 
-#include <algorithm>
-#include <functional>
 #include <vector>
 
 // IWYU pragma: no_include "llvm/IR/Intrinsics.gen.inc"
@@ -40,7 +38,7 @@ limitations under the License.
 #include "tensorflow/compiler/xla/service/llvm_ir/loop_emitter.h"
 #include "tensorflow/compiler/xla/shape_util.h"
 #include "tensorflow/compiler/xla/util.h"
-#include "tensorflow/tsl/platform/status.h"
+#include "tensorflow/core/lib/core/status.h"
 
 namespace xla {
 namespace llvm_ir {
@@ -351,7 +349,6 @@ Status EmitSortInPlace(
                                                dimensions_in_iteration_order);
 
   // Allocate shared memory for the tiled compare loop.
-  // We process 64 elements at a time, so the buffer cannot be less than that.
   std::vector<llvm::GlobalVariable*> param_shmem_buffers(values_arrays.size(),
                                                          nullptr);
   if (xor_masks.size() > 1) {
@@ -360,7 +357,7 @@ Status EmitSortInPlace(
       llvm::Type* tile_type = llvm::ArrayType::get(
           llvm_ir::PrimitiveTypeToIrType(
               values_arrays[i].GetShape().element_type(), module),
-          std::max(tile_size, static_cast<int64_t>(64)));
+          tile_size);
       param_shmem_buffers[i] = llvm_ir::AllocateSharedMemoryTile(
           module, tile_type, absl::StrCat(name, "_tile_param_", i));
     }

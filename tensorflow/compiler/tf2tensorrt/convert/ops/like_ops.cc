@@ -28,17 +28,34 @@ namespace convert {
 template <int V>
 class ConvertLikeOps : public OpConverterBase<ConvertLikeOps<V>> {
  public:
-  explicit ConvertLikeOps(const OpConverterParams *params)
-      : OpConverterBase<ConvertLikeOps<V>>(
-            params,
-            {DataType::DT_FLOAT, DataType::DT_HALF, DataType::DT_INT32}) {}
+  explicit ConvertLikeOps(OpConverterParams *params)
+      : OpConverterBase<ConvertLikeOps<V>>(params) {}
+
+  static constexpr std::array<DataType, 3> AllowedDataTypes() {
+    return {DataType::DT_FLOAT, DataType::DT_HALF, DataType::DT_INT32};
+  }
 
   static constexpr std::array<InputArgSpec, 1> InputSpec() {
     return std::array<InputArgSpec, 1>{
         InputArgSpec::Create("input", TrtInputArg::kBoth),
     };
   }
-  Status Validate() { return ConvertLikeOps<V>::NotSupportedInImplicitBatch(); }
+  Status Validate() {
+    const auto &params = *this->params_;
+
+    const std::string op_name = V == 0 ? "ZerosLike" : "OnesLike";
+    if (params.use_implicit_batch) {
+      return errors::Unimplemented("Conversion for " + op_name +
+                                   " is not implemented in"
+                                   " implicit batch mode");
+    }
+    const auto &inputs = params.inputs;
+    if (inputs.size() != 1) {
+      return errors::InvalidArgument(op_name, " expects 1 input, but received ",
+                                     inputs.size());
+    }
+    return Status::OK();
+  }
 
   Status Convert() {
     const auto &params = *this->params_;
@@ -54,7 +71,7 @@ class ConvertLikeOps : public OpConverterBase<ConvertLikeOps<V>> {
         params.weight_store->GetTempWeights(input.TrtDType(), value_input_dims);
     TF_RETURN_IF_ERROR(value_weights.status());
     TF_RETURN_IF_ERROR(value_weights->SetValues(V));
-    TRT_TensorOrWeights value_input(value_weights.value());
+    TRT_TensorOrWeights value_input(value_weights.ValueOrDie());
 
     const auto is_dims_static = HasStaticShape(dims);
     auto builder = TRTNetworkBuilder::Create(network, params.weight_store);
@@ -73,7 +90,7 @@ class ConvertLikeOps : public OpConverterBase<ConvertLikeOps<V>> {
                          input.GetTrtDims().nbDims, dims);
     ITensorProxyPtr output_tensor = (*layer)->getOutput(0);
     this->AddOutput(TRT_TensorOrWeights(output_tensor));
-    return OkStatus();
+    return Status::OK();
   }
 };
 

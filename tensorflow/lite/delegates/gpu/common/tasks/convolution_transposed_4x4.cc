@@ -405,10 +405,14 @@ ConvolutionTransposed4x4 CreateConvolutionTransposed4x4(
   ConvolutionTransposed4x4 result(definition, gpu_info);
   result.UploadWeights(attr.weights, GetBestWeightsUploadType(gpu_info));
 
-  TensorDescriptor bias_tensor_desc = CreateConstantLinearTensorDescriptor(
-      gpu_info, definition.src_tensors[0].GetDataType(), attr.bias);
-  result.args_.AddObject("biases", std::make_unique<TensorDescriptor>(
-                                       std::move(bias_tensor_desc)));
+  TensorLinearDescriptor desc;
+  desc.storage_type = gpu_info.IsApple() || !gpu_info.SupportsImages()
+                          ? LinearStorageType::BUFFER
+                          : LinearStorageType::TEXTURE_2D;
+  desc.element_type = definition.GetDataType();
+  desc.UploadLinearData(attr.bias);
+  result.args_.AddObject(
+      "biases", std::make_unique<TensorLinearDescriptor>(std::move(desc)));
   return result;
 }
 
@@ -426,10 +430,14 @@ ConvolutionTransposed4x4 CreateConvolutionTransposed4x4DynamicWeights(
 
   ConvolutionTransposed4x4 result(new_def, gpu_info);
 
-  TensorDescriptor bias_tensor_desc = CreateConstantLinearTensorDescriptor(
-      gpu_info, definition.src_tensors[0].GetDataType(), attr.bias);
-  result.args_.AddObject("biases", std::make_unique<TensorDescriptor>(
-                                       std::move(bias_tensor_desc)));
+  TensorLinearDescriptor desc;
+  desc.storage_type = gpu_info.IsApple() || !gpu_info.SupportsImages()
+                          ? LinearStorageType::BUFFER
+                          : LinearStorageType::TEXTURE_2D;
+  desc.element_type = new_def.GetDataType();
+  desc.UploadLinearData(attr.bias);
+  result.args_.AddObject(
+      "biases", std::make_unique<TensorLinearDescriptor>(std::move(desc)));
   return result;
 }
 

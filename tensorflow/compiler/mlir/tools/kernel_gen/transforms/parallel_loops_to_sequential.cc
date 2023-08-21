@@ -24,12 +24,11 @@ namespace kernel_gen {
 namespace transforms {
 namespace {
 
-#define GEN_PASS_DEF_PARALLELLOOPSTOSEQUENTIAL
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/tools/kernel_gen/transforms/kernel_gen_passes.h.inc"
 
 struct ParallelLoopsToSequentialPass
-    : public impl::ParallelLoopsToSequentialBase<
-          ParallelLoopsToSequentialPass> {
+    : public ParallelLoopsToSequentialBase<ParallelLoopsToSequentialPass> {
   void runOnOperation() override {
     mlir::RewritePatternSet patterns(&getContext());
     mlir::populateSCFToControlFlowConversionPatterns(patterns);

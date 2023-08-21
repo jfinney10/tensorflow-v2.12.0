@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_COMPILER_MLIR_TOSA_TRANSFORMS_PASSES_H_
-#define TENSORFLOW_COMPILER_MLIR_TOSA_TRANSFORMS_PASSES_H_
+#ifndef TENSORFLOW_COMPILER_MLIR_TOSA_TRANSFORMS_PASSES_H
+#define TENSORFLOW_COMPILER_MLIR_TOSA_TRANSFORMS_PASSES_H
 
 #include <memory>
 #include <string>
@@ -27,10 +27,6 @@ namespace mlir {
 
 namespace quant {
 class QuantizationDialect;
-}
-
-namespace quantfork {
-class QuantizationForkDialect;
 }
 
 namespace TFL {
@@ -60,17 +56,11 @@ std::unique_ptr<OperationPass<func::FuncOp>> createStripQuantTypesPass();
 std::unique_ptr<OperationPass<func::FuncOp>> createDequantizeTFLSoftmaxPass();
 
 #define GEN_PASS_REGISTRATION
-#define GEN_PASS_DECL_TOSALEGALIZETFPASS
-#define GEN_PASS_DECL_TOSALEGALIZETFLPASS
-#define GEN_PASS_DECL_TOSALEGALIZETFTFLPASS
-#define GEN_PASS_DECL_TOSAFUSEBIASTFPASS
-#define GEN_PASS_DECL_TOSACONVERTTFLUINT8PASS
-#define GEN_PASS_DECL_TOSASTRIPQUANTTYPESPASS
-#define GEN_PASS_DECL_TOSADEQUANTIZETFLSOFTMAXPASS
+#define GEN_PASS_CLASSES
 
 #include "tensorflow/compiler/mlir/tosa/transforms/passes.h.inc"
 
 }  // namespace tosa
 }  // namespace mlir
 
-#endif  // TENSORFLOW_COMPILER_MLIR_TOSA_TRANSFORMS_PASSES_H_
+#endif  // TENSORFLOW_COMPILER_MLIR_TOSA_TRANSFORMS_PASSES_H

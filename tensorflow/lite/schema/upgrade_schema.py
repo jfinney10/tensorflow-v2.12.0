@@ -58,7 +58,7 @@ def TemporaryDirectoryResource():
     shutil.rmtree(temporary)
 
 
-class Converter:
+class Converter(object):
   """Converts TensorFlow flatbuffer models from old to new version of schema.
 
   This can convert between any version to the latest version. It uses
@@ -230,7 +230,8 @@ class Converter:
 
       Args:
         operator_type: String representing the builtin operator data type
-          string. (see :schema.fbs).
+          string.
+        (see :schema.fbs).
       Raises:
         ValueError: When the model has consistency problems.
       Returns:

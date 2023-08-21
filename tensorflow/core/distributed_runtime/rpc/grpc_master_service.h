@@ -21,13 +21,12 @@ limitations under the License.
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/protobuf/master.pb.h"
 
-namespace tsl {
-class AsyncServiceInterface;
-}
 namespace tensorflow {
+
+class AsyncServiceInterface;
 class Master;
 
-tsl::AsyncServiceInterface* NewGrpcMasterService(
+AsyncServiceInterface* NewGrpcMasterService(
     Master* master, const ConfigProto& default_session_config,
     ::grpc::ServerBuilder* builder);
 

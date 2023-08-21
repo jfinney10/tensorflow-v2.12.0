@@ -13,7 +13,7 @@ cc_library(
 )
 
 _COMPUTE_LIBRARY_DEFINES = [
-    "ARM_COMPUTE_OPENMP_SCHEDULER",
+    "ARM_COMPUTE_CPP_SCHEDULER",
     "ARM_COMPUTE_CPU_ENABLED",
     "ENABLE_NEON",
     "ARM_COMPUTE_ENABLE_NEON",
@@ -29,7 +29,6 @@ _COMPUTE_LIBRARY_DEFINES = [
     "ENABLE_INTEGER_KERNELS",
     "ENABLE_NHWC_KERNELS",
     "ENABLE_NCHW_KERNELS",
-    "ARM_COMPUTE_ENABLE_FIXED_FORMAT_KERNELS",
 ]
 
 cc_library(
@@ -42,10 +41,7 @@ cc_library(
             "**/*.inl",
         ],
     ),
-    copts = [
-        "-march=armv8.6-a+sve2",
-        "-fopenmp",
-    ],
+    copts = ["-march=armv8.6-a+sve2"],
     defines = _COMPUTE_LIBRARY_DEFINES + ["ARM_COMPUTE_ENABLE_SVE2"],
     includes = [
         "src/core/NEON/kernels/arm_conv",
@@ -54,7 +50,7 @@ cc_library(
         "src/core/cpu/kernels/assembly",
         "src/cpu/kernels/assembly",
     ],
-    linkopts = ["-fopenmp"],
+    linkopts = ["-lpthread"],
     deps = ["include"],
 )
 
@@ -66,7 +62,6 @@ cc_library(
             "src/core/NEON/kernels/arm_conv/**/kernels/sve_*/*.cpp",
             "src/core/NEON/kernels/arm_conv/depthwise/interleaves/sve_*.cpp",
             "src/core/NEON/kernels/batchnormalization/impl/SVE/*.cpp",
-            "src/core/NEON/kernels/convolution/winograd/input_transforms/sve_fp32_6x6.cpp",
             "src/cpu/kernels/**/sve/*.cpp",
             "**/*.h",
             "**/*.hpp",
@@ -76,10 +71,7 @@ cc_library(
         "src/core/NEON/kernels/arm_gemm/transform-sve.cpp",
         "src/core/NEON/kernels/arm_gemm/mergeresults-sve.cpp",
     ],
-    copts = [
-        "-march=armv8.2-a+sve",
-        "-fopenmp",
-    ],
+    copts = ["-march=armv8.2-a+sve"],
     defines = _COMPUTE_LIBRARY_DEFINES,
     includes = [
         "src/core/NEON/kernels/arm_conv",
@@ -88,7 +80,7 @@ cc_library(
         "src/core/cpu/kernels/assembly",
         "src/cpu/kernels/assembly",
     ],
-    linkopts = ["-fopenmp"],
+    linkopts = ["-lpthread"],
     deps = ["include"],
 )
 
@@ -114,7 +106,6 @@ cc_library(
             "src/core/NEON/kernels/batchnormalization/impl/NEON/*.cpp",
             "src/cpu/*.cpp",
             "src/cpu/kernels/*.cpp",
-            "src/cpu/kernels/fuse_batch_normalization/**/*.cpp",
             "src/cpu/kernels/*/generic/*.cpp",
             "src/cpu/operators/**/*.cpp",
             "src/cpu/utils/*.cpp",
@@ -131,7 +122,6 @@ cc_library(
             "src/core/TracePoint.cpp",
             "src/core/NEON/kernels/arm_gemm/mergeresults-sve.cpp",
             "src/core/NEON/kernels/arm_gemm/transform-sve.cpp",
-            "src/core/NEON/kernels/convolution/winograd/input_transforms/sve_fp32_6x6.cpp",
             "src/runtime/CL/**",
             "src/gpu/**",
         ],
@@ -152,10 +142,7 @@ cc_library(
     ]) + [
         "arm_compute_version.embed",
     ],
-    copts = [
-        "-march=armv8-a",
-        "-fopenmp",
-    ],
+    copts = ["-march=armv8-a"],
     defines = _COMPUTE_LIBRARY_DEFINES,
     includes = [
         "arm_compute/runtime",
@@ -165,7 +152,7 @@ cc_library(
         "src/core/cpu/kernels/assembly",
         "src/cpu/kernels/assembly",
     ],
-    linkopts = ["-fopenmp"],
+    linkopts = ["-lpthread"],
     visibility = ["//visibility:public"],
     deps = [
         "arm_compute_sve",

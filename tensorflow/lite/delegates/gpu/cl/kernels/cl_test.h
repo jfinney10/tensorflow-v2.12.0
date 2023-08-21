@@ -43,7 +43,7 @@ class ClExecutionEnvironment : public TestExecutionEnvironment {
 
   const GpuInfo& GetGpuInfo() const override;
 
-  absl::Status ExecuteGpuOperationInternal(
+  absl::Status ExecuteGPUOperation(
       const std::vector<TensorDescriptor*>& src_cpu,
       const std::vector<TensorDescriptor*>& dst_cpu,
       std::unique_ptr<GPUOperation>&& operation) override;

@@ -15,8 +15,6 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/service/cpu/cpu_xfeed.h"
 
-#include <cstring>
-#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -35,9 +33,9 @@ limitations under the License.
 #include "tensorflow/compiler/xla/statusor.h"
 #include "tensorflow/compiler/xla/types.h"
 #include "tensorflow/compiler/xla/util.h"
-#include "tensorflow/tsl/platform/errors.h"
-#include "tensorflow/tsl/platform/logging.h"
-#include "tensorflow/tsl/platform/notification.h"
+#include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/platform/logging.h"
+#include "tensorflow/core/platform/notification.h"
 
 namespace xla {
 namespace {
@@ -78,7 +76,7 @@ class CpuOutfeedBuffer : public cpu::runtime::XfeedBuffer {
   void* destination_;
   int32_t length_;
   StatusOr<Shape> status_;
-  tsl::Notification done_;
+  tensorflow::Notification done_;
 };
 
 // Transfers infeed data to device. InfeedBuffer->Done() must be called to
@@ -276,12 +274,12 @@ Status TransferLiteralFromOutfeedOnCpu(int device_ordinal,
 }
 
 Status ReadDynamicShapesOnCpu(
-    const ShapedBuffer* device_buffer, Shape* device_shape,
+    ShapedBuffer* device_buffer, Shape* device_shape,
     HloCostAnalysis::ShapeSizeFunction shape_size_fn) {
   TF_RET_CHECK(device_shape->is_dynamic());
   Shape original_device_shape = *device_shape;
-  TF_RETURN_IF_ERROR(device_buffer->buffers().ForEachElementWithStatus(
-      [&](const ShapeIndex& index, const se::DeviceMemoryBase& buffer) {
+  TF_RETURN_IF_ERROR(device_buffer->buffers().ForEachMutableElementWithStatus(
+      [&](const ShapeIndex& index, se::DeviceMemoryBase* buffer) {
         const Shape& buffer_shape =
             ShapeUtil::GetSubshape(*device_shape, index);
         if (buffer_shape.IsTuple()) {
@@ -292,7 +290,7 @@ Status ReadDynamicShapesOnCpu(
         if (device_sub_shape.is_static()) {
           return OkStatus();
         }
-        const void* memory = buffer.opaque();
+        void* memory = buffer->opaque();
 
         // Read the dynamic shape metadata from the device stream.
         Shape buffer_shape_static = ShapeUtil::MakeStaticShape(buffer_shape);
@@ -301,9 +299,8 @@ Status ReadDynamicShapesOnCpu(
         if (metadata_size == 0) {
           return InvalidArgument("Dynamic shape metadata size should not be 0");
         }
-        auto buffer_8 = static_cast<const int8_t*>(memory);
-        auto metadata_buffer =
-            reinterpret_cast<const int32_t*>(buffer_8 + offset);
+        auto buffer_8 = static_cast<int8_t*>(memory);
+        auto metadata_buffer = reinterpret_cast<int32_t*>(buffer_8 + offset);
 
         // Update shape size from metadata.
         for (int64_t i = 0; i < device_sub_shape.rank(); ++i) {

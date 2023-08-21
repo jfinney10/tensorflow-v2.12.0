@@ -23,7 +23,7 @@ def _internal_attr_name(name):
   return "_" + name
 
 
-class OptionsBase:
+class OptionsBase(object):
   """Base class for representing a set of tf.data options.
 
   Attributes:

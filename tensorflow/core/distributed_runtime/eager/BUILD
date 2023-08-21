@@ -1,12 +1,16 @@
 load("//tensorflow/core/platform:rules_cc.bzl", "cc_library")
-load("//tensorflow:tensorflow.default.bzl", "filegroup", "tf_grpc_cc_dependencies")
+
+# buildifier: disable=same-origin-load
+load("//tensorflow:tensorflow.bzl", "filegroup")
+
+# buildifier: disable=same-origin-load
+load("//tensorflow:tensorflow.bzl", "tf_grpc_cc_dependencies")
 load(
     "//tensorflow:tensorflow.bzl",
     "tf_cc_test",
 )
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [
         "//tensorflow:internal",
     ],
@@ -16,7 +20,6 @@ package(
 cc_library(
     name = "remote_tensor_handle",
     hdrs = ["remote_tensor_handle.h"],
-    # copybara:uncomment copts = ["-Wthread-safety-analysis"],
     deps = [
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
@@ -31,7 +34,6 @@ cc_library(
     hdrs = [
         "cluster_function_library_runtime.h",
     ],
-    # copybara:uncomment copts = ["-Wthread-safety-analysis"],
     deps = [
         ":eager_client",
         "//tensorflow/core:core_cpu_internal",
@@ -49,7 +51,6 @@ cc_library(
 cc_library(
     name = "destroy_tensor_handle_node",
     hdrs = ["destroy_tensor_handle_node.h"],
-    # copybara:uncomment copts = ["-Wthread-safety-analysis"],
     deps = [
         ":eager_client",
         "//tensorflow/core/common_runtime/eager:eager_executor",
@@ -60,7 +61,6 @@ cc_library(
 cc_library(
     name = "eager_client",
     hdrs = ["eager_client.h"],
-    # copybara:uncomment copts = ["-Wthread-safety-analysis"],
     deps = [
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
@@ -73,7 +73,6 @@ cc_library(
     name = "remote_execute_node",
     srcs = ["remote_execute_node.cc"],
     hdrs = ["remote_execute_node.h"],
-    # copybara:uncomment copts = ["-Wthread-safety-analysis"],
     deps = [
         ":eager_client",
         "//tensorflow/core:framework",
@@ -94,16 +93,13 @@ cc_library(
     hdrs = [
         "eager_service_impl.h",
     ],
-    # copybara:uncomment copts = ["-Wthread-safety-analysis"],
     deps = [
         ":cluster_function_library_runtime",
         ":remote_mgr",
         ":remote_tensor_handle",
         "@com_google_absl//absl/container:fixed_array",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "//tensorflow/c/eager:immediate_execution_distributed_manager",
-        "//tensorflow/tsl/distributed_runtime/preemption:preemption_notifier",
         "//tensorflow/core:core_cpu_internal",
         "//tensorflow/core:framework_internal",
         "//tensorflow/core:lib",
@@ -125,7 +121,6 @@ cc_library(
 tf_cc_test(
     name = "eager_service_impl_test",
     srcs = ["eager_service_impl_test.cc"],
-    # copybara:uncomment extra_copts = ["-Wthread-safety-analysis"],
     deps = [
         ":cluster_function_library_runtime",
         ":eager_service_impl",
@@ -158,7 +153,6 @@ cc_library(
     hdrs = [
         "remote_mgr.h",
     ],
-    # copybara:uncomment copts = ["-Wthread-safety-analysis"],
     visibility = ["//tensorflow:internal"],
     deps = [
         ":remote_tensor_handle",
@@ -173,7 +167,6 @@ tf_cc_test(
     name = "remote_mgr_test",
     size = "small",
     srcs = ["remote_mgr_test.cc"],
-    # copybara:uncomment extra_copts = ["-Wthread-safety-analysis"],
     deps = [
         ":remote_mgr",
         "//tensorflow/core:protos_all_cc",
@@ -189,7 +182,6 @@ cc_library(
     name = "remote_tensor_handle_data",
     srcs = ["remote_tensor_handle_data.cc"],
     hdrs = ["remote_tensor_handle_data.h"],
-    # copybara:uncomment copts = ["-Wthread-safety-analysis"],
     deps = [
         ":destroy_tensor_handle_node",
         ":eager_client",
@@ -207,7 +199,6 @@ cc_library(
     hdrs = [
         "remote_copy_node.h",
     ],
-    # copybara:uncomment copts = ["-Wthread-safety-analysis"],
     visibility = ["//tensorflow:internal"],
     deps = [
         ":remote_mgr",
@@ -229,7 +220,7 @@ filegroup(
         "remote_tensor_handle_data.h",
     ],
     visibility = [
-        "//tensorflow/core/function/runtime_client:__pkg__",
+        "//tensorflow/core/function:__pkg__",
         "//tensorflow/python:__subpackages__",
     ],
 )

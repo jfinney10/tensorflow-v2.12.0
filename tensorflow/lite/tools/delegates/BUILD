@@ -1,8 +1,6 @@
 load("//tensorflow/lite:build_def.bzl", "tflite_copts", "tflite_copts_warnings")
-load("//tensorflow/lite/core/shims:cc_library_with_tflite.bzl", "cc_library_with_tflite", "cc_test_with_tflite")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [
         "//visibility:public",
     ],
@@ -11,62 +9,57 @@ package(
 
 common_copts = tflite_copts() + tflite_copts_warnings()
 
-cc_library_with_tflite(
+cc_library(
     name = "delegate_provider_hdr",
     hdrs = [
         "delegate_provider.h",
     ],
     copts = common_copts,
-    tflite_deps = [
-        "//tensorflow/lite/core/shims:common",
-    ],
     deps = [
+        "//tensorflow/lite/c:common",
         "//tensorflow/lite/tools:command_line_flags",
         "//tensorflow/lite/tools:logging",
         "//tensorflow/lite/tools:tool_params",
     ],
 )
 
-cc_library_with_tflite(
+cc_library(
     name = "delegate_provider_lib",
     srcs = [
         "delegate_provider.cc",
     ],
     copts = common_copts,
-    tflite_deps = [
+    deps = [
         ":delegate_provider_hdr",
     ],
 )
 
 # A convenient library for all inference execution providers.
-cc_library_with_tflite(
+cc_library(
     name = "tflite_execution_providers",
     copts = tflite_copts(),
-    tflite_deps = [
-        ":xnnpack_delegate_provider",
-        ":delegate_provider_lib",
-    ],
     deps = [
         ":coreml_delegate_provider",
         ":default_execution_provider",
+        ":delegate_provider_lib",
         ":external_delegate_provider",
         ":gpu_delegate_provider",
         ":hexagon_delegate_provider",
         ":nnapi_delegate_provider",
-        "//tensorflow/lite/tools/delegates/experimental/stable_delegate:delegate_provider",
+        ":xnnpack_delegate_provider",
     ],
     alwayslink = 1,
 )
 
-cc_library_with_tflite(
+cc_library(
     name = "default_execution_provider",
     srcs = ["default_execution_provider.cc"],
     copts = tflite_copts(),
     linkstatic = True,
-    tflite_deps = [
+    visibility = ["//visibility:public"],
+    deps = [
         ":delegate_provider_hdr",
     ],
-    visibility = ["//visibility:public"],
     alwayslink = 1,
 )
 
@@ -160,16 +153,16 @@ cc_library(
     alwayslink = 1,
 )
 
-cc_library_with_tflite(
+cc_library(
     name = "xnnpack_delegate_provider",
     srcs = ["xnnpack_delegate_provider.cc"],
     copts = tflite_copts(),
     linkstatic = True,
-    tflite_deps = [
+    visibility = ["//visibility:public"],
+    deps = [
         ":delegate_provider_hdr",
         "//tensorflow/lite/tools/evaluation:utils",
     ],
-    visibility = ["//visibility:public"],
     alwayslink = 1,
 )
 
@@ -190,7 +183,7 @@ cc_library(
     alwayslink = 1,
 )
 
-cc_test_with_tflite(
+cc_test(
     name = "delegate_provider_lib_test",
     size = "small",
     srcs = ["delegate_provider_test.cc"],
@@ -200,15 +193,12 @@ cc_test_with_tflite(
         "//tensorflow:macos": True,
         "//conditions:default": False,
     }),
-    tflite_deps = [
+    deps = [
         ":default_execution_provider",
         ":delegate_provider_hdr",
         ":delegate_provider_lib",
-        ":xnnpack_delegate_provider",
-        "//tensorflow/lite/core/shims:c_shims_test_util",
-    ],
-    deps = [
         ":nnapi_delegate_provider",
+        ":xnnpack_delegate_provider",
         "//tensorflow/lite/delegates/utils/dummy_delegate:dummy_delegate_provider",
         "//tensorflow/lite/tools:tool_params",
         "@com_google_googletest//:gtest_main",

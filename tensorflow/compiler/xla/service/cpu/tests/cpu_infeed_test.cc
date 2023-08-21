@@ -29,8 +29,9 @@ limitations under the License.
 #include "tensorflow/compiler/xla/tests/client_library_test_base.h"
 #include "tensorflow/compiler/xla/tests/literal_test_util.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
-#include "tensorflow/tsl/platform/env.h"
-#include "tensorflow/tsl/platform/test.h"
+#include "tensorflow/core/lib/math/math_util.h"
+#include "tensorflow/core/platform/env.h"
+#include "tensorflow/core/platform/test.h"
 
 namespace xla {
 namespace {
@@ -147,10 +148,12 @@ TEST_F(InfeedTest, DISABLED_SingleInfeedInWhile) {
   // Build and asynchronously launch the computation.
   auto computation = builder.Build().value();
   std::unique_ptr<GlobalData> result;
-  tsl::Thread* computation_thread = tsl::Env::Default()->StartThread(
-      tsl::ThreadOptions{}, "computation_thread", [&] {
-        result = client_->Execute(computation, {}, &execution_options_).value();
-      });
+  tensorflow::Thread* computation_thread =
+      tensorflow::Env::Default()->StartThread(
+          tensorflow::ThreadOptions{}, "computation_thread", [&] {
+            result = client_->Execute(computation, {}, &execution_options_)
+                         .ValueOrDie();
+          });
 
   // Send 5 Infeed data of shape F32[3].
   ASSERT_IS_OK(
@@ -261,14 +264,16 @@ TEST_F(InfeedTest, DISABLED_TwoInfeedsInTotalOrder) {
 
   // Asynchronously launch the execution on the device.
   std::unique_ptr<GlobalData> result;
-  tsl::Thread* computation_thread = tsl::Env::Default()->StartThread(
-      tsl::ThreadOptions{}, "computation_thread", [&] {
-        result = client_->Execute(computation, {}, &execution_options_).value();
-      });
+  tensorflow::Thread* computation_thread =
+      tensorflow::Env::Default()->StartThread(
+          tensorflow::ThreadOptions{}, "computation_thread", [&] {
+            result = client_->Execute(computation, {}, &execution_options_)
+                         .ValueOrDie();
+          });
 
   // Wait for a second to ensure testing that the execution is waiting on the
   // Infeed data, and send the rest Infeed data of shape Tuple(F32[3], PRED).
-  tsl::Env::Default()->SleepForMicroseconds(1000000);
+  tensorflow::Env::Default()->SleepForMicroseconds(1000000);
   ASSERT_IS_OK(client_->TransferToInfeed(
       LiteralUtil::MakeTupleFromSlices({LiteralUtil::CreateR1<float>({1, 2, 3}),
                                         LiteralUtil::CreateR0<bool>(true)})));

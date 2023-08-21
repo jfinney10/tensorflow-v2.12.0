@@ -90,14 +90,15 @@ class XlaArgOp : public XlaOpKernel {
       // Note that `arg` is still considered dynamic as long as one element
       // inside is dynamic, therefore the argument node can't be constant folded
       // into a constant node.
-      xla::Literal bound = HostTensorToLiteral(*arg.value_bound()).value();
+      xla::Literal bound = HostTensorToLiteral(*arg.value_bound()).ValueOrDie();
       xla::Literal dynamism =
-          HostTensorToLiteral(*arg.value_dynamism()).value();
+          HostTensorToLiteral(*arg.value_dynamism()).ValueOrDie();
       xla::Literal tuple = xla::LiteralUtil::MakeTupleOwned(
           std::move(bound), std::move(dynamism));
-      ctx->SetOutput(0, xla::CustomCall(builder, "SetBound", {input_op},
-                                        builder->GetShape(input_op).value(), "",
-                                        false, {}, &tuple));
+      ctx->SetOutput(
+          0, xla::CustomCall(builder, "SetBound", {input_op},
+                             builder->GetShape(input_op).ValueOrDie(), "",
+                             false, {}, &tuple));
       return;
     } else {
       ctx->SetOutputExpression(0, arg);

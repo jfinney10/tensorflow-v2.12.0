@@ -19,19 +19,17 @@ limitations under the License.
 #include <functional>
 #include <memory>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "absl/time/time.h"
 #include "grpcpp/channel.h"
 #include "tensorflow/compiler/xla/pjrt/distributed/protocol.grpc.pb.h"
 #include "tensorflow/compiler/xla/statusor.h"
 #include "tensorflow/compiler/xla/types.h"
-#include "tensorflow/tsl/platform/env.h"
+#include "tensorflow/core/platform/env.h"
 
-namespace tsl {
+namespace tensorflow {
 class CoordinationServiceAgent;
-}  // namespace tsl
+}  // namespace tensorflow
 
 namespace xla {
 
@@ -42,7 +40,7 @@ class DistributedRuntimeClient {
     int32_t node_id = -1;
 
     // Environment used for starting threads.
-    tsl::Env* env = tsl::Env::Default();
+    tensorflow::Env* env = tensorflow::Env::Default();
 
     // RPC timeout used for RPC that don't have their own timeouts.
     absl::Duration rpc_timeout = absl::Seconds(120);
@@ -55,7 +53,7 @@ class DistributedRuntimeClient {
 
     // How long to wait for all nodes to call Shutdown(). If the timeout
     // expires, then shutdown() reports an error and returns control.
-    absl::Duration shutdown_timeout = absl::Minutes(5);
+    absl::Duration shutdown_timeout = absl::Seconds(60);
 
     // Interval at which the client should send heartbeat RPCs to the
     // coordinator.
@@ -94,7 +92,7 @@ class DistributedRuntimeClient {
     bool shutdown_on_destruction = true;
   };
 
-  virtual ~DistributedRuntimeClient() = default;
+  virtual ~DistributedRuntimeClient() {}
 
   // Connects to the master, and blocks until all clients have successfully
   // connected.
@@ -114,26 +112,10 @@ class DistributedRuntimeClient {
       GlobalTopologyProto* global_topology) = 0;
 
   // The following APIs are thread-safe.
-
-  // Key-value store API.
-  // There are no concurrency guarantees. To avoid a race / impose an ordering
-  // on potentially concurrent ops (e.g. set, delete), use WaitAtBarrier().
   virtual xla::StatusOr<std::string> BlockingKeyValueGet(
       std::string key, absl::Duration timeout) = 0;
 
-  // Get all key-value pairs under a directory (key).
-  // A value is considered to be in the directory if its key is prefixed with
-  // the directory.
-  // This is not a blocking call. If no keys are found, an empty vector is
-  // returned immediately.
-  virtual xla::StatusOr<std::vector<std::pair<std::string, std::string>>>
-  KeyValueDirGet(absl::string_view key) = 0;
-
   virtual xla::Status KeyValueSet(std::string key, std::string value) = 0;
-
-  // Delete the key-value. If the key is a directory, recursively clean
-  // up all key-values under the directory.
-  virtual xla::Status KeyValueDelete(std::string key) = 0;
 
   // Blocks until all nodes are at the barrier or the barrier times out.
   // `barrier_id` should be unique across barriers.
@@ -142,7 +124,7 @@ class DistributedRuntimeClient {
 
   // Returns pointer to coordination service agent, or InternalError if the
   // client does not use coordination service.
-  virtual StatusOr<tsl::CoordinationServiceAgent*>
+  virtual StatusOr<tensorflow::CoordinationServiceAgent*>
   GetCoordinationServiceAgent() = 0;
 };
 

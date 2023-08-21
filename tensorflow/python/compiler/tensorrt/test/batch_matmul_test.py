@@ -71,9 +71,6 @@ class BatchMatMulTwoTensorTest(BatchMatMultTestBase):
 class BatchMatMulWeightBroadcastTest(BatchMatMultTestBase):
   """Testing BatchMatMulV2: one operand is weight and both have same rank."""
 
-  def ShouldAllowTF32Computation(self):
-    return False
-
   def GraphFn(self, inp):
     dtype = inp.dtype
     b = constant_op.constant(
@@ -92,9 +89,6 @@ class BatchMatMulWeightBroadcastTest(BatchMatMultTestBase):
 
 class BatchMatMulWeightBroadcastDims2Test(BatchMatMultTestBase):
   """Testing BatchMatMulV2: weight operand must be broadcasted."""
-
-  def ShouldAllowTF32Computation(self):
-    return False
 
   def GraphFn(self, inp):
     dtype = inp.dtype

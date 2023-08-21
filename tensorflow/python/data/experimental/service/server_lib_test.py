@@ -111,19 +111,19 @@ class ServerLibTest(test.TestCase):
 
   def testStopDispatcher(self):
     dispatcher = server_lib.DispatchServer()
-    dispatcher.stop()
-    dispatcher.stop()
+    dispatcher._stop()
+    dispatcher._stop()
 
   def testStopWorker(self):
     dispatcher = server_lib.DispatchServer()
     worker = server_lib.WorkerServer(
         server_lib.WorkerConfig(dispatcher._address))
-    worker.stop()
-    worker.stop()
+    worker._stop()
+    worker._stop()
 
   def testStopStartDispatcher(self):
     dispatcher = server_lib.DispatchServer()
-    dispatcher.stop()
+    dispatcher._stop()
     with self.assertRaisesRegex(
         RuntimeError, "Server cannot be started after it has been stopped"):
       dispatcher.start()
@@ -132,21 +132,21 @@ class ServerLibTest(test.TestCase):
     dispatcher = server_lib.DispatchServer()
     worker = server_lib.WorkerServer(
         server_lib.WorkerConfig(dispatcher._address))
-    worker.stop()
+    worker._stop()
     with self.assertRaisesRegex(
         RuntimeError, "Server cannot be started after it has been stopped"):
       worker.start()
 
   def testJoinDispatcher(self):
     dispatcher = server_lib.DispatchServer()
-    dispatcher.stop()
+    dispatcher._stop()
     dispatcher.join()
 
   def testJoinWorker(self):
     dispatcher = server_lib.DispatchServer()
     worker = server_lib.WorkerServer(
         server_lib.WorkerConfig(dispatcher._address))
-    worker.stop()
+    worker._stop()
     worker.join()
 
   def testDispatcherNumWorkers(self):

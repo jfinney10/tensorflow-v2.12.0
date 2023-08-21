@@ -29,7 +29,7 @@ StatusOr<mlir::Operation*> SparseToDenseSPMDExpander::ExpandOp(
   TF_ASSIGN_OR_RETURN(absl::optional<Layout> computed_layout,
                       ExtractSingleLayoutFromOp(op));
   auto local_shape = computed_layout->LocalShapeFromGlobalShape(
-      ExtractGlobalOutputShape(op->getResult(0)).value());
+      ExtractGlobalOutputShape(op->getResult(0)).ValueOrDie());
   auto op_result = op->getResult(0);
 
   const auto element_type =

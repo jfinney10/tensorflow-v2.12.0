@@ -15,15 +15,10 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/client/executable_build_options.h"
 
-#include <memory>
-#include <utility>
-
 #include "absl/strings/str_format.h"
 #include "tensorflow/compiler/xla/debug_options_flags.h"
 #include "tensorflow/compiler/xla/execution_options_util.h"
 #include "tensorflow/compiler/xla/shape_util.h"
-#include "tensorflow/compiler/xla/xla.pb.h"
-#include "tensorflow/tsl/platform/statusor.h"
 
 namespace xla {
 
@@ -58,13 +53,6 @@ ExecutableBuildOptions& ExecutableBuildOptions::set_result_layout(
   result_layout_set_ = true;
   result_layout_ = shape_with_layout;
   return *this;
-}
-
-CompilationEnvironments* ExecutableBuildOptions::mutable_comp_envs() {
-  if (!has_comp_envs()) {
-    comp_envs_.emplace();
-  }
-  return &*comp_envs_;
 }
 
 const Shape* ExecutableBuildOptions::result_layout() const {
@@ -113,76 +101,6 @@ ExecutableBuildOptions& ExecutableBuildOptions::set_deduplicate_hlo(
     bool deduplicate_hlo) {
   deduplicate_hlo_ = deduplicate_hlo;
   return *this;
-}
-
-StatusOr<ExecutableBuildOptionsProto> ExecutableBuildOptions::ToProto() const {
-  ExecutableBuildOptionsProto output;
-  output.set_device_ordinal(device_ordinal());
-  if (result_layout()) {
-    *output.mutable_result_layout() = result_layout()->ToProto();
-  }
-  if (has_comp_envs()) {
-    *output.mutable_comp_envs() = comp_envs().ToProto();
-  }
-  if (has_debug_options()) {
-    *output.mutable_debug_options() = debug_options();
-  }
-  if (layout_canonicalization_callback_) {
-    return InvalidArgument(
-        "Cannot serialize "
-        "ExecutableBuildOptions::layout_canonicalization_callback");
-  }
-  output.set_num_replicas(num_replicas());
-  output.set_num_partitions(num_partitions());
-  output.set_use_spmd_partitioning(use_spmd_partitioning());
-  output.set_use_auto_spmd_partitioning(use_auto_spmd_partitioning());
-  output.set_deduplicate_hlo(deduplicate_hlo());
-  if (has_device_assignment()) {
-    TF_RETURN_IF_ERROR(
-        device_assignment().Serialize(output.mutable_device_assignment()));
-  }
-  output.set_alias_passthrough_params(alias_passthrough_params());
-  output.set_run_backend_only(run_backend_only());
-  output.set_allow_spmd_sharding_propagation_to_output(
-      allow_spmd_sharding_propagation_to_output());
-
-  return output;
-}
-
-StatusOr<ExecutableBuildOptions> ExecutableBuildOptionsFromProto(
-    const ExecutableBuildOptionsProto& input) {
-  xla::ExecutableBuildOptions output;
-  if (input.device_ordinal() != -1) {
-    output.set_device_ordinal(input.device_ordinal());
-  }
-  if (input.has_result_layout()) {
-    output.set_result_layout(xla::Shape(input.result_layout()));
-  }
-  if (input.has_comp_envs()) {
-    TF_ASSIGN_OR_RETURN(
-        auto comp_envs,
-        xla::CompilationEnvironments::CreateFromProto(input.comp_envs()));
-    *output.mutable_comp_envs() = std::move(*comp_envs);
-  }
-  if (input.has_debug_options()) {
-    *output.mutable_debug_options() = input.debug_options();
-  }
-  output.set_num_replicas(input.num_replicas());
-  output.set_num_partitions(input.num_partitions());
-  output.set_use_spmd_partitioning(input.use_spmd_partitioning());
-  output.set_use_auto_spmd_partitioning(input.use_auto_spmd_partitioning());
-  output.set_deduplicate_hlo(input.deduplicate_hlo());
-  if (input.has_device_assignment()) {
-    TF_ASSIGN_OR_RETURN(
-        std::unique_ptr<xla::DeviceAssignment> assignment,
-        xla::DeviceAssignment::Deserialize(input.device_assignment()));
-    output.set_device_assignment(*assignment);
-  }
-  output.set_alias_passthrough_params(input.alias_passthrough_params());
-  output.set_run_backend_only(input.run_backend_only());
-  output.set_allow_spmd_sharding_propagation_to_output(
-      input.allow_spmd_sharding_propagation_to_output());
-  return output;
 }
 
 ExecutableBuildOptions& ExecutableBuildOptions::set_device_assignment(

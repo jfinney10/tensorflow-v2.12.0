@@ -17,11 +17,17 @@ limitations under the License.
 #define TENSORFLOW_CORE_PLATFORM_DEMANGLE_H_
 
 #include "tensorflow/core/platform/types.h"
-#include "tensorflow/tsl/platform/demangle.h"
 
 namespace tensorflow {
 namespace port {
-using tsl::port::Demangle;
+
+// If the compiler supports, demangle a mangled symbol name and return
+// the demangled name. Otherwise, returns 'mangled' as is.
+string Demangle(const char* mangled);
+inline string Demangle(const string mangled) {
+  return Demangle(mangled.c_str());
+}
+
 }  // namespace port
 }  // namespace tensorflow
 

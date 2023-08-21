@@ -98,10 +98,9 @@ int64_t ShapePartitionAssigner::GetTotalPartitionCount(
 }
 
 ShapePartitionIterator::ShapePartitionIterator(
-    const Shape& shape, absl::Span<const int64_t> dimension_partition_counts)
+    const Shape& shape, const std::vector<int64_t>& dimension_partition_counts)
     : shape_(shape),
-      dimension_partition_counts_(dimension_partition_counts.begin(),
-                                  dimension_partition_counts.end()),
+      dimension_partition_counts_(dimension_partition_counts),
       dimensions_(dimension_partition_counts_.size()),
       dimension_partition_sizes_(dimension_partition_counts_.size()),
       dimension_partition_strides_(dimension_partition_counts_.size()) {

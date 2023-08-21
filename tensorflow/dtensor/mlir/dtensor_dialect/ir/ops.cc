@@ -74,7 +74,7 @@ static MeshAttr ParseMeshAttr(MLIRContext *context, StringRef spec,
     std::string status_msg = mesh_or.status().ToString();
     return emit_error("parsing serialized string. More details: " + status_msg);
   }
-  return MeshAttr::get(context, mesh_or.value());
+  return MeshAttr::get(context, mesh_or.ValueOrDie());
 }
 
 // Parses a #dtensor.layout attribute of the following format:
@@ -107,7 +107,7 @@ static LayoutAttr ParseLayoutAttr(MLIRContext *context, StringRef spec,
     return emit_error("parsing serialized string. More details: " + status_msg);
   }
   // Extract layout.
-  Layout layout = layout_or.value();
+  Layout layout = layout_or.ValueOrDie();
 
   return LayoutAttr::get(context, layout);
 }

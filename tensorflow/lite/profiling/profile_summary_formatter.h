@@ -16,7 +16,6 @@ limitations under the License.
 #define TENSORFLOW_LITE_PROFILING_PROFILE_SUMMARY_FORMATTER_H_
 
 #include <functional>
-#include <map>
 #include <memory>
 #include <sstream>
 #include <string>

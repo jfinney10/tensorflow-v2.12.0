@@ -637,13 +637,13 @@ OpDefBuilder& OpDefBuilder::SetTypeConstructor(OpTypeConstructor c) {
   return *this;
 }
 
-OpDefBuilder& OpDefBuilder::SetForwardTypeFn(TypeInferenceFn f) {
+OpDefBuilder& OpDefBuilder::SetForwardTypeFn(ForwardTypeInferenceFn f) {
   op_reg_data_.fwd_type_fn = f;
   return *this;
 }
 
 OpDefBuilder& OpDefBuilder::SetReverseTypeFn(int input_number,
-                                             TypeInferenceFn f) {
+                                             ForwardTypeInferenceFn f) {
   op_reg_data_.rev_type_fn = f;
   op_reg_data_.rev_type_input = input_number;
   return *this;

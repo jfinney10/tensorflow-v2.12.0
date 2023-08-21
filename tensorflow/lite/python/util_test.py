@@ -17,6 +17,7 @@
 import os
 from absl.testing import parameterized
 import numpy as np
+from six.moves import range
 import tensorflow as tf
 
 from tensorflow.lite.python import util

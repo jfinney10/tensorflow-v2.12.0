@@ -25,7 +25,6 @@ limitations under the License.
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/resource_mgr.h"
 #include "tensorflow/core/lib/core/status.h"
-#include "tensorflow/tsl/framework/device_id.h"
 
 namespace tensorflow {
 namespace {
@@ -117,8 +116,7 @@ void XRTGenericDeviceAccessor::ScopedRef::Acquire(
       if (!cuda_allocators_->count(stream)) {
         GPUOptions gpu_options;
         Allocator* raw_allocator =
-            GPUProcessState::singleton()->GetGPUAllocator(
-                tsl::TfDeviceId(ordinal_));
+            GPUProcessState::singleton()->GetGPUAllocator(TfDeviceId(ordinal_));
         (*cuda_allocators_)[stream] =
             std::make_unique<se::TfAllocatorAdapter>(raw_allocator, stream);
       }

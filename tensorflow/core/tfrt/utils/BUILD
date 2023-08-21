@@ -2,7 +2,6 @@ load("//tensorflow:tensorflow.bzl", "if_google", "if_oss", "tf_cc_test")
 load("//tensorflow/core/platform:rules_cc.bzl", "cc_library")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [":friends"],
     licenses = ["notice"],
 )
@@ -13,7 +12,6 @@ package_group(
         # copybara:uncomment "//learning/brain/experimental/tfrt/...",
         # copybara:uncomment "//learning/brain/research/pjrt/...",
         # copybara:uncomment "//learning/brain/tfrt/...",
-        "//smartass/brain/inference/...",
         # copybara:uncomment "//smartass/brain/ops/...",
         "//tensorflow/c/eager/...",
         "//tensorflow/compiler/mlir/tfrt/...",
@@ -94,7 +92,7 @@ cc_library(
         "//tensorflow/core/runtime_fallback/kernel:kernel_fallback_tensor",
         "//tensorflow/core/runtime_fallback/util:tensor_util",
         "//tensorflow/core/runtime_fallback/util:type_util",
-        "//tensorflow/compiler/xla/stream_executor/lib",
+        "//tensorflow/stream_executor/lib",
         "@tf_runtime//:core_runtime",
         "@tf_runtime//:dtype",
         "@tf_runtime//:hostcontext",
@@ -138,7 +136,6 @@ cc_library(
     ],
     deps = [
         "//tensorflow/core/platform:status",
-        "@com_google_absl//absl/status",
         "@tf_runtime//:hostcontext",
         "@tf_runtime//:support",
     ],
@@ -200,8 +197,7 @@ cc_library(
     srcs = ["tfrt_graph_execution_state.cc"],
     hdrs = ["tfrt_graph_execution_state.h"],
     deps = [
-        "//tensorflow/compiler/jit:common",
-        "//tensorflow/compiler/jit:compilation_passes",
+        ":graph_partition",
         "//tensorflow/compiler/mlir/tensorflow:mlir_roundtrip_flags",
         "//tensorflow/compiler/mlir/tensorflow:upgrade_graph",
         "//tensorflow/core:core_cpu_base",
@@ -238,25 +234,15 @@ tf_cc_test(
         "//tensorflow/cc:array_ops",
         "//tensorflow/cc:cc_ops",
         "//tensorflow/cc:const_op",
-        "//tensorflow/cc:function_ops",
         "//tensorflow/cc:functional_ops",
-        "//tensorflow/cc:math_ops",
-        "//tensorflow/cc:resource_variable_ops",
-        "//tensorflow/cc:scope",
         "//tensorflow/cc:sendrecv_ops",
         "//tensorflow/cc:while_loop",
-        "//tensorflow/compiler/jit:common",
-        "//tensorflow/compiler/tf2xla/cc:xla_jit_ops",
         "//tensorflow/core:framework",
-        "//tensorflow/core:framework_internal",
         "//tensorflow/core:test",
-        "//tensorflow/core/framework:attr_value_proto_cc",
         "//tensorflow/core/framework:graph_proto_cc",
-        "//tensorflow/core/framework:node_def_proto_cc",
         "//tensorflow/core/framework:tensor_testutil",
         "//tensorflow/core/framework:types_proto_cc",
         "//tensorflow/core/grappler/utils:grappler_test",
-        "//tensorflow/core/kernels:resource_variable_ops",
         "//tensorflow/core/protobuf:for_core_protos_cc",
         "@com_google_googletest//:gtest_main",
     ],
@@ -304,25 +290,5 @@ cc_library(
     deps = [
         "//tensorflow/core:lib",
         "//tensorflow/core/platform:threadpool_interface",
-    ],
-)
-
-cc_library(
-    name = "device_variables_table",
-    hdrs = ["device_variables_table.h"],
-    deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/synchronization",
-        "@llvm-project//llvm:Support",
-        "@tf_runtime//:hostcontext",
-    ],
-)
-
-cc_library(
-    name = "gpu_variables_table",
-    hdrs = ["gpu_variables_table.h"],
-    deps = [
-        ":device_variables_table",
-        ":fallback_tensor",
     ],
 )

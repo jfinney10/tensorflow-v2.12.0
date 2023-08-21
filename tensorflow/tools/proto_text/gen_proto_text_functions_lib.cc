@@ -820,7 +820,6 @@ void Generator::Generate(const FileDescriptor& fd) {
   headers = {GetProtoTextHeaderName(fd, true /* impl */)};
   AddHeadersToCurrentSection(headers);
   Print();
-  Print("using ::tensorflow::strings::ProtoSpaceAndComments;");
   Print("using ::tensorflow::strings::Scanner;");
   Print("using ::tensorflow::strings::StrCat;");
   AddNamespaceToCurrentSection(package, true /* is_open */);

@@ -40,16 +40,14 @@ limitations under the License.
 #include "tensorflow/dtensor/cc/constants.h"
 #include "tensorflow/dtensor/mlir/device_utils.h"
 #include "tensorflow/dtensor/mlir/dtensor_mlir_passes.h"
+#include "tensorflow/dtensor/mlir/dtensor_mlir_passes_classes.h"
 #include "tensorflow/dtensor/mlir/op_utils.h"
 #include "tensorflow/dtensor/mlir/spmd_expander_common.h"
 #include "tensorflow/dtensor/mlir/value_utils.h"
 
 namespace tensorflow {
 namespace dtensor {
-
 namespace {
-#define GEN_PASS_DEF_DTENSORSPARSETENSORTODENSETENSOR
-#include "tensorflow/dtensor/mlir/dtensor_passes.h.inc"
 
 constexpr char kEntryFuncAttr[] = "tf.entry_function";
 constexpr char kSparseIndicesStr[] = "op_input_sparse_indices";
@@ -143,11 +141,10 @@ void CreateComponentTensorsFromSparseTensors(
         block_arg.getArgNumber(), kSparseValue);
     if (is_sparse) {
       sparse_tensor_components->push_back(SparseTensorToComponentInfo{
-          /*indices=*/mlir::RankedTensorType::get(
-              {mlir::ShapedType::kDynamic, ValueRank(block_arg)},
-              builder.getI64Type()),
+          /*indices=*/mlir::RankedTensorType::get({-1, ValueRank(block_arg)},
+                                                  builder.getI64Type()),
           /*values=*/
-          mlir::RankedTensorType::get({mlir::ShapedType::kDynamic},
+          mlir::RankedTensorType::get({-1},
                                       block_arg.getType()
                                           .dyn_cast<mlir::RankedTensorType>()
                                           .getElementType()),
@@ -171,7 +168,7 @@ void UpdateFunctionWithSparseTensorComponents(
 }
 
 struct DTensorSparseTensorToDenseTensor
-    : public impl::DTensorSparseTensorToDenseTensorBase<
+    : public DTensorSparseTensorToDenseTensorBase<
           DTensorSparseTensorToDenseTensor> {
   void runOnOperation() override {
     mlir::MLIRContext& context = getContext();
@@ -186,10 +183,8 @@ struct DTensorSparseTensorToDenseTensor
     llvm::DenseMap<mlir::Value, llvm::ArrayRef<mlir::NamedAttribute>>
         arg_attribute_map;
     for (auto block_arg : main_func.getArguments()) {
-      llvm::ArrayRef<mlir::NamedAttribute> attrs =
-          mlir::function_interface_impl::getArgAttrs(main_func,
-                                                     block_arg.getArgNumber());
-      arg_attribute_map.insert(std::make_pair(block_arg, attrs));
+      arg_attribute_map.insert(std::make_pair(
+          block_arg, main_func.getArgAttrs(block_arg.getArgNumber())));
     }
 
     std::vector<SparseTensorToComponentInfo> sparse_tensor_components;
@@ -213,12 +208,11 @@ struct DTensorSparseTensorToDenseTensor
 
       // Emit a SparseToDenseOp and replace the SparseTensor with the result of
       // this new op.
-      StatusOr<mlir::Value> zero_scalar =
-          CreateZeroScalarConst(builder, front_op->getLoc(),
-                                sparse_tensor_value.getType()
-                                    .cast<mlir::TensorType>()
-                                    .getElementType());
-      if (!zero_scalar.ok()) return signalPassFailure();
+      auto zero_scalar = CreateZeroScalarConst(builder, front_op->getLoc(),
+                                               sparse_tensor_value.getType()
+                                                   .cast<mlir::TensorType>()
+                                                   .getElementType());
+      if (!zero_scalar.has_value()) return signalPassFailure();
       mlir::TF::SparseToDenseOp sparse_to_dense_op =
           builder.create<mlir::TF::SparseToDenseOp>(
               front_op->getLoc(), sparse_tensor_value.getType(),

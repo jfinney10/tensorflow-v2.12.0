@@ -37,11 +37,6 @@ limitations under the License.
 #include "tensorflow/core/framework/variant_op_registry.h"
 #include "tensorflow/core/platform/errors.h"
 
-#if !defined(PLUGGABLE_DEVICE_SUPPORTED_MACOS) && defined(__APPLE__) && \
-    !defined(ANDROID) && !defined(__ANDROID__) && !TARGET_OS_IOS
-#define PLUGGABLE_DEVICE_SUPPORTED_MACOS 1
-#endif
-
 namespace tensorflow {
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
@@ -411,7 +406,6 @@ class TensorListResize : public OpKernel {
     output_list.element_dtype = input_list->element_dtype;
     output_list.max_num_elements = input_list->max_num_elements;
     if (size > input_list->tensors().size()) {
-      output_list.tensors().reserve(size);
       output_list.tensors().insert(output_list.tensors().begin(),
                                    input_list->tensors().begin(),
                                    input_list->tensors().end());
@@ -456,10 +450,6 @@ class TensorListSetItem : public OpKernel {
                                         DataTypeString(element_dtype_),
                                         " but list elements ",
                                         DataTypeString(l->element_dtype)));
-    OP_REQUIRES(
-        c, TensorShapeUtils::IsScalar(c->input(1).shape()),
-        errors::InvalidArgument("Expected argument 1 to be a scalar. Received",
-                                c->input(1).DebugString()));
     int32_t index = c->input(1).scalar<int32>()();
     OP_REQUIRES(c, index < l->tensors().size(),
                 errors::InvalidArgument("Trying to modify element ", index,
@@ -496,6 +486,7 @@ REGISTER_KERNEL_BUILDER(Name("TensorListSetItem").Device(DEVICE_CPU),
 TF_CALL_GPU_ALL_TYPES(REGISTER_TENSOR_LIST_SET_ITEM_GPU);
 TF_CALL_int32(REGISTER_TENSOR_LIST_SET_ITEM_GPU);
 TF_CALL_int64(REGISTER_TENSOR_LIST_SET_ITEM_GPU);
+REGISTER_TENSOR_LIST_SET_ITEM_GPU(bfloat16)
 #undef REGISTER_TENSOR_LIST_SET_ITEM_GPU
 
 #endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM
@@ -510,6 +501,7 @@ TF_CALL_int64(REGISTER_TENSOR_LIST_SET_ITEM_GPU);
 TF_CALL_GPU_NUMBER_TYPES(REGISTER_TENSOR_LIST_SET_ITEM_DEFAULT);
 TF_CALL_int32(REGISTER_TENSOR_LIST_SET_ITEM_DEFAULT);
 TF_CALL_int64(REGISTER_TENSOR_LIST_SET_ITEM_DEFAULT);
+REGISTER_TENSOR_LIST_SET_ITEM_DEFAULT(bfloat16)
 #undef REGISTER_TENSOR_LIST_SET_ITEM_DEFAULT
 
 class TensorListConcatLists : public OpKernel {
@@ -716,7 +708,6 @@ REGISTER_LIST_COPY(VariantDeviceCopyDirection::DEVICE_TO_DEVICE);
 
 REGISTER_UNARY_VARIANT_DECODE_FUNCTION(TensorList, TensorList::kTypeName);
 
-#if !defined(PLUGGABLE_DEVICE_SUPPORTED_MACOS)
 #define REGISTER_TENSOR_LIST_OPS_DEFAULT(T)                                \
   REGISTER_KERNEL_BUILDER(Name("TensorListStack")                          \
                               .TypeConstraint<T>("element_dtype")          \
@@ -788,8 +779,8 @@ REGISTER_UNARY_VARIANT_DECODE_FUNCTION(TensorList, TensorList::kTypeName);
 
 TF_CALL_int32(REGISTER_TENSOR_LIST_OPS_DEFAULT);
 TF_CALL_int64(REGISTER_TENSOR_LIST_OPS_DEFAULT);
+TF_CALL_bfloat16(REGISTER_TENSOR_LIST_OPS_DEFAULT);
 TF_CALL_GPU_NUMBER_TYPES(REGISTER_TENSOR_LIST_OPS_DEFAULT);
 
 #undef REGISTER_TENSOR_LIST_OPS_DEFAULT
-#endif
 }  // namespace tensorflow

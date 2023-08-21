@@ -17,24 +17,17 @@ limitations under the License.
 #define TENSORFLOW_COMPILER_XLA_SERVICE_GPU_NCCL_UTILS_H_
 
 #include <memory>
-#include <utility>
-#include <vector>
 
 #include "absl/synchronization/mutex.h"
 #include "tensorflow/compiler/xla/service/collective_ops_utils.h"
 #include "tensorflow/compiler/xla/service/gpu/gpu_executable_run_options.h"
-#include "tensorflow/compiler/xla/service/gpu/thunk.h"
 #include "tensorflow/compiler/xla/status.h"
 #include "tensorflow/compiler/xla/statusor.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
 
 // Common place for all collective thunks to include nccl/rccl headers.
 #if TENSORFLOW_USE_ROCM
-#if (TF_ROCM_VERSION >= 50200)
 #include "rocm/include/rccl/rccl.h"
-#else
-#include "rocm/include/rccl.h"
-#endif
 #else
 #include "third_party/nccl/nccl.h"
 #endif
@@ -44,7 +37,7 @@ namespace gpu {
 
 ncclRedOp_t ToNcclReduction(ReductionKind kind);
 StatusOr<std::pair<ncclDataType_t, int>> ToNcclDataTypeAndCountMultiplier(
-    PrimitiveType element_type, Thunk::Kind reduction_op);
+    PrimitiveType element_type);
 
 bool IsGlobalNcclConfig();
 bool IsNcclLaunchModeParallel();
@@ -91,12 +84,7 @@ class Lockable {
   // RAII type that will release the exclusive lock when it is destroyed.
   using Lock = std::unique_ptr<T, std::function<void(T*)>>;
 
-  Lockable() = default;
-  explicit Lockable(T value) : value_(std::move(value)) {}
-  Lockable(const Lockable&) = delete;
-  Lockable(Lockable&&) = delete;
-  Lockable& operator=(const Lockable&) = delete;
-  Lockable& operator=(Lockable&&) = delete;
+  explicit Lockable(T value = T()) : value_(std::move(value)) {}
 
   Lock Acquire() {
     absl::MutexLock lock(&mutex_);
@@ -116,10 +104,10 @@ class Lockable {
   bool is_unlocked_ ABSL_GUARDED_BY(mutex_) = true;
 };
 
-TSL_LIB_GTL_DEFINE_INT_TYPE(OpId, int64_t);
+TF_LIB_GTL_DEFINE_INT_TYPE(OpId, int64_t);
 
 struct NcclComm : public Lockable<ncclComm_t> {
-  explicit NcclComm(ncclComm_t comm) : Lockable(comm) {}
+  NcclComm() : Lockable(nullptr) {}
 };
 
 StatusOr<NcclComm::Lock> AcquireNcclComm(

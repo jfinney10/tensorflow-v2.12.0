@@ -20,7 +20,7 @@ import sys
 import tempfile
 
 from tensorflow.python.eager import context
-from tensorflow.python.eager import def_function
+from tensorflow.python.eager import function
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
@@ -327,7 +327,7 @@ class PrintV2Test(test.TestCase):
   def testPrintsOrderedInDefun(self):
     with context.eager_mode():
 
-      @def_function.function
+      @function.defun
       def prints():
         logging_ops.print_v2("A")
         logging_ops.print_v2("B")
@@ -338,23 +338,22 @@ class PrintV2Test(test.TestCase):
       self.assertTrue(("A\nB\nC\n"), printed.contents())
 
   def testPrintInDefunWithoutExplicitEvalOfPrint(self):
-    tensor = math_ops.range(10)
-
-    @def_function.function
-    def f(tensor):
+    @function.defun
+    def f():
+      tensor = math_ops.range(10)
       logging_ops.print_v2(tensor)
       return tensor
 
     expected = "[0 1 2 ... 7 8 9]"
     with self.captureWritesToStream(sys.stderr) as printed_one:
-      x = f(tensor)
+      x = f()
       self.evaluate(x)
     self.assertIn((expected + "\n"), printed_one.contents())
 
     # We execute the function again to make sure it doesn't only print on the
     # first call.
     with self.captureWritesToStream(sys.stderr) as printed_two:
-      y = f(tensor)
+      y = f()
       self.evaluate(y)
     self.assertIn((expected + "\n"), printed_two.contents())
 

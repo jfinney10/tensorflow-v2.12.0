@@ -88,8 +88,8 @@ class GraphDefExporter {
 
   // Export a TFG graph function to a FunctionDef. If the function has a
   // gradient, add it to the graph afterwards to preserve thread-safety.
-  StatusOr<std::optional<GradientDef>> ExportFunction(GraphFuncOp func,
-                                                      FunctionDef *def);
+  StatusOr<Optional<GradientDef>> ExportFunction(GraphFuncOp func,
+                                                 FunctionDef *def);
 
  private:
   // Export just the input and outputs of a function signature. When
@@ -162,7 +162,7 @@ static void ExportVersionAttr(VersionAttr attr, VersionDef *version) {
 Status GraphDefExporter::ExportToGraphDef(ModuleOp module, GraphDef *graph) {
   TF_ASSIGN_OR_RETURN(GraphOp graph_op, ValidateModuleForExport(module));
   if (graph_op) {
-    ExportVersionAttr(graph_op.getVersion(), graph->mutable_versions());
+    ExportVersionAttr(graph_op.version(), graph->mutable_versions());
     for (Operation &op : *graph_op.getBody()) {
       TF_RETURN_IF_ERROR(ConvertOperation(&op, graph->mutable_node()->Add(),
                                           /*is_func=*/false));
@@ -170,10 +170,10 @@ Status GraphDefExporter::ExportToGraphDef(ModuleOp module, GraphDef *graph) {
   }
 
   const auto convert_func = [this](GraphFuncOp func, FunctionDef *def,
-                                   std::optional<GradientDef> &gradient) {
+                                   Optional<GradientDef> &gradient) {
     // Generic functions are not on the hot path and skip the conversion to
     // Graph so just call the existing exporter.
-    if (func.getGeneric()) {
+    if (func.generic()) {
       TF_ASSIGN_OR_RETURN(*def, ConvertGenericFunctionToFunctionDef(func));
     } else {
       TF_ASSIGN_OR_RETURN(gradient, ExportFunction(func, def));
@@ -193,7 +193,7 @@ Status GraphDefExporter::ExportToGraphDef(ModuleOp module, GraphDef *graph) {
       GraphFuncOp func;
       FunctionDef *def;
       Status status;
-      std::optional<GradientDef> gradient;
+      Optional<GradientDef> gradient;
     };
     std::vector<Argument> args;
     for (auto func : module.getOps<GraphFuncOp>())
@@ -213,7 +213,7 @@ Status GraphDefExporter::ExportToGraphDef(ModuleOp module, GraphDef *graph) {
     }
   } else {
     for (auto func : module.getOps<GraphFuncOp>()) {
-      std::optional<GradientDef> gradient;
+      Optional<GradientDef> gradient;
       TF_RETURN_IF_ERROR(convert_func(
           func, graph->mutable_library()->add_function(), gradient));
       if (gradient)
@@ -242,15 +242,15 @@ static Status ConvertAttributes(
   return ::tensorflow::OkStatus();
 }
 
-StatusOr<std::optional<GradientDef>> GraphDefExporter::ExportFunction(
+StatusOr<Optional<GradientDef>> GraphDefExporter::ExportFunction(
     GraphFuncOp func, FunctionDef *def) {
-  std::string func_name = func.getSymName().str();
+  std::string func_name = func.sym_name().str();
 
   // TODO(jeffniu): Exploit the sorted order of the function attributes.
 
   // Get a gradient, if there is one.
-  std::optional<GradientDef> gradient;
-  if (std::optional<StringRef> gradient_name = func.getGradient()) {
+  Optional<GradientDef> gradient;
+  if (Optional<StringRef> gradient_name = func.gradient()) {
     gradient.emplace();
     gradient->set_gradient_func(gradient_name->str());
     gradient->set_function_name(func_name);
@@ -259,12 +259,12 @@ StatusOr<std::optional<GradientDef>> GraphDefExporter::ExportFunction(
   // Convert the first-class attributes.
   OpDef *signature = def->mutable_signature();
   signature->set_name(func_name);
-  if (std::optional<StringRef> description = func.getDescription())
+  if (Optional<StringRef> description = func.description())
     signature->set_description(description->str());
-  signature->set_is_stateful(func.getIsStateful());
+  signature->set_is_stateful(func.is_stateful());
 
-  if (DenseIntElementsAttr keys = func.getResourceArgUniqueIdsKeysAttr()) {
-    DenseIntElementsAttr values = func.getResourceArgUniqueIdsValuesAttr();
+  if (DenseIntElementsAttr keys = func.resource_arg_unique_ids_keysAttr()) {
+    DenseIntElementsAttr values = func.resource_arg_unique_ids_valuesAttr();
     if (!values) {
       return InvalidArgument(
           "'resource_arg_unique_ids_keys' is present but "
@@ -286,7 +286,7 @@ StatusOr<std::optional<GradientDef>> GraphDefExporter::ExportFunction(
 
   // Convert the arguments.
   for (int i = 0, e = func.getNumArguments(); i < e; i += 2) {
-    auto attrs = func.getArgAttrs().value()[i].cast<DictionaryAttr>();
+    auto attrs = func.arg_attrs().getValue()[i].cast<DictionaryAttr>();
     TF_ASSIGN_OR_RETURN(OpDef::ArgDef &arg = *signature->add_input_arg(),
                         ConvertArgumentAttributes(attrs));
     DataType dtype;
@@ -304,7 +304,7 @@ StatusOr<std::optional<GradientDef>> GraphDefExporter::ExportFunction(
   }
 
   // Convert the results.
-  auto return_op = cast<ReturnOp>(func.SingleBlock::getBody()->getTerminator());
+  auto return_op = cast<ReturnOp>(func.getBody()->getTerminator());
   for (auto it :
        llvm::zip(func.getResultTypes(),
                  func.getAllResultAttrs().getAsRange<DictionaryAttr>(),
@@ -322,7 +322,7 @@ StatusOr<std::optional<GradientDef>> GraphDefExporter::ExportFunction(
 
   // Convert the control results.
   for (auto it :
-       llvm::zip(return_op.getControlRetAttrs().getAsRange<DictionaryAttr>(),
+       llvm::zip(return_op.control_ret_attrs().getAsRange<DictionaryAttr>(),
                  TFOp(return_op).getControlOperands())) {
     // The control result attributes contain only the name.
     DictionaryAttr attrs = std::get<0>(it);
@@ -339,7 +339,7 @@ StatusOr<std::optional<GradientDef>> GraphDefExporter::ExportFunction(
   }
 
   // Convert the body.
-  for (Operation &op : func.SingleBlock::getBody()->without_terminator())
+  for (Operation &op : func.getBody()->without_terminator())
     TF_RETURN_IF_ERROR(
         ConvertOperation(&op, def->add_node_def(), /*is_func=*/true));
 
@@ -466,8 +466,8 @@ static StatusOr<std::string> GetValueName(
       return InvalidArgument("Expected block argument owner to be tfg.func");
     // If the block argument is a control token, use the attributes of the
     // associated data argument (which preceeds it).
-    auto attrs = func.getArgAttrs()
-                     .value()[arg.getArgNumber() - is_control]
+    auto attrs = func.arg_attrs()
+                     .getValue()[arg.getArgNumber() - is_control]
                      .cast<DictionaryAttr>();
     auto name_attr =
         attrs.getAs<StringAttr>(dialect->getTfgNameAttrIdentifier());
@@ -624,7 +624,7 @@ Status ConvertToFunctionDef(GraphFuncOp func,
                             FunctionLibraryDefinition &library) {
   GraphDefExporter exporter(func.getDialect(), *OpRegistry::Global(), &library);
   FunctionDef def;
-  TF_ASSIGN_OR_RETURN(std::optional<GradientDef> gradient,
+  TF_ASSIGN_OR_RETURN(Optional<GradientDef> gradient,
                       exporter.ExportFunction(func, &def));
   const std::string &name = def.signature().name();
   if (library.Contains(name)) {

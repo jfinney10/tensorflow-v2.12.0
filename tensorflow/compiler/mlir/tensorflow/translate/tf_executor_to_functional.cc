@@ -25,16 +25,14 @@ limitations under the License.
 #include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_executor.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes_detail.h"
 
 namespace mlir {
 
 namespace {
 
-#define GEN_PASS_DEF_EXECUTORDIALECTTOFUNCTIONALPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
-
 struct ExecutorDialectToFunctionalConversion
-    : public impl::ExecutorDialectToFunctionalPassBase<
+    : public TF::ExecutorDialectToFunctionalPassBase<
           ExecutorDialectToFunctionalConversion> {
   void runOnOperation() override;
 };
@@ -59,13 +57,12 @@ LogicalResult LiftIslandOpInnerOpsFromGraph(tf_executor::GraphOp graph) {
     // Forward island fetches (tf_executor.yield operands) to island op result
     // uses.
     for (auto result :
-         llvm::zip(island_op.getOutputs(), island_op.GetYield().getFetches()))
+         llvm::zip(island_op.outputs(), island_op.GetYield().fetches()))
       std::get<0>(result).replaceAllUsesWith(std::get<1>(result));
   }
 
   // Forward graph fetches (tf_executor.fetch operands) to graph op result uses.
-  for (auto result :
-       llvm::zip(graph.getResults(), graph.GetFetch().getFetches()))
+  for (auto result : llvm::zip(graph.results(), graph.GetFetch().fetches()))
     std::get<0>(result).replaceAllUsesWith(std::get<1>(result));
 
   graph.erase();
@@ -89,3 +86,4 @@ CreateExecutorDialectToFunctionalConversionPass() {
 }
 
 }  // namespace mlir
+

@@ -3,10 +3,9 @@
 load("//tensorflow:tensorflow.bzl", "py_test")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [
         "//tensorflow:internal",
-        "//tensorflow:structured_tensor_allowlist",
+        "//tensorflow:structured_tensor_whitelist",
     ],
     licenses = ["notice"],
 )

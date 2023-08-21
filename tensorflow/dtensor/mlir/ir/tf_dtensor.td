@@ -72,7 +72,7 @@ def Tf_DTensorRecv : TF_Op<"DTensorRecv", []> {
  TF_DerivedResultTypeListAttr Toutputs = TF_DerivedResultTypeListAttr<0>;
 }
 
-def TF_DTensorLayout: TF_Op<"DTensorLayout", [DeclareOpInterfaceMethods<InferTypeOpInterface>, Pure, TF_AllTypesMatch<["input", "output"]>, TF_NoConstantFold]> {
+def TF_DTensorLayout: TF_Op<"DTensorLayout", [DeclareOpInterfaceMethods<InferTypeOpInterface>, NoSideEffect, TF_AllTypesMatch<["input", "output"]>, TF_NoConstantFold]> {
   let summary = [{
     Represents computational layout of an input tensor.
     }];
@@ -96,8 +96,8 @@ def TF_DTensorEmbeddingEnqueueOp : TF_Op<"DTensorEmbeddingEnqueue", [SameVariadi
     Variadic<TF_Int32Tensor>:$embedding_indices,
     Variadic<TF_Float32Tensor>:$aggregation_weights,
 
-    DefaultValuedOptionalAttr<StrAttr, "\"training\"">:$mode_override,
-    DefaultValuedOptionalAttr<StrArrayAttr, "{}">:$combiners,
+    DefaultValuedAttr<StrAttr, "\"training\"">:$mode_override,
+    DefaultValuedAttr<StrArrayAttr, "{}">:$combiners,
     StrAttr:$config
   );
 
@@ -106,7 +106,7 @@ def TF_DTensorEmbeddingEnqueueOp : TF_Op<"DTensorEmbeddingEnqueue", [SameVariadi
   TF_DerivedOperandSizeAttr num_inputs = TF_DerivedOperandSizeAttr<0>;
 }
 
-def TF_DTensorEmbeddingDequeueOp : TF_Op<"DTensorEmbeddingDequeue", [Pure]> {
+def TF_DTensorEmbeddingDequeueOp : TF_Op<"DTensorEmbeddingDequeue", [NoSideEffect]> {
   let summary = "DTensor TPU Embedding activation dequeue virtual op";
 
   let arguments = (ins
@@ -121,7 +121,7 @@ def TF_DTensorEmbeddingDequeueOp : TF_Op<"DTensorEmbeddingDequeue", [Pure]> {
   TF_DerivedResultSizeAttr num_outputs = TF_DerivedResultSizeAttr<0>;
 }
 
-def TF_RelayoutOp : TF_Op<"Relayout", [Pure, TF_AllTypesMatch<["input", "output"]>, TF_NoConstantFold]> {
+def TF_RelayoutOp : TF_Op<"Relayout", [NoSideEffect, TF_AllTypesMatch<["input", "output"]>, TF_NoConstantFold]> {
   let summary = "Change layout of input to target layout inside the same mesh cluster.";
 
   let arguments = (ins
@@ -137,31 +137,15 @@ def TF_RelayoutOp : TF_Op<"Relayout", [Pure, TF_AllTypesMatch<["input", "output"
   TF_DerivedOperandTypeAttr T = TF_DerivedOperandTypeAttr<0>;
 }
 
-def TF_CopyToMeshOp : TF_Op<"CopyToMesh", [Pure]> {
+def TF_CopyToMeshOp : TF_Op<"CopyToMesh", [NoSideEffect]> {
   let summary = "";
 
   let arguments = (ins
     TF_Tensor:$input,
 
-    StrAttr:$layout
-  );
+    StrAttr:$layout,
 
-  let results = (outs
-    TF_Tensor:$output
-  );
-
-  TF_DerivedOperandTypeAttr T = TF_DerivedOperandTypeAttr<0>;
-}
-
-def TF_CopyToMeshGradOp : TF_Op<"CopyToMeshGrad", [Pure]> {
-  let summary = "";
-
-  let arguments = (ins
-    TF_Tensor:$input,
-
-    TF_Tensor:$forward_input,
-
-    StrAttr:$reference_layout
+    StrAttr:$source_layout
   );
 
   let results = (outs
@@ -181,7 +165,7 @@ def TF_SetEmbeddingConfigOp : TF_Op<"SetEmbeddingConfig", []> {
   let results = (outs);
 }
 
-def TF_GetEmbeddingConfigurationOp: TF_Op<"GetEmbeddingConfiguration", [AttrSizedOperandSegments, Pure]> {
+def TF_GetEmbeddingConfigurationOp: TF_Op<"GetEmbeddingConfiguration", [AttrSizedOperandSegments, NoSideEffect]> {
   let summary = [{
     tf.GetEmbeddingConfiguration gathers information from the inputs and
     outputs a scalar string with the configuration to use when calling
@@ -195,7 +179,7 @@ def TF_GetEmbeddingConfigurationOp: TF_Op<"GetEmbeddingConfiguration", [AttrSize
     Variadic<TF_Float32Tensor>:$scalars,
 
     FlatSymbolRefAttr:$optimizer,
-    DenseI32ArrayAttr:$operand_segment_sizes
+    I32ElementsAttr:$operand_segment_sizes
   );
 
   let results = (outs
@@ -374,11 +358,11 @@ present in the list, but have zero size, for unused optimization parameters
   TF_DerivedResultSizeAttr NumTables = TF_DerivedResultSizeAttr<0>;
 }
 
-def TF_DTensorRetrieveTPUEmbeddingParametersOp : TF_Op<"DTensorRetrieveTPUEmbeddingParameters", [Pure, SameVariadicResultSize]> {
+def TF_DTensorRetrieveTPUEmbeddingParametersOp : TF_Op<"DTensorRetrieveTPUEmbeddingParameters", [NoSideEffect, SameVariadicResultSize]> {
   let summary = "";
 
   let arguments = (ins
-    DefaultValuedOptionalAttr<I64Attr, "1">:$num_hosts,
+    DefaultValuedAttr<I64Attr, "1">:$num_hosts,
     StrAttr:$config,
     I64Attr:$num_shards,
     I64Attr:$shard_id
@@ -448,7 +432,7 @@ def TF_ApplyEmbeddingOptimizerV2Op : TF_Op<"ApplyEmbeddingOptimizerV2", []> {
   TF_DerivedOperandSizeAttr num_slots = TF_DerivedOperandSizeAttr<2>;
 }
 
-def TF_EmbeddingDequeueOp : TF_Op<"EmbeddingDequeue", [Pure]> {
+def TF_EmbeddingDequeueOp : TF_Op<"EmbeddingDequeue", [NoSideEffect]> {
   let summary = "";
 
   let arguments = (ins
@@ -481,7 +465,7 @@ Whether TPU Embedding is initialized in a distributed TPU system.
   }];
 
   let arguments = (ins
-    DefaultValuedOptionalAttr<StrAttr, "\"\"">:$config
+    DefaultValuedAttr<StrAttr, "\"\"">:$config
   );
 
   let results = (outs
@@ -489,7 +473,7 @@ Whether TPU Embedding is initialized in a distributed TPU system.
   );
 }
 
-def TF_TPUDenseEmbeddingLookUpOp : TF_Op<"TPUDenseEmbeddingLookUp", [Pure]> {
+def TF_TPUDenseEmbeddingLookUpOp : TF_Op<"TPUDenseEmbeddingLookUp", [NoSideEffect]> {
   let summary = "";
 
   let arguments = (ins
@@ -502,7 +486,7 @@ def TF_TPUDenseEmbeddingLookUpOp : TF_Op<"TPUDenseEmbeddingLookUp", [Pure]> {
   );
 }
 
-def TF_TPUDenseEmbeddingLookUpGradOp : TF_Op<"TPUDenseEmbeddingLookUpGrad", [Pure]> {
+def TF_TPUDenseEmbeddingLookUpGradOp : TF_Op<"TPUDenseEmbeddingLookUpGrad", [NoSideEffect]> {
   let summary = "";
 
   let arguments = (ins
@@ -516,7 +500,7 @@ def TF_TPUDenseEmbeddingLookUpGradOp : TF_Op<"TPUDenseEmbeddingLookUpGrad", [Pur
   );
 }
 
-def TF_DTensorAllReduceOp : TF_Op<"DTensorAllReduce", [Pure]> {
+def TF_DTensorAllReduceOp : TF_Op<"DTensorAllReduce", [NoSideEffect]> {
   let summary = "";
 
   let arguments = (ins
@@ -534,7 +518,7 @@ def TF_DTensorAllReduceOp : TF_Op<"DTensorAllReduce", [Pure]> {
   TF_DerivedOperandTypeAttr T = TF_DerivedOperandTypeAttr<0>;
 }
 
-def TF_DTensorReduceScatterOp : TF_Op<"DTensorReduceScatter", [Pure]> {
+def TF_DTensorReduceScatterOp : TF_Op<"DTensorReduceScatter", [NoSideEffect]> {
   let summary = "";
 
   let arguments = (ins
@@ -553,7 +537,7 @@ def TF_DTensorReduceScatterOp : TF_Op<"DTensorReduceScatter", [Pure]> {
   TF_DerivedOperandTypeAttr T = TF_DerivedOperandTypeAttr<0>;
 }
 
-def TF_DTensorShardedPrefixOp : TF_Op<"DTensorShardedPrefix", [Pure]> {
+def TF_DTensorShardedPrefixOp : TF_Op<"DTensorShardedPrefix", [NoSideEffect]> {
   let summary = "Queries the generated shard prefix from DTensor SaveV2.";
 
   let description = [{
@@ -578,7 +562,7 @@ the checkpoint can cover all files.
   );
 }
 
-def TF_DTensorRestoreV2Op : TF_Op<"DTensorRestoreV2", [Pure]> {
+def TF_DTensorRestoreV2Op : TF_Op<"DTensorRestoreV2", [NoSideEffect]> {
   let summary = "DTensor RestoreV2 that takes extra shape and layouts.";
 
   let description = [{
@@ -602,7 +586,7 @@ blocked by CopyToMesh. Note that this will be also used by name-based restore.
   TF_DerivedResultTypeListAttr dtypes = TF_DerivedResultTypeListAttr<0>;
 }
 
-def TF_DTensorAllScatterOp : TF_Op<"DTensorAllScatter", [Pure]> {
+def TF_DTensorAllScatterOp : TF_Op<"DTensorAllScatter", [NoSideEffect]> {
   let summary = "Slices the input to the given layout.";
 
   let description = [{
@@ -625,7 +609,7 @@ sharded than the input layout.
   let hasVerifier = 1;
 }
 
-def TF_DTensorAllGatherOp : TF_Op<"DTensorAllGather", [Pure]> {
+def TF_DTensorAllGatherOp : TF_Op<"DTensorAllGather", [NoSideEffect]> {
   let summary = "Concatenates the input to match the given layout.";
 
   let description = [{

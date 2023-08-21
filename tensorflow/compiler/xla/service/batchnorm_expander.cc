@@ -22,20 +22,20 @@ limitations under the License.
 #include <vector>
 
 #include "absl/types/span.h"
-#include "tensorflow/compiler/xla/hlo/ir/dfs_hlo_visitor_with_default.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_computation.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instruction.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_opcode.h"
 #include "tensorflow/compiler/xla/literal.h"
 #include "tensorflow/compiler/xla/literal_util.h"
+#include "tensorflow/compiler/xla/service/dfs_hlo_visitor_with_default.h"
+#include "tensorflow/compiler/xla/service/hlo_computation.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
+#include "tensorflow/compiler/xla/service/hlo_opcode.h"
 #include "tensorflow/compiler/xla/shape_util.h"
 #include "tensorflow/compiler/xla/status_macros.h"
 #include "tensorflow/compiler/xla/types.h"
 #include "tensorflow/compiler/xla/util.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
-#include "tensorflow/tsl/platform/errors.h"
-#include "tensorflow/tsl/platform/logging.h"
-#include "tensorflow/tsl/platform/status.h"
+#include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/platform/logging.h"
 
 namespace xla {
 
@@ -82,14 +82,17 @@ class BatchNormExpanderVisitor : public DfsHloRewriteVisitor {
     return computation_->parent()->AddEmbeddedComputation(b.Build(scalar_op));
   }
 
-  std::unique_ptr<HloInstruction> Rsqrt(HloInstruction* operand) {
+  std::unique_ptr<HloInstruction> Rsqrt(
+      HloInstruction* operand,
+      const std::function<HloInstruction*(std::unique_ptr<HloInstruction>)>&
+          add_instruction) {
     return HloInstruction::CreateUnary(operand->shape(), HloOpcode::kRsqrt,
                                        operand);
   }
 
   std::unique_ptr<HloInstruction> Mean(
       HloInstruction* element_count, HloInstruction* operand,
-      absl::FunctionRef<HloInstruction*(std::unique_ptr<HloInstruction>)>
+      const std::function<HloInstruction*(std::unique_ptr<HloInstruction>)>&
           add_instruction) {
     auto broadcast = add_instruction(
         HloInstruction::CreateBroadcast(operand->shape(), element_count, {}));
@@ -99,7 +102,7 @@ class BatchNormExpanderVisitor : public DfsHloRewriteVisitor {
 
   std::unique_ptr<HloInstruction> DynamicElementCountPerFeature(
       HloInstruction* operand, int64_t feature_index,
-      absl::FunctionRef<HloInstruction*(std::unique_ptr<HloInstruction>)>
+      const std::function<HloInstruction*(std::unique_ptr<HloInstruction>)>&
           add_instruction) {
     auto elements_per_feature_s32 = add_instruction(
         HloInstruction::CreateConstant(LiteralUtil::CreateR0<int32_t>(1)));
@@ -243,7 +246,7 @@ Status BatchNormExpanderVisitor::HandleBatchNormTraining(
       add_binary(operand_shape, HloOpcode::kAdd, var_broadcasted, epsilon);
 
   // 1 / Sqrt[Var[X] + epsilon].
-  auto rsqrt_var_add_epsilon = add(Rsqrt(var_add_epsilon));
+  auto rsqrt_var_add_epsilon = add(Rsqrt(var_add_epsilon, add));
 
   // X - E[X].
   auto operand_minus_mean = add_binary(operand_shape, HloOpcode::kSubtract,
@@ -342,7 +345,8 @@ Status BatchNormExpanderVisitor::HandleBatchNormInference(
   int64_t instruction_count_before = computation_->instruction_count();
   auto true_scale = add_binary(
       feature_shape, HloOpcode::kMultiply, scale,
-      add(Rsqrt(add_binary(feature_shape, HloOpcode::kAdd, var, epsilon))));
+      add(Rsqrt(add_binary(feature_shape, HloOpcode::kAdd, var, epsilon),
+                add)));
   auto true_shift = add_binary(
       feature_shape, HloOpcode::kSubtract, offset,
       add_binary(feature_shape, HloOpcode::kMultiply, mean, true_scale));
@@ -455,10 +459,12 @@ Status BatchNormExpanderVisitor::HandleBatchNormGrad(
   // rsqrt[Var[X] + epsilon].
   auto rsqrt_var_add_epsilon_broadcasted =
       add(Rsqrt(add_binary(activation_shape, HloOpcode::kAdd,
-                           variance_broadcasted, epsilon_activation)));
+                           variance_broadcasted, epsilon_activation),
+                add));
 
   auto rsqrt_var_add_epsilon = add(Rsqrt(
-      add_binary(feature_shape, HloOpcode::kAdd, variance, epsilon_feature)));
+      add_binary(feature_shape, HloOpcode::kAdd, variance, epsilon_feature),
+      add));
 
   // X - E[X].
   auto activation_minus_mean = add_binary(

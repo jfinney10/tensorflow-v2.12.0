@@ -19,8 +19,6 @@ limitations under the License.
 #include "absl/strings/string_view.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
 #include "mlir/IR/BuiltinOps.h"  // from @llvm-project
-#include "tensorflow/core/platform/status.h"
-#include "tensorflow/core/tfrt/fallback/op_cost_map.pb.h"
 
 namespace tensorflow {
 namespace tfrt_compiler {
@@ -41,7 +39,10 @@ class CostAnalysis {
     AnalyzeBlock(&func_op.front());
   }
 
-  int64_t GetCost(mlir::Operation* op) const;
+  int64_t GetCost(mlir::Operation* op) const {
+    assert(cost_map_.count(op) > 0);
+    return cost_map_.lookup(op);
+  }
 
  private:
   void AnalyzeArguments(mlir::func::FuncOp func_op);

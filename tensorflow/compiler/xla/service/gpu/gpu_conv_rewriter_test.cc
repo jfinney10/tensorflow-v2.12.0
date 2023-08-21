@@ -15,18 +15,17 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/service/gpu/gpu_conv_rewriter.h"
 
-#include "tensorflow/compiler/xla/hlo/ir/hlo_computation.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instruction.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_module.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_opcode.h"
-#include "tensorflow/compiler/xla/protobuf_util.h"
 #include "tensorflow/compiler/xla/service/gpu/cublas_cudnn.h"
+#include "tensorflow/compiler/xla/service/hlo_computation.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
 #include "tensorflow/compiler/xla/service/hlo_matchers.h"
+#include "tensorflow/compiler/xla/service/hlo_module.h"
+#include "tensorflow/compiler/xla/service/hlo_opcode.h"
 #include "tensorflow/compiler/xla/service/shape_inference.h"
 #include "tensorflow/compiler/xla/test.h"
 #include "tensorflow/compiler/xla/test_helpers.h"
 #include "tensorflow/compiler/xla/tests/hlo_test_base.h"
-#include "tensorflow/tsl/platform/test.h"
+#include "tensorflow/core/platform/test.h"
 
 namespace xla {
 namespace gpu {
@@ -86,7 +85,7 @@ class GpuConvRewriterTest : public HloTestBase {
 
  protected:
   bool RunPass(HloModule* module) {
-    return GpuConvRewriter().Run(module).value();
+    return GpuConvRewriter().Run(module).ValueOrDie();
   }
 
   // A convolution window with stride 1 and zero padding. The size fields are
@@ -126,10 +125,9 @@ TEST_F(GpuConvRewriterTest, BackwardFilterConvolve) {
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  ASSERT_THAT(
-      entry_computation->root_instruction(),
-      op::GetTupleElement(
-          op::CustomCall(std::string(kCudnnConvBackwardFilterCallTarget)), 0));
+  ASSERT_THAT(entry_computation->root_instruction(),
+              op::GetTupleElement(
+                  op::CustomCall(kCudnnConvBackwardFilterCallTarget), 0));
 
   // Check that metadata was preserved.
   const auto& md_after_opt =
@@ -164,9 +162,9 @@ TEST_F(GpuConvRewriterTest,
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  EXPECT_THAT(entry_computation->root_instruction(),
-              op::GetTupleElement(
-                  op::CustomCall(std::string(kCudnnConvForwardCallTarget)), 0));
+  EXPECT_THAT(
+      entry_computation->root_instruction(),
+      op::GetTupleElement(op::CustomCall(kCudnnConvForwardCallTarget), 0));
 }
 
 // Extracted from block35 training.
@@ -194,10 +192,9 @@ TEST_F(GpuConvRewriterTest, BackwardFilterConvolveWithPaddedActivations) {
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  EXPECT_THAT(
-      entry_computation->root_instruction(),
-      op::GetTupleElement(
-          op::CustomCall(std::string(kCudnnConvBackwardFilterCallTarget)), 0));
+  EXPECT_THAT(entry_computation->root_instruction(),
+              op::GetTupleElement(
+                  op::CustomCall(kCudnnConvBackwardFilterCallTarget), 0));
 }
 
 // Extracted from inception v3 training.
@@ -225,10 +222,9 @@ TEST_F(GpuConvRewriterTest, BackwardFilterConvolveWithPaddedGradients) {
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  EXPECT_THAT(
-      entry_computation->root_instruction(),
-      op::GetTupleElement(
-          op::CustomCall(std::string(kCudnnConvBackwardFilterCallTarget)), 0));
+  EXPECT_THAT(entry_computation->root_instruction(),
+              op::GetTupleElement(
+                  op::CustomCall(kCudnnConvBackwardFilterCallTarget), 0));
 }
 
 TEST_F(GpuConvRewriterTest, BackwardFilterConvolveWithUnevenPadding) {
@@ -255,10 +251,9 @@ TEST_F(GpuConvRewriterTest, BackwardFilterConvolveWithUnevenPadding) {
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  EXPECT_THAT(
-      entry_computation->root_instruction(),
-      op::GetTupleElement(
-          op::CustomCall(std::string(kCudnnConvBackwardFilterCallTarget)), 0));
+  EXPECT_THAT(entry_computation->root_instruction(),
+              op::GetTupleElement(
+                  op::CustomCall(kCudnnConvBackwardFilterCallTarget), 0));
 }
 
 TEST_F(GpuConvRewriterTest, BackwardInputConvolveEvenPadding) {
@@ -304,17 +299,16 @@ TEST_F(GpuConvRewriterTest, BackwardInputConvolveEvenPadding) {
           output->shape(), reverse_kernel->shape(),
           /*feature_group_count=*/1, /*batch_group_count=*/1, conv_window,
           conv_dnums, /*preferred_element_type=*/std::nullopt)
-          .value()));
+          .ValueOrDie()));
 
   auto module = CreateNewVerifiedModule();
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
 
-  ASSERT_THAT(
-      entry_computation->root_instruction(),
-      op::GetTupleElement(
-          op::CustomCall(std::string(kCudnnConvBackwardInputCallTarget)), 0));
+  ASSERT_THAT(entry_computation->root_instruction(),
+              op::GetTupleElement(
+                  op::CustomCall(kCudnnConvBackwardInputCallTarget), 0));
   const HloInstruction* custom_call =
       entry_computation->root_instruction()->operand(0);
   for (int i = 0; i < 2; ++i) {
@@ -361,10 +355,9 @@ TEST_F(GpuConvRewriterTest, BackwardInputConvolve1x1Filter) {
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  EXPECT_THAT(
-      entry_computation->root_instruction(),
-      op::GetTupleElement(
-          op::CustomCall(std::string(kCudnnConvBackwardInputCallTarget)), 0));
+  EXPECT_THAT(entry_computation->root_instruction(),
+              op::GetTupleElement(
+                  op::CustomCall(kCudnnConvBackwardInputCallTarget), 0));
 }
 
 // BackwardInputConvolve([abc], [x], stride=1) is equivalent to
@@ -397,9 +390,9 @@ TEST_F(GpuConvRewriterTest,
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  EXPECT_THAT(entry_computation->root_instruction(),
-              op::GetTupleElement(
-                  op::CustomCall(std::string(kCudnnConvForwardCallTarget)), 0));
+  EXPECT_THAT(
+      entry_computation->root_instruction(),
+      op::GetTupleElement(op::CustomCall(kCudnnConvForwardCallTarget), 0));
 }
 
 // Extracted from Inception V3 training.
@@ -446,16 +439,15 @@ TEST_F(GpuConvRewriterTest, BackwardInputConvolveUnevenPaddingOnGradients) {
                          /*feature_group_count=*/1, /*batch_group_count=*/1,
                          conv_window, tf_default_dnums_for_backward_input_,
                          /*preferred_element_type=*/std::nullopt)
-                         .value()));
+                         .ValueOrDie()));
 
   auto module = CreateNewVerifiedModule();
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  ASSERT_THAT(
-      entry_computation->root_instruction(),
-      op::GetTupleElement(
-          op::CustomCall(std::string(kCudnnConvBackwardInputCallTarget)), 0));
+  ASSERT_THAT(entry_computation->root_instruction(),
+              op::GetTupleElement(
+                  op::CustomCall(kCudnnConvBackwardInputCallTarget), 0));
   const HloInstruction* custom_call =
       entry_computation->root_instruction()->operand(0);
   for (int i = 0; i < 2; ++i) {
@@ -498,15 +490,15 @@ TEST_F(GpuConvRewriterTest, BackwardInputConvolveLowPaddingTooLarge) {
                          /*feature_group_count=*/1, /*batch_group_count=*/1,
                          conv_window, tf_default_dnums_for_backward_input_,
                          /*preferred_element_type=*/std::nullopt)
-                         .value()));
+                         .ValueOrDie()));
 
   auto module = CreateNewVerifiedModule();
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  EXPECT_THAT(entry_computation->root_instruction(),
-              op::GetTupleElement(
-                  op::CustomCall(std::string(kCudnnConvForwardCallTarget)), 0));
+  EXPECT_THAT(
+      entry_computation->root_instruction(),
+      op::GetTupleElement(op::CustomCall(kCudnnConvForwardCallTarget), 0));
 }
 
 // Extracted from Resnet-50.
@@ -553,16 +545,15 @@ TEST_F(GpuConvRewriterTest, BackwardInputConvolveUnevenPaddingOnActivations) {
                          /*feature_group_count=*/1, /*batch_group_count=*/1,
                          conv_window, tf_default_dnums_for_backward_input_,
                          /*preferred_element_type=*/std::nullopt)
-                         .value()));
+                         .ValueOrDie()));
 
   auto module = CreateNewVerifiedModule();
   const HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  ASSERT_THAT(
-      entry_computation->root_instruction(),
-      op::GetTupleElement(
-          op::CustomCall(std::string(kCudnnConvBackwardInputCallTarget)), 0));
+  ASSERT_THAT(entry_computation->root_instruction(),
+              op::GetTupleElement(
+                  op::CustomCall(kCudnnConvBackwardInputCallTarget), 0));
   const WindowDimension& backward_conv_col_dim =
       entry_computation->root_instruction()->operand(0)->window().dimensions(1);
   EXPECT_EQ(0, backward_conv_col_dim.padding_low());
@@ -610,15 +601,15 @@ TEST_F(GpuConvRewriterTest,
                          /*feature_group_count=*/1, /*batch_group_count=*/1,
                          conv_window, tf_default_dnums_for_backward_input_,
                          /*preferred_element_type=*/std::nullopt)
-                         .value()));
+                         .ValueOrDie()));
 
   auto module = CreateNewVerifiedModule();
   HloComputation* entry_computation =
       module->AddEntryComputation(builder.Build());
   EXPECT_TRUE(RunPass(module.get()));
-  EXPECT_THAT(entry_computation->root_instruction(),
-              op::GetTupleElement(
-                  op::CustomCall(std::string(kCudnnConvForwardCallTarget)), 0));
+  EXPECT_THAT(
+      entry_computation->root_instruction(),
+      op::GetTupleElement(op::CustomCall(kCudnnConvForwardCallTarget), 0));
 }
 
 // Check that we will materialize a reversed version of a constant in order to
@@ -643,11 +634,11 @@ TEST_F(GpuConvRewriterTest, BackwardInputConvolveConstantFilter) {
   TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(module_str));
 
   EXPECT_TRUE(RunPass(m.get()));
-  EXPECT_THAT(m->entry_computation()->root_instruction(),
-              op::GetTupleElement(
-                  op::CustomCall(std::string(kCudnnConvBackwardInputCallTarget),
-                                 _, op::Reverse(op::Constant())),
-                  0));
+  EXPECT_THAT(
+      m->entry_computation()->root_instruction(),
+      op::GetTupleElement(op::CustomCall(kCudnnConvBackwardInputCallTarget, _,
+                                         op::Reverse(op::Constant())),
+                          0));
 }
 
 TEST_F(GpuConvRewriterTest, TestBackwardFilterPattern) {
@@ -663,11 +654,9 @@ TEST_F(GpuConvRewriterTest, TestBackwardFilterPattern) {
   TF_ASSERT_OK_AND_ASSIGN(auto m, ParseAndReturnVerifiedModule(module_str));
 
   EXPECT_TRUE(RunPass(m.get()));
-  EXPECT_THAT(
-      m->entry_computation()->root_instruction(),
-      op::GetTupleElement(
-          op::CustomCall(std::string(kCudnnConvBackwardFilterCallTarget), _, _),
-          0));
+  EXPECT_THAT(m->entry_computation()->root_instruction(),
+              op::GetTupleElement(
+                  op::CustomCall(kCudnnConvBackwardFilterCallTarget, _, _), 0));
 }
 
 }  // anonymous namespace

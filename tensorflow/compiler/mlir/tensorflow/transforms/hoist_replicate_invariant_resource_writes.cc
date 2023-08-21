@@ -18,10 +18,9 @@ limitations under the License.
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
-#include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_device.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes_detail.h"
 
 #define DEBUG_TYPE "tf-hoist-replicate-invariant-resource-writes"
 
@@ -30,11 +29,8 @@ namespace TF {
 
 namespace {
 
-#define GEN_PASS_DEF_HOISTREPLICATEINVARIANTRESOURCEWRITESPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
-
 struct HoistReplicateInvariantResourceWritesPass
-    : public impl::HoistReplicateInvariantResourceWritesPassBase<
+    : public TF::HoistReplicateInvariantResourceWritesPassBase<
           HoistReplicateInvariantResourceWritesPass> {
   void runOnOperation() override;
 };
@@ -62,7 +58,7 @@ SmallVector<Value> GetAccessedResources(Operation& op) {
 void MoveTailWritesAfterReplicate(
     tf_device::ReplicateOp replicate_op,
     llvm::ArrayRef<TF::AssignVariableOp> tail_assign_variable_ops) {
-  const auto num_replicas = replicate_op.getN();
+  const auto num_replicas = replicate_op.n();
   auto return_op = llvm::dyn_cast<tf_device::ReturnOp>(
       replicate_op.getRegion().front().getTerminator());
 
@@ -71,9 +67,9 @@ void MoveTailWritesAfterReplicate(
   // returned.
   auto new_result_types = llvm::to_vector<4>(replicate_op->getResultTypes());
   for (auto assign : tail_assign_variable_ops) {
-    return_op->insertOperands(return_op->getNumOperands(), assign.getValue());
+    return_op->insertOperands(return_op->getNumOperands(), assign.value());
     new_result_types.insert(new_result_types.end(), num_replicas,
-                            assign.getValue().getType());
+                            assign.value().getType());
   }
 
   OpBuilder builder(replicate_op);
@@ -114,7 +110,7 @@ SmallVector<TF::AssignVariableOp> GetTailWritesToReplicateInvariantResourceVars(
     if (op_accessed_resources.empty()) continue;
 
     if (auto assign = llvm::dyn_cast<TF::AssignVariableOp>(op)) {
-      Value resource_var = assign.getResource();
+      Value resource_var = assign.resource();
       if (visited_resources.contains(resource_var) ||
           !resource_var.getParentRegion()->isProperAncestor(
               &replicate_op.getRegion()))

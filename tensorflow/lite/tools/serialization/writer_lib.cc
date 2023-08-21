@@ -16,18 +16,13 @@ limitations under the License.
 
 #include <cstdlib>
 #include <cstring>
-#include <memory>
-#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
-#include <vector>
 
-#include "absl/container/flat_hash_set.h"
 #include "tensorflow/lite/builtin_op_data.h"
+#include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/context_util.h"
-#include "tensorflow/lite/core/c/common.h"
 #include "tensorflow/lite/core/subgraph.h"
 #include "tensorflow/lite/schema/reflection/schema_generated.h"
 #include "tensorflow/lite/schema/schema_conversion_utils.h"
@@ -78,7 +73,7 @@ TfLiteStatus WriteImpl(const std::string& filename, void* data, size_t size) {
 
 std::pair<BuiltinOptions, flatbuffers::Offset<void>> CreateBuiltinUnion(
     flatbuffers::FlatBufferBuilder* fbb, enum BuiltinOperator op,
-    void* builtin_op_data, int node_inputs_size) {
+    void* builtin_op_data, const TfLiteNode& node) {
   switch (op) {
 #include "tensorflow/lite/tools/serialization/option_writer_generated.h"
   }
@@ -131,7 +126,7 @@ SubgraphWriter::ExportOperators(flatbuffers::FlatBufferBuilder* fbb) {
       // builtin
       auto builtin_options_and_type = CreateBuiltinUnion(
           fbb, static_cast<enum BuiltinOperator>(registration.builtin_code),
-          node.builtin_data, node.inputs->size);
+          node.builtin_data, node);
       builtin_options = builtin_options_and_type.second;
       builtin_options_type = builtin_options_and_type.first;
     } else {
@@ -255,25 +250,9 @@ SubgraphWriter::ExportTensors(flatbuffers::FlatBufferBuilder* fbb) {
           tensor_name_offset = fbb->CreateString(tensor->name);
         }
 
-        flatbuffers::Offset<flatbuffers::Vector<int32_t>>
-            shape_signature_offset = 0;
-
-        if (serialize_dims_signature_ && tensor->dims_signature != nullptr) {
-          TfLiteIntArrayView shape_signature_view(tensor->dims_signature);
-          std::vector<int32_t> shape_signature(shape_signature_view.begin(),
-                                               shape_signature_view.end());
-          shape_signature_offset = ExportVector<int32_t>(fbb, shape_signature);
-        }
-
-        // TFLite runtime does not differentiate between unranked and scalar
-        // tensors. Assume shapeless tensors are scalars when serializing.
-        // TODO(b/255826755): Remove workaround when runtime can differentiate
-        // between scalar and unranked tensors.
-        bool has_rank = true;
         tensors.push_back(CreateTensor(
             *fbb, ExportVector<int32_t>(fbb, shape), type, buffer_index,
-            tensor_name_offset, quantization_params, tensor->is_variable,
-            /*sparsity=*/0, shape_signature_offset, has_rank));
+            tensor_name_offset, quantization_params, tensor->is_variable));
       }
     }
   }
@@ -365,7 +344,7 @@ TfLiteStatus SubgraphWriter::RegisterCustomWriter(
 TfLiteStatus SubgraphWriter::CheckInputOutput(
     const std::vector<int>& inputs, const std::vector<int>& outputs,
     const std::vector<int>& execution_plan) {
-  absl::flat_hash_set<int> known_tensors(inputs.begin(), inputs.end());
+  std::unordered_set<int> known_tensors(inputs.begin(), inputs.end());
   known_tensors.insert(subgraph_->variables().begin(),
                        subgraph_->variables().end());
   // Scan execution plan and confirm input tensors are known before each node
@@ -431,8 +410,7 @@ TfLiteStatus SubgraphWriter::SetCustomInputOutput(
   return kTfLiteOk;
 }
 
-ModelWriter::ModelWriter(Interpreter* interpreter,
-                         bool serialize_dims_signature) {
+ModelWriter::ModelWriter(Interpreter* interpreter) {
   std::vector<Subgraph*> subgraphs;
 
   // Retrieves the list of the subgraphs from the interpreter for constructing
@@ -442,21 +420,19 @@ ModelWriter::ModelWriter(Interpreter* interpreter,
     subgraphs.push_back(interpreter->subgraph(i));
   }
 
-  Init(subgraphs, serialize_dims_signature);
+  Init(subgraphs);
 }
 
-ModelWriter::ModelWriter(const std::vector<Subgraph*>& subgraphs,
-                         bool serialize_dims_signature) {
-  Init(subgraphs, serialize_dims_signature);
+ModelWriter::ModelWriter(const std::vector<Subgraph*>& subgraphs) {
+  Init(subgraphs);
 }
 
-void ModelWriter::Init(const std::vector<Subgraph*>& subgraphs,
-                       bool serialize_dims_signature) {
+void ModelWriter::Init(const std::vector<Subgraph*>& subgraphs) {
   buffers_.push_back(std::make_pair(nullptr, 0));
   subgraph_writers_.reserve(subgraphs.size());
   for (auto* subgraph : subgraphs) {
     SubgraphWriter writer(subgraph, &buffers_, &opcodes_,
-                          &builtin_op_to_opcode_, serialize_dims_signature);
+                          &builtin_op_to_opcode_);
     subgraph_writers_.push_back(writer);
   }
 }

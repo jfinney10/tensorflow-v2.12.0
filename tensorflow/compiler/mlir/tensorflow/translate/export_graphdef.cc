@@ -76,7 +76,7 @@ using mlir::Operation;
 using mlir::SymbolTable;
 using mlir::Value;
 using mlir::func::FuncOp;
-using tsl::StatusOr;
+using stream_executor::port::StatusOr;
 
 namespace {
 
@@ -220,7 +220,7 @@ StatusOr<std::unique_ptr<NodeDef>> Exporter::GetArgumentNode(
     *node_def->mutable_device() = device_attr.getValue().str();
 
   llvm::ArrayRef<mlir::NamedAttribute> func_arg_i_attrs =
-      mlir::function_interface_impl::getArgAttrs(func, index);
+      func.getArgAttrs(index);
   absl::flat_hash_set<absl::string_view> attrs_to_ignore = {kDeviceAttr,
                                                             kAliasingAttr};
   TF_RETURN_IF_ERROR(ConvertAttributes(func_arg_i_attrs, attrs_to_ignore,
@@ -279,8 +279,7 @@ Status Exporter::AddEdgeBetweenNodes(Value src, Node* dst_node,
     TF_RET_CHECK(node_it != nodes_.end())
         << "Use of OpResult encountered before def!";
     if (input_result.getType().isa<mlir::tf_executor::ControlType>()) {
-      graph_->AddControlEdge(node_it->second, dst_node,
-                             /*allow_duplicates=*/true);
+      graph_->AddControlEdge(node_it->second, dst_node);
     } else {
       graph_->AddEdge(node_it->second, input_result.getResultNumber(), dst_node,
                       dst_index);
@@ -318,9 +317,8 @@ Status Exporter::AddEdge(Operation* inst) {
           llvm::dyn_cast<mlir::tf_executor::NextIterationSinkOp>(inst)) {
     auto* dst_node = nodes_[inst];
     TF_RETURN_IF_ERROR(
-        AddEdgeBetweenNodes(next_iter_sink.getInput(), dst_node, 0));
-    for (auto control_and_idx :
-         llvm::enumerate(next_iter_sink.getControlInputs()))
+        AddEdgeBetweenNodes(next_iter_sink.input(), dst_node, 0));
+    for (auto control_and_idx : llvm::enumerate(next_iter_sink.controlInputs()))
       TF_RETURN_IF_ERROR(AddEdgeBetweenNodes(control_and_idx.value(), dst_node,
                                              control_and_idx.index() + 1));
 
@@ -558,7 +556,7 @@ StatusOr<std::unique_ptr<Graph>> Exporter::Convert(
         // definition library
         // TODO(prakalps): If two functions have cyclic dependence, this will
         // introduce an infinite loop.
-        TF_RETURN_IF_ERROR(convert_called_function(op_name.value().str()));
+        TF_RETURN_IF_ERROR(convert_called_function(op_name.ValueOrDie().str()));
       }
 
       if (IsLegacyCallInstruction(&inner_op)) {
@@ -604,8 +602,9 @@ Status Exporter::ConvertLibFunction(
       Exporter::Convert(configs, tf_dialect, symbol_table, function, flib,
                         visited_functions, &control_ret_nodes));
   const auto control_ret = [&](const Node* n) -> std::optional<string> {
-    return control_ret_nodes.contains(n) ? std::make_optional<string>(n->name())
-                                         : std::nullopt;
+    return control_ret_nodes.contains(n)
+               ? absl::make_optional<string>(n->name())
+               : std::nullopt;
   };
   FunctionDef func_def;
   TF_RETURN_IF_ERROR(
@@ -770,7 +769,7 @@ StatusOr<std::unique_ptr<GraphDef>> ConvertMlirToGraphdef(
   return graphdef;
 }
 
-tsl::Status ConvertMlirFunctionToFunctionLibraryDef(
+stream_executor::port::Status ConvertMlirFunctionToFunctionLibraryDef(
     FuncOp func, const GraphExportConfig& configs, FunctionDef* function_def) {
   Dialect* tf_dialect = func.getContext()->getLoadedDialect("tf");
   FunctionDefLibrary flib;

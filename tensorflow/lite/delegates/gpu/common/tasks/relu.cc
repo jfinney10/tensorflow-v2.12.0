@@ -23,37 +23,36 @@ limitations under the License.
 namespace tflite {
 namespace gpu {
 
-ElementwiseDescriptor CreateReLU(const ReLUAttributes& attr,
-                                 CalculationsPrecision precision) {
-  ElementwiseDescriptor result;
+void CreateReLU(const ReLUAttributes& attr, CalculationsPrecision precision,
+                Arguments* args, std::string* code) {
   std::string min_func;
   if (attr.alpha != 0.0f) {
     min_func = "min(in_value * args.alpha, INIT_FLT(0.0f))";
     if (precision == CalculationsPrecision::F32) {
-      result.args.AddFloat("alpha", attr.alpha);
+      args->AddFloat("alpha", attr.alpha);
     } else {
-      result.args.AddHalf("alpha", half(attr.alpha));
+      args->AddHalf("alpha", half(attr.alpha));
     }
   } else {
     min_func = "INIT_FLT4(0.0f)";
   }
   if (attr.clip != 0.0f) {
     if (precision == CalculationsPrecision::F32) {
-      result.args.AddFloat("clip", attr.clip);
+      args->AddFloat("clip", attr.clip);
     } else {
-      result.args.AddHalf("clip", half(attr.clip));
+      args->AddHalf("clip", half(attr.clip));
     }
-    result.code = absl::StrCat("out_value = clamp(in_value, " + min_func +
-                               ", INIT_FLT4(args.clip));");
+    *code = absl::StrCat("out_value = clamp(in_value, " + min_func +
+                         ", INIT_FLT4(args.clip));");
   } else {
-    result.code = absl::StrCat("out_value = max(in_value, ", min_func, ");");
+    *code = absl::StrCat("out_value = max(in_value, ", min_func, ");");
   }
-  return result;
 }
 
 GPUOperation CreateReLU(const OperationDef& definition,
                         const ReLUAttributes& attr) {
-  ElementwiseDescriptor op_desc = CreateReLU(attr, definition.precision);
+  ElementwiseDescriptor op_desc;
+  CreateReLU(attr, definition.precision, &op_desc.args, &op_desc.code);
   return CreateGpuOperation(definition, std::move(op_desc));
 }
 

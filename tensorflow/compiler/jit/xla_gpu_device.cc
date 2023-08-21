@@ -16,7 +16,6 @@ limitations under the License.
 // Registers the XLA_GPU device, which is an XlaDevice instantiation that runs
 // operators using XLA via the XLA "CUDA" or "ROCM" (GPU) backend.
 
-#include <array>
 #include <set>
 
 #include "absl/memory/memory.h"
@@ -30,8 +29,8 @@ limitations under the License.
 #include "tensorflow/compiler/jit/xla_platform_info.h"
 #include "tensorflow/compiler/tf2xla/layout_util.h"
 #include "tensorflow/compiler/tf2xla/xla_op_registry.h"
-#include "tensorflow/compiler/xla/stream_executor/gpu/gpu_init.h"
 #include "tensorflow/core/common_runtime/device_factory.h"
+#include "tensorflow/core/common_runtime/gpu/gpu_init.h"
 #include "tensorflow/core/lib/core/status.h"
 
 namespace tensorflow {
@@ -52,14 +51,14 @@ Status XlaGpuDeviceFactory::ListPhysicalDevices(std::vector<string>* devices) {
   }
 
   auto platform =
-      se::MultiPlatformManager::PlatformWithName(se::GpuPlatformName());
+      se::MultiPlatformManager::PlatformWithName(tensorflow::GpuPlatformName());
   if (!platform.ok()) {
     // Treat failures as non-fatal; there might not be a GPU in the machine.
     VLOG(1) << "Failed to create XLA_GPU device: " << platform.status();
     return OkStatus();
   }
 
-  int device_count = platform.value()->VisibleDeviceCount();
+  int device_count = platform.ValueOrDie()->VisibleDeviceCount();
   if (device_count <= 0) {
     return OkStatus();
   }
@@ -101,7 +100,7 @@ Status XlaGpuDeviceFactory::CreateDevices(
   (void)registrations;
 
   auto platform =
-      se::MultiPlatformManager::PlatformWithName(se::GpuPlatformName());
+      se::MultiPlatformManager::PlatformWithName(tensorflow::GpuPlatformName());
   if (!platform.ok()) {
     // Treat failures as non-fatal; there might not be a GPU in the machine.
     VLOG(1) << "Failed to create XLA_GPU device: " << platform.status();
@@ -118,17 +117,17 @@ Status XlaGpuDeviceFactory::CreateDevices(
   string allowed_gpus =
       session_options.config.gpu_options().visible_device_list();
   std::optional<std::set<int>> gpu_ids =
-      ParseVisibleDeviceList(allowed_gpus).value();
+      ParseVisibleDeviceList(allowed_gpus).ValueOrDie();
   if (!gpu_ids) {
     gpu_ids.emplace();
     // Fill the gpu_ids set with all devices if config string is empty.
-    for (int i = 0; i < platform.value()->VisibleDeviceCount(); ++i) {
+    for (int i = 0; i < platform.ValueOrDie()->VisibleDeviceCount(); ++i) {
       gpu_ids->insert(i);
     }
   }
   for (int i : *gpu_ids) {
     XlaDevice::Options options;
-    options.platform = platform.value();
+    options.platform = platform.ValueOrDie();
     options.device_name_prefix = name_prefix;
     options.device_name = DEVICE_XLA_GPU;
     options.device_ordinal = i;
@@ -156,10 +155,10 @@ REGISTER_LOCAL_DEVICE_FACTORY(DEVICE_XLA_GPU, XlaGpuDeviceFactory);
 
 // Kernel registrations
 
-constexpr std::array<DataType, 18> kAllXlaGpuTypes = {
+constexpr std::array<DataType, 16> kAllXlaGpuTypes = {
     {DT_UINT8, DT_QUINT8, DT_UINT16, DT_INT8, DT_QINT8, DT_INT16, DT_INT32,
      DT_QINT32, DT_INT64, DT_HALF, DT_FLOAT, DT_DOUBLE, DT_COMPLEX64,
-     DT_COMPLEX128, DT_BOOL, DT_BFLOAT16, DT_FLOAT8_E5M2, DT_FLOAT8_E4M3FN}};
+     DT_COMPLEX128, DT_BOOL, DT_BFLOAT16}};
 
 REGISTER_XLA_LAUNCH_KERNEL(DEVICE_XLA_GPU, XlaLocalLaunchOp, kAllXlaGpuTypes);
 REGISTER_XLA_COMPILE_KERNEL(DEVICE_XLA_GPU, XlaCompileOp, kAllXlaGpuTypes);

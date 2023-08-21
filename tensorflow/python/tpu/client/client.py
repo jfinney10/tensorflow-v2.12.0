@@ -14,15 +14,16 @@
 # ==============================================================================
 """Cloud TPU Client."""
 
-from concurrent import futures
 import datetime
 import json
 import logging
 import os
 import time
-import urllib
 
 from absl import flags
+from concurrent import futures
+from six.moves.urllib import request
+from six.moves.urllib.error import HTTPError
 
 _GOOGLE_API_CLIENT_INSTALLED = True
 try:
@@ -71,10 +72,10 @@ def _gce_metadata_endpoint():
 
 
 def _request_compute_metadata(path):
-  req = urllib.request.Request(
+  req = request.Request(
       '%s/computeMetadata/v1/%s' % (_gce_metadata_endpoint(), path),
       headers={'Metadata-Flavor': 'Google'})
-  resp = urllib.request.urlopen(req)
+  resp = request.urlopen(req)
   return _as_text(resp.read())
 
 
@@ -118,7 +119,7 @@ def _as_text(s):
   return s
 
 
-class Client:
+class Client(object):
   """Client for working with the Cloud TPU API.
 
   This client is intended to be used for resolving tpu name to ip addresses.
@@ -193,13 +194,12 @@ class Client:
                                                 '%Y-%m-%dT%H:%M:%S')
       time_diff = _utcnow() - oom_datetime
       if time_diff < datetime.timedelta(seconds=_OOM_EVENT_COOL_TIME_SEC):
-        logging.warning(
-            self._symptom_msg(
-                'a recent runtime OOM has occurred ~{} seconds ago. The model '
-                'script will terminate automatically. To prevent future OOM '
-                'events, please consider reducing the model size. To disable this '
-                'behavior, set flag --runtime_oom_exit=false when starting the '
-                'script.'.format(time_diff.seconds)))
+        logging.warning(self._symptom_msg(
+            'a recent runtime OOM has occured ~{} seconds ago. The model '
+            'script will terminate automatically. To prevent future OOM '
+            'events, please consider reducing the model size. To disable this '
+            'behavior, set flag --runtime_oom_exit=false when starting the '
+            'script.'.format(time_diff.seconds)))
         return True
     return False
 
@@ -215,13 +215,12 @@ class Client:
                                                 '%Y-%m-%dT%H:%M:%S')
       time_diff = _utcnow() - oom_datetime
       if time_diff < datetime.timedelta(seconds=_OOM_EVENT_COOL_TIME_SEC):
-        logging.warning(
-            self._symptom_msg(
-                'a recent HBM OOM has occurred ~{} seconds ago. The model '
-                'script will terminate automatically. To prevent future HBM OOM '
-                'events, please consider reducing the model size. To disable this '
-                'behavior, set flag --hbm_oom_exit=false when starting the '
-                'script.'.format(time_diff.seconds)))
+        logging.warning(self._symptom_msg(
+            'a recent HBM OOM has occured ~{} seconds ago. The model '
+            'script will terminate automatically. To prevent future HBM OOM '
+            'events, please consider reducing the model size. To disable this '
+            'behavior, set flag --hbm_oom_exit=false when starting the '
+            'script.'.format(time_diff.seconds)))
         return True
     return False
 
@@ -325,11 +324,11 @@ class Client:
       url = _VERSION_SWITCHER_ENDPOINT.format(
           self.network_endpoints()[0]['ipAddress'])
       try:
-        req = urllib.request.Request(url)
-        resp = urllib.request.urlopen(req)
+        req = request.Request(url)
+        resp = request.urlopen(req)
         version_details = json.loads(resp.read())
         return version_details.get('currentVersion')
-      except urllib.error.HTTPError as e:
+      except HTTPError as e:
         status_code = e.code
         if status_code == 404:
           return None
@@ -410,10 +409,10 @@ class Client:
       ip_address = worker['ipAddress']
       url = (_VERSION_SWITCHER_ENDPOINT + '/{}?restartType={}').format(
           ip_address, version, restart_type)
-      req = urllib.request.Request(url, data=b'')
+      req = request.Request(url, data=b'')
       try:
-        urllib.request.urlopen(req)
-      except urllib.error.HTTPError as e:
+        request.urlopen(req)
+      except HTTPError as e:
         status_code = e.code
         if status_code == 404:
           raise Exception(

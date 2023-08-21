@@ -25,8 +25,9 @@ limitations under the License.
 #include "absl/strings/substitute.h"
 #include "tensorflow/lite/delegates/gpu/cl/buffer.h"
 #include "tensorflow/lite/delegates/gpu/cl/gpu_object.h"
-#include "tensorflow/lite/delegates/gpu/cl/qcom_thin_filter.h"
+#include "tensorflow/lite/delegates/gpu/cl/linear_storage.h"
 #include "tensorflow/lite/delegates/gpu/cl/tensor.h"
+#include "tensorflow/lite/delegates/gpu/cl/texture2d.h"
 #include "tensorflow/lite/delegates/gpu/common/task/util.h"
 #include "tensorflow/lite/delegates/gpu/common/util.h"
 
@@ -111,21 +112,29 @@ absl::Status CreateCLObject(GPUObjectDescriptor* desc, CLContext* context,
     return absl::OkStatus();
   }
 
+  const auto* texture_desc = dynamic_cast<const Texture2DDescriptor*>(desc);
+  if (texture_desc) {
+    Texture2D gpu_texture;
+    RETURN_IF_ERROR(
+        gpu_texture.CreateFromTexture2DDescriptor(*texture_desc, context));
+    *result = std::make_unique<Texture2D>(std::move(gpu_texture));
+    return absl::OkStatus();
+  }
+
+  const auto* linear_desc = dynamic_cast<const TensorLinearDescriptor*>(desc);
+  if (linear_desc) {
+    LinearStorage gpu_storage;
+    RETURN_IF_ERROR(
+        gpu_storage.CreateFromTensorLinearDescriptor(*linear_desc, context));
+    *result = std::make_unique<LinearStorage>(std::move(gpu_storage));
+    return absl::OkStatus();
+  }
+
   const auto* tensor_desc = dynamic_cast<const TensorDescriptor*>(desc);
   if (tensor_desc) {
     Tensor gpu_tensor;
     RETURN_IF_ERROR(gpu_tensor.CreateFromDescriptor(*tensor_desc, context));
     *result = std::make_unique<Tensor>(std::move(gpu_tensor));
-    return absl::OkStatus();
-  }
-
-  const auto* qcom_thin_filter_desc =
-      dynamic_cast<const QcomThinFilterDescriptor*>(desc);
-  if (qcom_thin_filter_desc) {
-    QcomThinFilter thin_filter;
-    RETURN_IF_ERROR(
-        thin_filter.CreateFromDescriptor(*qcom_thin_filter_desc, context));
-    *result = std::make_unique<QcomThinFilter>(std::move(thin_filter));
     return absl::OkStatus();
   }
 
@@ -141,7 +150,7 @@ absl::Status CLArguments::Init(const GpuInfo& gpu_info, CLContext* context,
                                Arguments* args, std::string* code) {
   RETURN_IF_ERROR(AllocateObjects(*args, context));
   RETURN_IF_ERROR(AddObjectArgs(gpu_info, *args));
-  args->MoveObjectRefs(&object_refs_);
+  object_refs_ = std::move(args->object_refs_);
   const bool use_f32_for_halfs = gpu_info.IsPowerVR();
   CopyArguments(*args, use_f32_for_halfs);
   RETURN_IF_ERROR(SetObjectsResources(*args));
@@ -158,7 +167,7 @@ absl::Status CLArguments::Init(const GpuInfo& gpu_info, Arguments* args,
                                CLContext* context) {
   RETURN_IF_ERROR(AllocateObjects(*args, context));
   RETURN_IF_ERROR(AddObjectArgs(gpu_info, *args));
-  args->MoveObjectRefs(&object_refs_);
+  object_refs_ = std::move(args->object_refs_);
   const bool use_f32_for_halfs = gpu_info.IsPowerVR();
   CopyArguments(*args, use_f32_for_halfs);
   RETURN_IF_ERROR(SetObjectsResources(*args));
@@ -167,9 +176,9 @@ absl::Status CLArguments::Init(const GpuInfo& gpu_info, Arguments* args,
 
 absl::Status CLArguments::AllocateObjects(const Arguments& args,
                                           CLContext* context) {
-  objects_.resize(args.GetObjects().size());
+  objects_.resize(args.objects_.size());
   int i = 0;
-  for (auto& t : args.GetObjects()) {
+  for (auto& t : args.objects_) {
     RETURN_IF_ERROR(CreateCLObject(t.second.get(), context, &objects_[i]));
     i++;
   }
@@ -178,10 +187,10 @@ absl::Status CLArguments::AllocateObjects(const Arguments& args,
 
 absl::Status CLArguments::AddObjectArgs(const GpuInfo& gpu_info,
                                         const Arguments& args) {
-  for (const auto& t : args.GetObjects()) {
+  for (const auto& t : args.objects_) {
     AddGPUResources(t.first, t.second->GetGPUResources(gpu_info));
   }
-  for (const auto& t : args.GetObjectRefs()) {
+  for (const auto& t : args.object_refs_) {
     AddGPUResources(t.first, t.second->GetGPUResources(gpu_info));
   }
   return absl::OkStatus();
@@ -189,7 +198,7 @@ absl::Status CLArguments::AddObjectArgs(const GpuInfo& gpu_info,
 
 absl::Status CLArguments::SetObjectsResources(const Arguments& args) {
   int i = 0;
-  for (const auto& t : args.GetObjects()) {
+  for (const auto& t : args.objects_) {
     GPUResourcesWithValue resources;
     RETURN_IF_ERROR(objects_[i]->GetGPUResources(t.second.get(), &resources));
     RETURN_IF_ERROR(SetGPUResources(t.first, resources));
@@ -199,7 +208,7 @@ absl::Status CLArguments::SetObjectsResources(const Arguments& args) {
 }
 
 void CLArguments::CopyArguments(const Arguments& args, bool use_f32_for_halfs) {
-  for (const auto& fvalue : args.GetFloatValues()) {
+  for (const auto& fvalue : args.float_values_) {
     auto& new_val = float_values_[fvalue.first];
     new_val.value = fvalue.second.value;
     new_val.active = fvalue.second.active;
@@ -208,7 +217,7 @@ void CLArguments::CopyArguments(const Arguments& args, bool use_f32_for_halfs) {
       shared_float4s_data_.push_back(new_val.value);
     }
   }
-  for (const auto& ivalue : args.GetIntValues()) {
+  for (const auto& ivalue : args.int_values_) {
     auto& new_val = int_values_[ivalue.first];
     new_val.value = ivalue.second.value;
     new_val.active = ivalue.second.active;
@@ -217,7 +226,7 @@ void CLArguments::CopyArguments(const Arguments& args, bool use_f32_for_halfs) {
       shared_int4s_data_.push_back(new_val.value);
     }
   }
-  for (const auto& hfvalue : args.GetHalfValues()) {
+  for (const auto& hfvalue : args.half_values_) {
     auto& new_val = half_values_[hfvalue.first];
     new_val.value = hfvalue.second.value;
     new_val.active = hfvalue.second.active;
@@ -622,12 +631,6 @@ absl::Status CLArguments::Bind(cl_kernel kernel, int offset) {
     offset++;
   }
   return absl::OkStatus();
-}
-
-bool CLArguments::HasEqualScalarArguments(const CLArguments& other) const {
-  return (other.int_values_ == int_values_ &&
-          other.float_values_ == float_values_ &&
-          other.half_values_ == half_values_);
 }
 
 }  // namespace cl

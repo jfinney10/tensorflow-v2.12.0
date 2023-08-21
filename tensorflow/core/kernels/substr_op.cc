@@ -133,8 +133,7 @@ class SubstrOp : public OpKernel {
       //       this should be parallelized.
 
       // Create BCast helper with shape of input and pos/len
-      BCast bcast(BCast::FromShape(input_shape), BCast::FromShape(pos_shape),
-                  /*fewer_dims_optimization*/ false);
+      BCast bcast(BCast::FromShape(input_shape), BCast::FromShape(pos_shape));
       OP_REQUIRES(context, bcast.IsValid(),
                   errors::InvalidArgument(
                       "Incompatible shapes: ", input_shape.DebugString(),

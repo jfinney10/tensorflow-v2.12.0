@@ -15,6 +15,7 @@
 """Tests for tensorflow.python.framework.function_def_to_graph."""
 
 from tensorflow.python.eager import def_function
+from tensorflow.python.eager import function
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import function_def_to_graph
@@ -221,7 +222,7 @@ class FunctionDefToGraphDefTest(test.TestCase):
 
     v = variables.Variable(1)
 
-    @def_function.function
+    @function.defun
     def fn(inp):
       assign = v.assign(3, name="assign", read_value=False)
       x = constant_op.constant(2.0, name="x")
@@ -243,7 +244,7 @@ class FunctionDefToGraphDefTest(test.TestCase):
 
   def testAttributesForArgDef(self):
 
-    @def_function.function
+    @function.defun
     def fn(x):
       return x
 

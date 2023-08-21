@@ -1,6 +1,7 @@
 # Description: Operations defined for Cloud TPUs
-load("//tensorflow:pytype.default.bzl", "pytype_library", "pytype_strict_library")
-load("//tensorflow:tensorflow.default.bzl", "tf_py_test")
+load("//tensorflow:tensorflow.bzl", "pytype_strict_library")
+load("//tensorflow:tensorflow.bzl", "pytype_library")  # buildifier: disable=same-origin-load
+load("//tensorflow:tensorflow.bzl", "tf_py_test")  # buildifier: disable=same-origin-load
 load("//tensorflow/core/platform:build_config.bzl", "tf_proto_library")
 load("//tensorflow/python/tpu:tpu.bzl", "tpu_py_test")
 
@@ -8,14 +9,12 @@ load("//tensorflow/python/tpu:tpu.bzl", "tpu_py_test")
 # to use TPU symbols. They are accessible from tf.contrib.tpu in TF 1.x and
 # tf.tpu and tf.compat.v1.tpu in TF 2.x.
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [
         "//learning/brain:__subpackages__",
         "//learning/deepmind:__subpackages__",
         "//learning/serving:__subpackages__",
         "//research/graph:__subpackages__",
         "//tensorflow:__subpackages__",
-        "//third_party/py/jax_tpu_embedding:__subpackages__",
         "//waymo/ml/deploy/sync_test/tools:__subpackages__",
     ],
     licenses = ["notice"],
@@ -112,30 +111,6 @@ pytype_library(
 )
 
 py_library(
-    name = "tpu_replication",
-    srcs = ["tpu_replication.py"],
-    deps = [
-        ":device_assignment",
-        "//tensorflow/core:protos_all_py",
-        "//tensorflow/python:array_ops",
-        "//tensorflow/python:control_flow_ops",
-        "//tensorflow/python:variables",
-        "//tensorflow/python/distribute:device_util",
-        "//tensorflow/python/distribute:distribute_lib",
-        "//tensorflow/python/framework:c_api_util",
-        "//tensorflow/python/framework:device",
-        "//tensorflow/python/framework:errors",
-        "//tensorflow/python/framework:func_graph",
-        "//tensorflow/python/framework:ops",
-        "//tensorflow/python/tpu/ops",
-        "//tensorflow/python/types",
-        "//tensorflow/python/util",
-        "//tensorflow/python/util:tf_export",
-        "@absl_py//absl/logging",
-    ],
-)
-
-py_library(
     name = "tpu_estimator",
     srcs = [
         "_tpu_estimator_embedding.py",
@@ -171,6 +146,7 @@ py_library(
         "//tensorflow/python/estimator:estimator_py",
         "//tensorflow/python/estimator:util",
         "//tensorflow/python/summary",
+        "@six_archive//:six",
     ],
 )
 
@@ -255,8 +231,8 @@ pytype_library(
         ":topology",
         ":tpu_feed",
         ":tpu_function",
-        ":tpu_replication",
         ":tpu_sharding",
+        "//tensorflow/compiler/xla/experimental/xla_sharding",
         "//tensorflow/compiler/xla/python_api:xla_shape",
         "//tensorflow/core:protos_all_py",
         "//tensorflow/core/protobuf/tpu:compilation_result_proto_py",
@@ -279,13 +255,12 @@ pytype_library(
         "//tensorflow/python:util",
         "//tensorflow/python:variable_scope",
         "//tensorflow/python/compiler/xla",
-        "//tensorflow/python/compiler/xla/experimental:xla_sharding",
         "//tensorflow/python/distribute/cluster_resolver:tpu_cluster_resolver_py",
-        "//tensorflow/python/eager:monitoring",
         "//tensorflow/python/ops/losses",
         "//tensorflow/python/tpu:tensor_tracer_proto_py",
         "//tensorflow/python/tpu/ops",
         "//tensorflow/python/tpu/profiler",
+        "@six_archive//:six",
     ],
 )
 
@@ -297,7 +272,6 @@ pytype_library(
         ":tpu_feed",
         ":tpu_function",
         ":tpu_name_util",
-        ":tpu_replication",
         "//tensorflow/core/protobuf/tpu:dynamic_padding_proto_py",
         "//tensorflow/core/protobuf/tpu:tpu_embedding_configuration_proto_py",
         "//tensorflow/python:array_ops",
@@ -323,6 +297,7 @@ pytype_library(
         "//tensorflow/python/util:tf_export",
         "//third_party/py/numpy",
         "@absl_py//absl/logging",
+        "@six_archive//:six",
     ],
 )
 
@@ -332,10 +307,10 @@ pytype_library(
     deps = [
         ":tpu_name_util",
         ":tpu_sharding",
+        "//tensorflow/compiler/xla/experimental/xla_sharding",
         "//tensorflow/python:array_ops",
         "//tensorflow/python:dtypes",
         "//tensorflow/python:tensor_shape",
-        "//tensorflow/python/compiler/xla/experimental:xla_sharding",
         "//tensorflow/python/tpu/ops",
         "//tensorflow/python/user_ops:ops",
     ],
@@ -478,6 +453,7 @@ pytype_library(
         "//tensorflow/python:tpu_ops_gen",
         "//tensorflow/python:variable_scope",
         "//tensorflow/python:variables",
+        "@six_archive//:six",
     ],
 )
 
@@ -527,8 +503,6 @@ pytype_library(
     srcs = ["feature_column.py"],
     deps = [
         ":tpu_lib",
-        ":tpu_py",
-        ":tpu_replication",
         "//tensorflow/python:framework_ops",
         "//tensorflow/python:init_ops",
         "//tensorflow/python:variable_scope",
@@ -543,8 +517,6 @@ pytype_library(
     deps = [
         ":feature_column",
         ":tpu_lib",
-        ":tpu_py",
-        ":tpu_replication",
         "//tensorflow/python:framework_ops",
         "//tensorflow/python:init_ops",
         "//tensorflow/python:variable_scope",
@@ -609,6 +581,7 @@ pytype_library(
         "//tensorflow/python/distribute:sharded_variable",
         "//tensorflow/python/tpu:tpu_lib",
         "//tensorflow/python/tpu/ops",
+        "@six_archive//:six",
     ],
 )
 
@@ -619,8 +592,6 @@ pytype_library(
     deps = [
         ":tpu_embedding_v2_utils",
         ":tpu_lib",
-        ":tpu_py",
-        ":tpu_replication",
         "//tensorflow/python:variable_scope",
         "//tensorflow/python/distribute:device_util",
         "//tensorflow/python/distribute:distribute_utils",
@@ -628,6 +599,7 @@ pytype_library(
         "//tensorflow/python/distribute:tpu_strategy",
         "//tensorflow/python/saved_model/registration",
         "//tensorflow/python/tpu/ops",
+        "@six_archive//:six",
     ],
 )
 
@@ -665,7 +637,6 @@ pytype_strict_library(
         "//tensorflow/python/types",
         "//tensorflow/python/util",
         "//tensorflow/python/util:tf_export",
-        "@absl_py//absl/logging",
     ],
 )
 
@@ -693,7 +664,6 @@ pytype_strict_library(
         ":tpu_embedding_base",
         ":tpu_embedding_v2_utils",
         ":tpu_py",
-        ":tpu_replication",
         "//tensorflow/python:array_ops",
         "//tensorflow/python:embedding_ops",
         "//tensorflow/python:math_ops",

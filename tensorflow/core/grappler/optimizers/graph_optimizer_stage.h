@@ -275,7 +275,7 @@ class GraphOptimizerStagePipeline {
   // Pass a node through all registered optimizer stages, until break predicate
   // is true or a stage fails.
   //
-  // Returns any stage failure status, or else OkStatus().
+  // Returns any stage failure status, or else Status::OK().
   Status PassThroughAllStagesWithStatus(NodeDef* node, Result* result) {
     for (auto& stage : stages_) {
       if (!stage->IsSupported(node)) {

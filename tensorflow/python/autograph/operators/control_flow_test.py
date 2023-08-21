@@ -18,11 +18,11 @@
 # pylint:disable=unused-variable
 
 import collections
-import io
 import re
 import sys
 
 import numpy as np
+import six
 
 from tensorflow.python.autograph.operators import control_flow
 from tensorflow.python.autograph.operators import variables as variable_operators
@@ -192,8 +192,7 @@ class ForLoopTest(testing.AutoGraphTestCase):
     self.assertOpCreated('StatelessWhile')
 
   def test_tensor_with_extra_test_object_vars(self):
-
-    class MutableObject:
+    class MutableObject(object):
       field_1 = constant_op.constant(0, dtype=dtypes.int32)
       field_2 = constant_op.constant(1, dtype=dtypes.int32)
     state = MutableObject()
@@ -592,7 +591,7 @@ class ForLoopTest(testing.AutoGraphTestCase):
     return s
 
   def test_tensor_illegal_input(self):
-    with self.assertRaisesRegex(ValueError, '\'s\' is not allowed to be None'):
+    with self.assertRaisesRegex(ValueError, '\'s\' may not be None'):
       self._basic_loop(None, lambda i, s: s)
     with self.assertRaisesRegex(ValueError, '\'s\' must be defined'):
       self._basic_loop(variable_operators.Undefined(''), lambda i, s: s)
@@ -850,8 +849,7 @@ class WhileLoopTest(testing.AutoGraphTestCase):
           opts={})
 
   def test_tensor_with_python_state(self):
-
-    class MutableObject:
+    class MutableObject(object):
       field = constant_op.constant(0, dtype=dtypes.int32)
     state = MutableObject()
 
@@ -952,7 +950,7 @@ class WhileLoopTest(testing.AutoGraphTestCase):
     with test.mock.patch.object(
         control_flow, 'INEFFICIENT_UNROLL_MIN_ITERATIONS', 10):
       with ops.Graph().as_default():
-        out_capturer = io.StringIO()
+        out_capturer = six.StringIO()
         with test.mock.patch.object(sys, 'stdout', out_capturer):
           with test.mock.patch.object(ag_logging, 'echo_log_to_stdout', True):
             def custom_iterator():
@@ -978,7 +976,7 @@ class WhileLoopTest(testing.AutoGraphTestCase):
     with test.mock.patch.object(
         control_flow, 'INEFFICIENT_UNROLL_MIN_ITERATIONS', 10):
       with ops.Graph().as_default():
-        out_capturer = io.StringIO()
+        out_capturer = six.StringIO()
         with test.mock.patch.object(sys, 'stdout', out_capturer):
           with test.mock.patch.object(ag_logging, 'echo_log_to_stdout', True):
             def body():
@@ -1021,7 +1019,7 @@ class WhileLoopTest(testing.AutoGraphTestCase):
     return s
 
   def test_tensor_illegal_input(self):
-    with self.assertRaisesRegex(ValueError, "'s' is not allowed to be None"):
+    with self.assertRaisesRegex(ValueError, "'s' may not be None"):
       self._basic_loop(None, lambda i, s: s)
     with self.assertRaisesRegex(ValueError, "'s' must be defined"):
       self._basic_loop(variable_operators.Undefined(''), lambda i, s: s)

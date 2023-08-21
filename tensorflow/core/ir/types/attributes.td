@@ -17,8 +17,8 @@ limitations under the License.
 #define TF_TYPE_ATTRIBUTES
 
 include "mlir/IR/AttrTypeBase.td"
+include "mlir/IR/SubElementInterfaces.td"
 include "tensorflow/core/ir/types/dialect.td"
-include "mlir/IR/BuiltinAttributeInterfaces.td"
 
 // Base class for TFType dialect attributes.
 class TFType_Attr<string name, list<Trait> traits = []>
@@ -201,17 +201,6 @@ def TFType_FullTypeId : I32EnumAttr<"FullTypeId", "", [
   //   TFT_ENCODING[TFT_INT32, TFT_STRING] is an integer encoded as string.
   I32EnumAttrCase<"TFT_ENCODED", 1004, "encoded">,
 
-  // The type of "shape tensors" where the runtime value is the shape of
-  // some tensor(s), i.e. the output of tf.shape.
-  // Shape tensors have special, host-only placement, in contrast to
-  // TFT_TENSOR[TFT_INT32] which is the type of a normal numeric tensor
-  // with no special placement.
-  //
-  // Examples:
-  //   TFT_SHAPE_TENSOR[TFT_INT32] is the most common
-  //   TFT_SHAPE_TENSOR[TFT_INT64] is also allowed
-  I32EnumAttrCase<"TFT_SHAPE_TENSOR", 1005, "shape_tensor">,
-
   // Type attributes. These always appear in the parametrization of a type,
   // never alone. For example, there is no such thing as a "bool" TensorFlow
   // object (for now).
@@ -332,7 +321,10 @@ def TFType_FullTypeAttr : AttrDef<TFTypeDialect, "FullType"> {
 // FuncAttr
 //===----------------------------------------------------------------------===//
 
-def TFType_FuncAttr : TFType_Attr<"Func", []> {
+def TFType_FuncAttr : TFType_Attr<"Func", [
+    DeclareAttrInterfaceMethods<SubElementAttrInterface,
+        ["replaceImmediateSubAttribute"]>
+  ]> {
   let mnemonic = "func";
   let summary = "Models the `AttrValue.value.func` proto attribute value as a "
     "pair of SymbolRef and DictionaryAttr";
@@ -346,6 +338,10 @@ def TFType_FuncAttr : TFType_Attr<"Func", []> {
 
     where the first element is the `SymbolRefAttr` and the second element is the
     `DictionaryAttr`.
+
+    So that the symbol reference and any symbol references nested in the
+    `DictionaryAttr` are visible to symbol tables, this attribute implements the
+    `SubElementAttrInterface`.
   }];
 
   let parameters = (ins
@@ -451,7 +447,6 @@ def TFType_VersionAttr : TFType_Attr<"Version"> {
 
 //===----------------------------------------------------------------------===//
 // Tensorflow devices metadata
-//===----------------------------------------------------------------------===//
 
 // Tensorflow GPU device metadata.
 def TFType_GpuDeviceMetadata : TFType_Attr<"GpuDeviceMetadata"> {
@@ -459,30 +454,6 @@ def TFType_GpuDeviceMetadata : TFType_Attr<"GpuDeviceMetadata"> {
   let summary = "Attribute that specifies a GPU's compute capability";
   let parameters = (ins "int32_t":$cc_major, "int32_t":$cc_minor);
   let assemblyFormat = "`<` struct(params) `>`";
-}
-
-//===----------------------------------------------------------------------===//
-// TensorProtoAttr
-//===----------------------------------------------------------------------===//
-
-def TF_TensorProtoAttr : TFType_Attr<"TensorProto", [ElementsAttrInterface, TypedAttrInterface]> {
-  let mnemonic = "tensor_proto";
-
-  let summary = "Attribute that stores TensorFlow TensorProto debug string";
-
-  let parameters = (ins AttributeSelfTypeParameter<"", "ShapedType">:$type,
-                        StringRefParameter<"">:$value);
-  let builders = [
-    AttrBuilderWithInferredContext<(ins "ShapedType":$type,
-                                        "StringRef":$value), [{
-      return $_get(type.getContext(), type, value);
-    }]>,
-  ];
-  let extraClassDeclaration = [{
-    using ValueType = StringRef;
-  }];
-
-  let hasCustomAssemblyFormat = 1;
 }
 
 

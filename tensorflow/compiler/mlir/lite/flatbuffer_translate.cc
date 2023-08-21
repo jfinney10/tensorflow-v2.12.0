@@ -19,7 +19,7 @@ limitations under the License.
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"  // from @llvm-project
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"  // from @llvm-project
 #include "mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
 #include "mlir/Dialect/Quant/QuantOps.h"  // from @llvm-project
 #include "mlir/Dialect/Quant/QuantTypes.h"  // from @llvm-project
@@ -37,7 +37,6 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/lite/flatbuffer_export.h"
 #include "tensorflow/compiler/mlir/lite/flatbuffer_import.h"
 #include "tensorflow/compiler/mlir/lite/ir/tfl_ops.h"
-#include "tensorflow/compiler/mlir/lite/quantization/ir/QuantOps.h"
 #include "tensorflow/compiler/mlir/tensorflow/dialect_registration.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
 #include "tensorflow/compiler/mlir/tensorflow/translate/mlir_roundtrip_flags.h"
@@ -178,7 +177,7 @@ static LogicalResult MlirToFlatBufferFileTranslateFunction(
 }  // namespace
 
 static TranslateToMLIRRegistration FlatBufferFileToMlirTransReg(
-    "tflite-flatbuffer-to-mlir", "tflite-flatbuffer-to-mlir",
+    "tflite-flatbuffer-to-mlir",
     [](llvm::SourceMgr& source_mgr, MLIRContext* context) {
       return FlatBufferFileToMlirTrans(
           &source_mgr, context, use_external_constant,
@@ -186,13 +185,12 @@ static TranslateToMLIRRegistration FlatBufferFileToMlirTransReg(
     });
 
 static TranslateFromMLIRRegistration MLIRToFlatBufferTranslate(
-    "mlir-to-tflite-flatbuffer", "mlir-to-tflite-flatbuffer",
-    MlirToFlatBufferFileTranslateFunction, [](DialectRegistry& registry) {
-      registry.insert<quant::QuantizationDialect,
-                      quantfork::QuantizationForkDialect>();
+    "mlir-to-tflite-flatbuffer", MlirToFlatBufferFileTranslateFunction,
+    [](DialectRegistry& registry) {
+      registry.insert<quant::QuantizationDialect>();
       mlir::RegisterAllTensorFlowDialects(registry);
       registry.insert<TFL::TensorFlowLiteDialect>();
-      registry.insert<arith::ArithDialect>();
+      registry.insert<arith::ArithmeticDialect>();
       registry.insert<func::FuncDialect>();
     });
 }  // namespace mlir

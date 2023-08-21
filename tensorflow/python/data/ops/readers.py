@@ -17,7 +17,6 @@ import os
 
 from tensorflow.python import tf2
 from tensorflow.python.data.ops import dataset_ops
-from tensorflow.python.data.ops import from_tensor_slices_op
 from tensorflow.python.data.ops import structured_function
 from tensorflow.python.data.util import convert
 from tensorflow.python.framework import dtypes
@@ -70,10 +69,8 @@ def _create_or_validate_filenames_dataset(filenames, name=None):
           "The `filenames` argument must contain `tf.string` elements. Got "
           f"`{filenames.dtype!r}` elements.")
     filenames = array_ops.reshape(filenames, [-1], name="flat_filenames")
-    filenames = from_tensor_slices_op._TensorSliceDataset(  # pylint: disable=protected-access
-        filenames,
-        is_files=True,
-        name=name)
+    filenames = dataset_ops.TensorSliceDataset(
+        filenames, is_files=True, name=name)
   return filenames
 
 

@@ -246,7 +246,7 @@ def _ragged_getitem_inner_dimensions(rt_input, key_list):
   if not key_list:
     return rt_input
 
-  if not isinstance(rt_input, ragged_tensor.RaggedTensor):
+  if isinstance(rt_input, ops.Tensor):
     return rt_input.__getitem__([slice(None, None, None)] + key_list)
 
   column_key = key_list[0]

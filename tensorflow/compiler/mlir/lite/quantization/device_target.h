@@ -17,7 +17,6 @@ limitations under the License.
 #define TENSORFLOW_COMPILER_MLIR_LITE_QUANTIZATION_DEVICE_TARGET_H_
 
 #include <functional>
-#include <optional>
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/Hashing.h"
@@ -27,13 +26,13 @@ limitations under the License.
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
+#include "mlir/Dialect/Quant/QuantOps.h"  // from @llvm-project
 #include "mlir/Dialect/Quant/QuantTypes.h"  // from @llvm-project
 #include "mlir/IR/Attributes.h"  // from @llvm-project
 #include "mlir/IR/BuiltinTypes.h"  // from @llvm-project
 #include "mlir/IR/MLIRContext.h"  // from @llvm-project
 #include "mlir/IR/Types.h"  // from @llvm-project
 #include "mlir/Support/LogicalResult.h"  // from @llvm-project
-#include "tensorflow/compiler/mlir/lite/quantization/ir/QuantOps.h"
 #include "tensorflow/compiler/mlir/lite/quantization/numerical_utils.h"
 
 namespace mlir {
@@ -79,7 +78,7 @@ class KernelSpecs {
     if (spec_it != all_signatures_.end()) {
       return spec_it->second;
     } else {
-      return std::nullopt;
+      return llvm::None;
     }
   }
 
@@ -139,7 +138,7 @@ class DeviceTarget {
       llvm::StringRef kernel, const KernelSpecs::Signature& signature) const;
 
   // Retrieves the scale decomposition function for the quant region op.
-  ScaleDecomposeFn GetDecomposeFn(quantfork::QuantizeRegionOp op) const;
+  ScaleDecomposeFn GetDecomposeFn(quant::QuantizeRegionOp op) const;
 
   // converts specification to signature:
   // - UniformedQuantizedType -> AnyQuantizedType
@@ -165,19 +164,21 @@ class DeviceTarget {
   // For "mulmat->add" type of kernels, convert the scales of all the ports to
   // multipliers.
   static LogicalResult DecomposeMultiplyAccumulateScale(
-      Operation* op, QuantizedMultipliers* input_multipliers,
-      QuantizedMultipliers* output_multipliers, QuantizedRanges* output_ranges);
+      Operation* op, quant::QuantizedMultipliers* input_multipliers,
+      quant::QuantizedMultipliers* output_multipliers,
+      quant::QuantizedRanges* output_ranges);
 
   // For "reshape" type of kernels.
   static LogicalResult DecomposeSameScale(
-      Operation* op, QuantizedMultipliers* input_multipliers,
-      QuantizedMultipliers* output_multipliers, QuantizedRanges* output_ranges);
+      Operation* op, quant::QuantizedMultipliers* input_multipliers,
+      quant::QuantizedMultipliers* output_multipliers,
+      quant::QuantizedRanges* output_ranges);
 
   // A set of parameters are required to build the signatures.
   FloatType f32_;
   IntegerType i8_, i32_;
   int64_t i8_min_, i8_max_, i32_min_, i32_max_;
-  quant::AnyQuantizedType any_, qi8_, qi8n_, qi32_;
+  AnyQuantizedType any_, qi8_, qi8n_, qi32_;
 
  private:
   // Maps the kernel names to all the available kernels.

@@ -16,10 +16,8 @@
 from tensorflow.python.data.ops import dataset_ops
 from tensorflow.python.data.ops import iterator_ops
 from tensorflow.python.data.ops import options as options_lib
-from tensorflow.python.data.ops import prefetch_op
 from tensorflow.python.data.util import structure
 from tensorflow.python.eager import context
-from tensorflow.python.eager import def_function
 from tensorflow.python.eager import function
 from tensorflow.python.framework import composite_tensor
 from tensorflow.python.framework import dtypes
@@ -27,7 +25,6 @@ from tensorflow.python.framework import errors
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import tensor_spec
 from tensorflow.python.framework import type_spec
-from tensorflow.python.framework import type_utils
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import functional_ops
@@ -47,14 +44,14 @@ class _PerDeviceGenerator(dataset_ops.DatasetV2):
             multi_device_iterator_resource))
 
     # TODO(b/124254153): Enable autograph once the overhead is low enough.
-    @def_function.function(autograph=False)  # Pure graph code.
+    @function.defun(autograph=False)  # Pure graph code.
     def _init_func():
       return multi_device_iterator_string_handle
 
     init_func_concrete = _init_func.get_concrete_function()
 
     # TODO(b/124254153): Enable autograph once the overhead is low enough.
-    @def_function.function(autograph=False)  # Pure graph code.
+    @function.defun(autograph=False)  # Pure graph code.
     def _remote_init_func():
       return functional_ops.remote_call(
           target=source_device,
@@ -66,7 +63,7 @@ class _PerDeviceGenerator(dataset_ops.DatasetV2):
     self._init_captured_args = self._init_func.captured_inputs
 
     # TODO(b/124254153): Enable autograph once the overhead is low enough.
-    @def_function.function(
+    @function.defun(
         input_signature=[tensor_spec.TensorSpec([], dtypes.string)],
         autograph=False)  # Pure graph code.
     def _next_func(string_handle):
@@ -92,22 +89,11 @@ class _PerDeviceGenerator(dataset_ops.DatasetV2):
         attributes={"experimental_ints_on_device": True},
         autograph=False)  # Pure graph code.
     def _remote_next_func(string_handle):
-      return_values = functional_ops.remote_call(
+      return functional_ops.remote_call(
           target=source_device,
           args=[string_handle] + next_func_concrete.captured_inputs,
           Tout=structure.get_flat_tensor_types(self._element_spec),
           f=next_func_concrete)
-      # Add full type information to the graph so that the RemoteCall op
-      # can determine for each of its outputs whether or not they are ragged
-      # tensors (or other types that use variants) that contain strings
-      # (or other host memory types). Then RemoteCall can
-      # appropriately set AllocatorAttributes to control copies so
-      # strings/host memory types stay on CPU.
-      fulltype_list = type_utils.fulltypes_for_flat_tensors(self._element_spec)
-      fulltype = type_utils.fulltype_list_to_product(fulltype_list)
-      for return_value in return_values:
-        return_value.op.experimental_set_type(fulltype)
-      return return_values
 
     self._next_func = _remote_next_func.get_concrete_function()
     self._next_captured_args = self._next_func.captured_inputs
@@ -123,7 +109,7 @@ class _PerDeviceGenerator(dataset_ops.DatasetV2):
         self._incarnation_id_index = i
 
     # TODO(b/124254153): Enable autograph once the overhead is low enough.
-    @def_function.function(
+    @function.defun(
         input_signature=[tensor_spec.TensorSpec([], dtypes.string)],
         autograph=False)  # Pure graph code.
     def _finalize_func(unused_string_handle):
@@ -132,7 +118,7 @@ class _PerDeviceGenerator(dataset_ops.DatasetV2):
     finalize_func_concrete = _finalize_func.get_concrete_function()
 
     # TODO(b/124254153): Enable autograph once the overhead is low enough.
-    @def_function.function(
+    @function.defun(
         input_signature=[tensor_spec.TensorSpec([], dtypes.string)],
         autograph=False)  # Pure graph code.
     def _remote_finalize_func(string_handle):
@@ -212,14 +198,13 @@ def _create_device_dataset(prototype_ds, incarnation_id, prefetch_buffer_size,
   ds = _ReincarnatedPerDeviceGenerator(prototype_ds, incarnation_id)
   if prefetch_buffer_size > 0:
     if experimental_slack:
-      ds = prefetch_op._PrefetchDataset(  # pylint: disable=protected-access
-          ds, prefetch_buffer_size, slack_period=1)
+      ds = dataset_ops.PrefetchDataset(ds, prefetch_buffer_size, slack_period=1)
     else:
       ds = ds.prefetch(prefetch_buffer_size)
   return ds
 
 
-class MultiDeviceIterator:
+class MultiDeviceIterator(object):
   """An iterator over multiple devices."""
 
   def __init__(self,
@@ -242,10 +227,6 @@ class MultiDeviceIterator:
     """
     options = options_lib.Options()
     options.experimental_distribute.num_devices = len(devices)
-    # If `prefetch_buffer_size` is 0, we turn off the `inject_prefetch`
-    # optimization to prevent potentially introducing asynchrony.
-    if prefetch_buffer_size == 0:
-      options.experimental_optimization.inject_prefetch = False
     dataset = dataset.with_options(options)
     self._dataset = dataset._apply_debug_options()  # pylint: disable=protected-access
     self._experimental_slack = dataset.options().experimental_slack
@@ -486,10 +467,6 @@ class OwnedMultiDeviceIterator(composite_tensor.CompositeTensor):
             "not be specified.")
       options = options_lib.Options()
       options.experimental_distribute.num_devices = len(devices)
-      # If `prefetch_buffer_size` is 0, we turn off the `inject_prefetch`
-      # optimization to prevent potentially introducing asynchrony.
-      if prefetch_buffer_size == 0:
-        options.experimental_optimization.inject_prefetch = False
       dataset = dataset.with_options(options)
       dataset = dataset._apply_debug_options()  # pylint: disable=protected-access
       self._element_spec = dataset.element_spec

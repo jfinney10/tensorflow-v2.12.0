@@ -21,6 +21,7 @@ import random
 import time
 
 import numpy as np
+import six
 
 from google.protobuf.any_pb2 import Any
 
@@ -103,7 +104,7 @@ class SaverTest(test.TestCase):
               "v2": v2.saveable
           }, restore_sequentially=True)
       val = save.save(sess, save_path)
-      self.assertIsInstance(val, str)
+      self.assertTrue(isinstance(val, six.string_types))
       self.assertEqual(save_path, val)
 
     # Start a second session.  In that session the parameter nodes
@@ -333,7 +334,7 @@ class SaverTest(test.TestCase):
 
         # Save the initialized values in the file at "save_path"
         val = save.save(sess, save_path1)
-        self.assertIsInstance(val, str)
+        self.assertTrue(isinstance(val, six.string_types))
         self.assertEqual(save_path1, val)
 
       self.assertEqual(
@@ -398,7 +399,7 @@ class SaverTest(test.TestCase):
 
       # Save the initialized values in the file at "save_path"
       val = save.save(sess, save_path)
-      self.assertIsInstance(val, str)
+      self.assertTrue(isinstance(val, six.string_types))
       self.assertEqual(save_path, val)
 
       with self.cached_session() as sess:
@@ -485,7 +486,7 @@ class SaverTest(test.TestCase):
 
       # Save the initialized values in the file at "save_path"
       val = save.save(sess, save_path)
-      self.assertIsInstance(val, str)
+      self.assertTrue(isinstance(val, six.string_types))
       self.assertEqual(save_path, val)
 
     # Start a second session.  In that session the variables
@@ -1810,7 +1811,7 @@ class SaveRestoreWithVariableNameMap(test.TestCase):
       # Save the initialized values in the file at "save_path"
       # Use a variable name map to set the saved tensor names
       val = save.save(sess, save_path)
-      self.assertIsInstance(val, str)
+      self.assertTrue(isinstance(val, six.string_types))
       self.assertEqual(save_path, val)
 
       # Verify that the original names are not in the Saved file

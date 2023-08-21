@@ -244,13 +244,6 @@ Status XlaOpKernelContext::ConstantInputAsIntScalar(
   return ConstantInputAsIntScalar(index, out, mode);
 }
 
-StatusOr<int64_t> XlaOpKernelContext::ConstantInputAsIntScalar(
-    absl::string_view name, xla::ValueInferenceMode mode) {
-  int64_t out;
-  TF_RETURN_IF_ERROR(ConstantInputAsIntScalar(name, &out, mode));
-  return out;
-}
-
 Status XlaOpKernelContext::ConstantInputAsFloatScalar(
     int index, double* out, xla::ValueInferenceMode mode) {
   xla::Literal literal;
@@ -277,7 +270,8 @@ static Status LiteralToPredVector(const xla::LiteralSlice& literal,
 Status XlaOpKernelContext::ResolveInputDynamismIntoPred(int index, bool* out) {
   xla::Literal literal;
   XlaExpression e = InputExpression(index);
-  StatusOr<Tensor> dynamism_or_status = e.ResolveDynamism();
+  auto* client = compiler() ? compiler()->client() : nullptr;
+  StatusOr<Tensor> dynamism_or_status = e.ResolveDynamism(client);
   if (!dynamism_or_status.ok()) {
     // When failed to resolve dynamism, conservatively consider the value
     // dynamic. This could happen if the input depends on some ops like
@@ -288,7 +282,7 @@ Status XlaOpKernelContext::ResolveInputDynamismIntoPred(int index, bool* out) {
     *out = true;
     return OkStatus();
   }
-  Tensor dynamism = dynamism_or_status.value();
+  Tensor dynamism = dynamism_or_status.ValueOrDie();
 
   Tensor temp(dynamism.dtype());
   TensorShape tensor_shape({});
@@ -319,7 +313,8 @@ Status XlaOpKernelContext::ResolveInputDynamismReshaped(
     int index, absl::Span<const int64_t> new_dims,
     xla::Literal* dynamism_literal) {
   XlaExpression e = InputExpression(index);
-  StatusOr<Tensor> dynamism_or_status = e.ResolveDynamism();
+  auto* client = compiler() ? compiler()->client() : nullptr;
+  StatusOr<Tensor> dynamism_or_status = e.ResolveDynamism(client);
   if (!dynamism_or_status.ok()) {
     xla::Literal true_literal = xla::LiteralUtil::CreateR0<bool>(true);
     // When failed to resolve dynamism, conservatively consider the value
@@ -328,11 +323,11 @@ Status XlaOpKernelContext::ResolveInputDynamismReshaped(
     *dynamism_literal =
         true_literal
             .Broadcast(xla::ShapeUtil::MakeShape(xla::PRED, new_dims), {})
-            .value();
+            .ValueOrDie();
 
     return OkStatus();
   }
-  Tensor dynamism = dynamism_or_status.value();
+  Tensor dynamism = dynamism_or_status.ValueOrDie();
 
   Tensor temp(dynamism.dtype());
   if (!temp.CopyFrom(dynamism, TensorShape(new_dims))) {
@@ -524,7 +519,7 @@ StatusOr<Tensor> XlaOpKernelContext::ConstantInputTensor(
                             " operator as a compile-time constant.");
     return status;
   }
-  std::optional<Tensor> constant = constant_or_status.value();
+  std::optional<Tensor> constant = constant_or_status.ValueOrDie();
   if (!constant.has_value()) {
     return errors::InvalidArgument(
         "Input ", index, " to node `", context_->op_kernel().name(),
@@ -714,7 +709,8 @@ Status AssignVariableTensor(const Tensor& tensor, DataType type,
     return shape_or_status.status();
   }
   TensorShape shape;
-  TF_RETURN_IF_ERROR(XLAShapeToTensorShape(shape_or_status.value(), &shape));
+  TF_RETURN_IF_ERROR(
+      XLAShapeToTensorShape(shape_or_status.ValueOrDie(), &shape));
 
   TF_RETURN_IF_ERROR(variable->SetTypeAndShape(type, shape));
 
@@ -789,11 +785,6 @@ const xla::XlaComputation* XlaOpKernelContext::GetOrCreateMin(
 const xla::XlaComputation* XlaOpKernelContext::GetOrCreateAdd(
     const DataType type) {
   return xla_context()->GetOrCreateAdd(type);
-}
-
-const xla::XlaComputation* XlaOpKernelContext::GetOrCreateLogAddExp(
-    const DataType type) {
-  return xla_context()->GetOrCreateLogAddExp(type);
 }
 
 const xla::XlaComputation* XlaOpKernelContext::GetOrCreateMul(

@@ -17,7 +17,6 @@ limitations under the License.
 
 #include <memory>
 #include <utility>
-#include <vector>
 
 #include "absl/status/status.h"
 #include "tensorflow/lite/delegates/gpu/common/operations.h"
@@ -26,15 +25,14 @@ limitations under the License.
 namespace tflite {
 namespace gpu {
 
+using CondTensor = Tensor<BHWC, DataType::FLOAT32>;
 using TrueTensor = Tensor<BHWC, DataType::FLOAT32>;
 using ElseTensor = Tensor<BHWC, DataType::FLOAT32>;
 
-template <DataType cond_type>
-std::vector<float> SetUpData(Tensor<BHWC, cond_type>& cond_tensor,
-                             TrueTensor& true_tensor, ElseTensor& false_tensor,
-                             int batch, int height, int width, int channels,
-                             bool broadcast_true, bool broadcast_false,
-                             bool gather_by_rows) {
+std::vector<float> SetUpData(CondTensor& cond_tensor, TrueTensor& true_tensor,
+                             ElseTensor& false_tensor, int batch, int height,
+                             int width, int channels, bool broadcast_true,
+                             bool broadcast_false, bool gather_by_rows) {
   if (gather_by_rows) {
     cond_tensor.shape = BHWC(batch, height, width, 1);
     for (int b = 0; b < batch; b++) {
@@ -103,19 +101,18 @@ std::vector<float> SetUpData(Tensor<BHWC, cond_type>& cond_tensor,
   return expected_data;
 }
 
-template <DataType cond_type>
 absl::Status RunSelectV2(TestExecutionEnvironment* env,
                          const DataType& data_type,
                          const TensorStorageType& storage,
                          const CalculationsPrecision& precision,
-                         const Tensor<BHWC, cond_type>& cond_tensor,
+                         const CondTensor& cond_tensor,
                          const TrueTensor& true_tensor,
                          const ElseTensor& false_tensor, int batch, int height,
                          int width, int channels, bool broadcast_true,
                          bool broadcast_false, TensorFloat32& dst_tensor) {
   OperationDef op_def;
   const auto layout = batch > 1 ? Layout::BHWC : Layout::HWC;
-  op_def.src_tensors.push_back({cond_type, storage, layout});
+  op_def.src_tensors.push_back({data_type, storage, layout});
   op_def.src_tensors.push_back({data_type, storage, layout});
   op_def.src_tensors.push_back({data_type, storage, layout});
   op_def.dst_tensors.push_back({data_type, storage, layout});
@@ -137,26 +134,24 @@ absl::Status RunSelectV2(TestExecutionEnvironment* env,
   return absl::OkStatus();
 }
 
-template <DataType cond_type>
-absl::Status SelectV2TestTemplate(TestExecutionEnvironment* env) {
+absl::Status SelectV2Test(TestExecutionEnvironment* env) {
   const int kBatch = 1;
   const int kHeight = 1;
   const int kWidth = 10;
   const int kChannels = 10;
-
-  Tensor<BHWC, cond_type> cond_tensor;
+  Tensor<BHWC, DataType::FLOAT32> cond_tensor;
   Tensor<BHWC, DataType::FLOAT32> true_tensor;
   Tensor<BHWC, DataType::FLOAT32> false_tensor;
-  std::vector<float> expected_data = SetUpData<cond_type>(
-      cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
-      kChannels, /*broadcast_true=*/false, /*broadcast_false=*/false,
-      /*gather_by_rows=*/true);
+  std::vector<float> expected_data =
+      SetUpData(cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
+                kChannels, /*broadcast_true=*/false, /*broadcast_false=*/false,
+                /*gather_by_rows=*/true);
 
   for (auto precision : env->GetSupportedPrecisions()) {
     auto data_type = DeduceDataTypeFromPrecision(precision);
     for (TensorStorageType storage : env->GetSupportedStorages(data_type)) {
       TensorFloat32 dst_tensor;
-      RETURN_IF_ERROR(RunSelectV2<cond_type>(
+      RETURN_IF_ERROR(RunSelectV2(
           env, data_type, storage, precision, cond_tensor, true_tensor,
           false_tensor, kBatch, kHeight, kWidth, kChannels,
           /*broadcast_true=*/false, /*broadcast_false=*/false, dst_tensor));
@@ -166,25 +161,24 @@ absl::Status SelectV2TestTemplate(TestExecutionEnvironment* env) {
   return absl::OkStatus();
 }
 
-template <DataType cond_type>
-absl::Status SelectV2BatchTestTemplate(TestExecutionEnvironment* env) {
+absl::Status SelectV2BatchTest(TestExecutionEnvironment* env) {
   const int kBatch = 4;
   const int kHeight = 1;
   const int kWidth = 10;
   const int kChannels = 10;
-  Tensor<BHWC, cond_type> cond_tensor;
+  Tensor<BHWC, DataType::FLOAT32> cond_tensor;
   Tensor<BHWC, DataType::FLOAT32> true_tensor;
   Tensor<BHWC, DataType::FLOAT32> false_tensor;
-  std::vector<float> expected_data = SetUpData<cond_type>(
-      cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
-      kChannels, /*broadcast_true=*/false, /*broadcast_false=*/false,
-      /*gather_by_rows=*/true);
+  std::vector<float> expected_data =
+      SetUpData(cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
+                kChannels, /*broadcast_true=*/false, /*broadcast_false=*/false,
+                /*gather_by_rows=*/true);
 
   for (auto precision : env->GetSupportedPrecisions()) {
     auto data_type = DeduceDataTypeFromPrecision(precision);
     for (TensorStorageType storage : env->GetSupportedStorages(data_type)) {
       TensorFloat32 dst_tensor;
-      RETURN_IF_ERROR(RunSelectV2<cond_type>(
+      RETURN_IF_ERROR(RunSelectV2(
           env, data_type, storage, precision, cond_tensor, true_tensor,
           false_tensor, kBatch, kHeight, kWidth, kChannels,
           /*broadcast_true=*/false, /*broadcast_false=*/false, dst_tensor));
@@ -194,18 +188,17 @@ absl::Status SelectV2BatchTestTemplate(TestExecutionEnvironment* env) {
   return absl::OkStatus();
 }
 
-template <DataType cond_type>
-absl::Status SelectV2BroadcastFalseTestTemplate(TestExecutionEnvironment* env) {
+absl::Status SelectV2BroadcastFalseTest(TestExecutionEnvironment* env) {
   const int kBatch = 1;
   const int kHeight = 1;
   const int kWidth = 10;
   const int kChannels = 10;
   const bool kBroadcastTrue = false;
   const bool kBroadcastFalse = true;
-  Tensor<BHWC, cond_type> cond_tensor;
+  Tensor<BHWC, DataType::FLOAT32> cond_tensor;
   Tensor<BHWC, DataType::FLOAT32> true_tensor;
   Tensor<BHWC, DataType::FLOAT32> false_tensor;
-  std::vector<float> expected_data = SetUpData<cond_type>(
+  std::vector<float> expected_data = SetUpData(
       cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
       kChannels, kBroadcastTrue, kBroadcastFalse, /*gather_by_rows=*/true);
 
@@ -213,10 +206,10 @@ absl::Status SelectV2BroadcastFalseTestTemplate(TestExecutionEnvironment* env) {
     auto data_type = DeduceDataTypeFromPrecision(precision);
     for (TensorStorageType storage : env->GetSupportedStorages(data_type)) {
       TensorFloat32 dst_tensor;
-      RETURN_IF_ERROR(RunSelectV2<cond_type>(
-          env, data_type, storage, precision, cond_tensor, true_tensor,
-          false_tensor, kBatch, kHeight, kWidth, kChannels, kBroadcastTrue,
-          kBroadcastFalse, dst_tensor));
+      RETURN_IF_ERROR(RunSelectV2(env, data_type, storage, precision,
+                                  cond_tensor, true_tensor, false_tensor,
+                                  kBatch, kHeight, kWidth, kChannels,
+                                  kBroadcastTrue, kBroadcastFalse, dst_tensor));
 
       RETURN_IF_ERROR(PointWiseNear(expected_data, dst_tensor.data, 0.0f));
     }
@@ -224,18 +217,17 @@ absl::Status SelectV2BroadcastFalseTestTemplate(TestExecutionEnvironment* env) {
   return absl::OkStatus();
 }
 
-template <DataType cond_type>
-absl::Status SelectV2BroadcastTrueTestTemplate(TestExecutionEnvironment* env) {
+absl::Status SelectV2BroadcastTrueTest(TestExecutionEnvironment* env) {
   const int kBatch = 1;
   const int kHeight = 1;
   const int kWidth = 10;
   const int kChannels = 10;
   const bool kBroadcastTrue = true;
   const bool kBroadcastFalse = false;
-  Tensor<BHWC, cond_type> cond_tensor;
+  Tensor<BHWC, DataType::FLOAT32> cond_tensor;
   Tensor<BHWC, DataType::FLOAT32> true_tensor;
   Tensor<BHWC, DataType::FLOAT32> false_tensor;
-  std::vector<float> expected_data = SetUpData<cond_type>(
+  std::vector<float> expected_data = SetUpData(
       cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
       kChannels, kBroadcastTrue, kBroadcastFalse, /*gather_by_rows=*/true);
 
@@ -243,10 +235,10 @@ absl::Status SelectV2BroadcastTrueTestTemplate(TestExecutionEnvironment* env) {
     auto data_type = DeduceDataTypeFromPrecision(precision);
     for (TensorStorageType storage : env->GetSupportedStorages(data_type)) {
       TensorFloat32 dst_tensor;
-      RETURN_IF_ERROR(RunSelectV2<cond_type>(
-          env, data_type, storage, precision, cond_tensor, true_tensor,
-          false_tensor, kBatch, kHeight, kWidth, kChannels, kBroadcastTrue,
-          kBroadcastFalse, dst_tensor));
+      RETURN_IF_ERROR(RunSelectV2(env, data_type, storage, precision,
+                                  cond_tensor, true_tensor, false_tensor,
+                                  kBatch, kHeight, kWidth, kChannels,
+                                  kBroadcastTrue, kBroadcastFalse, dst_tensor));
 
       RETURN_IF_ERROR(PointWiseNear(expected_data, dst_tensor.data, 0.0f));
     }
@@ -254,171 +246,116 @@ absl::Status SelectV2BroadcastTrueTestTemplate(TestExecutionEnvironment* env) {
   return absl::OkStatus();
 }
 
-template <DataType cond_type>
-absl::Status SelectV2BroadcastBothTestTemplate(TestExecutionEnvironment* env) {
+absl::Status SelectV2BroadcastBothTest(TestExecutionEnvironment* env) {
   const int kBatch = 1;
   const int kHeight = 1;
   const int kWidth = 10;
   const int kChannels = 1;
   const bool kBroadcastTrue = true;
   const bool kBroadcastFalse = true;
-  Tensor<BHWC, cond_type> cond_tensor;
+  Tensor<BHWC, DataType::FLOAT32> cond_tensor;
   Tensor<BHWC, DataType::FLOAT32> true_tensor;
   Tensor<BHWC, DataType::FLOAT32> false_tensor;
-  std::vector<float> expected_data = SetUpData<cond_type>(
-      cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
-      kChannels, kBroadcastTrue, kBroadcastFalse,
-      /*gather_by_rows=*/true);
+  std::vector<float> expected_data =
+      SetUpData(cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
+                kChannels, kBroadcastTrue, kBroadcastFalse,
+                /*gather_by_rows=*/true);
 
   for (auto precision : env->GetSupportedPrecisions()) {
     auto data_type = DeduceDataTypeFromPrecision(precision);
     for (TensorStorageType storage : env->GetSupportedStorages(data_type)) {
       TensorFloat32 dst_tensor;
-      RETURN_IF_ERROR(RunSelectV2<cond_type>(
-          env, data_type, storage, precision, cond_tensor, true_tensor,
-          false_tensor, kBatch, kHeight, kWidth, kChannels, kBroadcastTrue,
-          kBroadcastFalse, dst_tensor));
+      RETURN_IF_ERROR(RunSelectV2(env, data_type, storage, precision,
+                                  cond_tensor, true_tensor, false_tensor,
+                                  kBatch, kHeight, kWidth, kChannels,
+                                  kBroadcastTrue, kBroadcastFalse, dst_tensor));
       RETURN_IF_ERROR(PointWiseNear(expected_data, dst_tensor.data, 0.0f));
     }
   }
   return absl::OkStatus();
 }
 
-template <DataType cond_type>
-absl::Status SelectV2ChannelsTestTemplate(TestExecutionEnvironment* env) {
+absl::Status SelectV2ChannelsTest(TestExecutionEnvironment* env) {
   const int kBatch = 1;
   const int kHeight = 1;
   const int kWidth = 2;
   const int kChannels = 10;
-  Tensor<BHWC, cond_type> cond_tensor;
+  Tensor<BHWC, DataType::FLOAT32> cond_tensor;
   Tensor<BHWC, DataType::FLOAT32> true_tensor;
   Tensor<BHWC, DataType::FLOAT32> false_tensor;
-  std::vector<float> expected_data = SetUpData<cond_type>(
-      cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
-      kChannels, /*broadcast_true=*/false, /*broadcast_false=*/false,
-      /*gather_by_rows=*/false);
+  std::vector<float> expected_data =
+      SetUpData(cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
+                kChannels, /*broadcast_true=*/false, /*broadcast_false=*/false,
+                /*gather_by_rows=*/false);
 
   for (auto precision : env->GetSupportedPrecisions()) {
     auto data_type = DeduceDataTypeFromPrecision(precision);
     for (TensorStorageType storage : env->GetSupportedStorages(data_type)) {
       TensorFloat32 dst_tensor;
-      RETURN_IF_ERROR(RunSelectV2<cond_type>(
-          env, data_type, storage, precision, cond_tensor, true_tensor,
-          false_tensor, kBatch, kHeight, kWidth, kChannels,
-          /*broadcast_true=*/false,
-          /*broadcast_false=*/false, dst_tensor));
+      RETURN_IF_ERROR(RunSelectV2(env, data_type, storage, precision,
+                                  cond_tensor, true_tensor, false_tensor,
+                                  kBatch, kHeight, kWidth, kChannels,
+                                  /*broadcast_true=*/false,
+                                  /*broadcast_false=*/false, dst_tensor));
       RETURN_IF_ERROR(PointWiseNear(expected_data, dst_tensor.data, 0.0f));
     }
   }
   return absl::OkStatus();
 }
 
-template <DataType cond_type>
-absl::Status SelectV2ChannelsBatchTestTemplate(TestExecutionEnvironment* env) {
+absl::Status SelectV2ChannelsBatchTest(TestExecutionEnvironment* env) {
   const int kBatch = 3;
   const int kHeight = 1;
   const int kWidth = 2;
   const int kChannels = 10;
-  Tensor<BHWC, cond_type> cond_tensor;
+  Tensor<BHWC, DataType::FLOAT32> cond_tensor;
   Tensor<BHWC, DataType::FLOAT32> true_tensor;
   Tensor<BHWC, DataType::FLOAT32> false_tensor;
-  std::vector<float> expected_data = SetUpData<cond_type>(
-      cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
-      kChannels, /*broadcast_true=*/false, /*broadcast_false=*/false,
-      /*gather_by_rows=*/false);
+  std::vector<float> expected_data =
+      SetUpData(cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
+                kChannels, /*broadcast_true=*/false, /*broadcast_false=*/false,
+                /*gather_by_rows=*/false);
 
   for (auto precision : env->GetSupportedPrecisions()) {
     auto data_type = DeduceDataTypeFromPrecision(precision);
     for (TensorStorageType storage : env->GetSupportedStorages(data_type)) {
       TensorFloat32 dst_tensor;
-      RETURN_IF_ERROR(RunSelectV2<cond_type>(
-          env, data_type, storage, precision, cond_tensor, true_tensor,
-          false_tensor, kBatch, kHeight, kWidth, kChannels,
-          /*broadcast_true=*/false,
-          /*broadcast_false=*/false, dst_tensor));
+      RETURN_IF_ERROR(RunSelectV2(env, data_type, storage, precision,
+                                  cond_tensor, true_tensor, false_tensor,
+                                  kBatch, kHeight, kWidth, kChannels,
+                                  /*broadcast_true=*/false,
+                                  /*broadcast_false=*/false, dst_tensor));
       RETURN_IF_ERROR(PointWiseNear(expected_data, dst_tensor.data, 0.0f));
     }
   }
   return absl::OkStatus();
 }
 
-template <DataType cond_type>
-absl::Status SelectV2ChannelsBroadcastFalseTestTemplate(
-    TestExecutionEnvironment* env) {
+absl::Status SelectV2ChannelsBroadcastFalseTest(TestExecutionEnvironment* env) {
   const int kBatch = 1;
   const int kHeight = 3;
   const int kWidth = 2;
   const int kChannels = 4;
   const bool kBroadcastFalse = true;
-  Tensor<BHWC, cond_type> cond_tensor;
+  Tensor<BHWC, DataType::FLOAT32> cond_tensor;
   Tensor<BHWC, DataType::FLOAT32> true_tensor;
   Tensor<BHWC, DataType::FLOAT32> false_tensor;
-  std::vector<float> expected_data = SetUpData<cond_type>(
-      cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
-      kChannels, /*broadcast_true=*/false, kBroadcastFalse,
-      /*gather_by_rows=*/false);
+  std::vector<float> expected_data =
+      SetUpData(cond_tensor, true_tensor, false_tensor, kBatch, kHeight, kWidth,
+                kChannels, /*broadcast_true=*/false, kBroadcastFalse,
+                /*gather_by_rows=*/false);
 
   for (auto precision : env->GetSupportedPrecisions()) {
     auto data_type = DeduceDataTypeFromPrecision(precision);
     for (TensorStorageType storage : env->GetSupportedStorages(data_type)) {
       TensorFloat32 dst_tensor;
-      RETURN_IF_ERROR(RunSelectV2<cond_type>(
+      RETURN_IF_ERROR(RunSelectV2(
           env, data_type, storage, precision, cond_tensor, true_tensor,
           false_tensor, kBatch, kHeight, kWidth, kChannels,
           /*broadcast_true=*/false, kBroadcastFalse, dst_tensor));
       RETURN_IF_ERROR(PointWiseNear(expected_data, dst_tensor.data, 0.0f));
     }
   }
-  return absl::OkStatus();
-}
-
-absl::Status SelectV2Test(TestExecutionEnvironment* env) {
-  RETURN_IF_ERROR(SelectV2TestTemplate<DataType::FLOAT32>(env));
-  RETURN_IF_ERROR(SelectV2TestTemplate<DataType::BOOL>(env));
-  return absl::OkStatus();
-}
-
-absl::Status SelectV2BatchTest(TestExecutionEnvironment* env) {
-  RETURN_IF_ERROR(SelectV2BatchTestTemplate<DataType::FLOAT32>(env));
-  RETURN_IF_ERROR(SelectV2BatchTestTemplate<DataType::BOOL>(env));
-  return absl::OkStatus();
-}
-
-absl::Status SelectV2ChannelsTest(TestExecutionEnvironment* env) {
-  RETURN_IF_ERROR(SelectV2ChannelsTestTemplate<DataType::FLOAT32>(env));
-  RETURN_IF_ERROR(SelectV2ChannelsTestTemplate<DataType::BOOL>(env));
-  return absl::OkStatus();
-}
-
-absl::Status SelectV2ChannelsBatchTest(TestExecutionEnvironment* env) {
-  RETURN_IF_ERROR(SelectV2ChannelsBatchTestTemplate<DataType::FLOAT32>(env));
-  RETURN_IF_ERROR(SelectV2ChannelsBatchTestTemplate<DataType::BOOL>(env));
-  return absl::OkStatus();
-}
-
-absl::Status SelectV2BroadcastTrueTest(TestExecutionEnvironment* env) {
-  RETURN_IF_ERROR(SelectV2BroadcastTrueTestTemplate<DataType::FLOAT32>(env));
-  RETURN_IF_ERROR(SelectV2BroadcastTrueTestTemplate<DataType::BOOL>(env));
-  return absl::OkStatus();
-}
-
-absl::Status SelectV2BroadcastFalseTest(TestExecutionEnvironment* env) {
-  RETURN_IF_ERROR(SelectV2BroadcastFalseTestTemplate<DataType::FLOAT32>(env));
-  RETURN_IF_ERROR(SelectV2BroadcastFalseTestTemplate<DataType::BOOL>(env));
-  return absl::OkStatus();
-}
-
-absl::Status SelectV2BroadcastBothTest(TestExecutionEnvironment* env) {
-  RETURN_IF_ERROR(SelectV2BroadcastBothTestTemplate<DataType::FLOAT32>(env));
-  RETURN_IF_ERROR(SelectV2BroadcastBothTestTemplate<DataType::BOOL>(env));
-  return absl::OkStatus();
-}
-
-absl::Status SelectV2ChannelsBroadcastFalseTest(TestExecutionEnvironment* env) {
-  RETURN_IF_ERROR(
-      SelectV2ChannelsBroadcastFalseTestTemplate<DataType::FLOAT32>(env));
-  RETURN_IF_ERROR(
-      SelectV2ChannelsBroadcastFalseTestTemplate<DataType::BOOL>(env));
   return absl::OkStatus();
 }
 

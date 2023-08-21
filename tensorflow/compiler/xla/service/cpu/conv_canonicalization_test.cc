@@ -17,14 +17,15 @@ limitations under the License.
 
 #include <vector>
 
-#include "tensorflow/compiler/xla/hlo/ir/hlo_computation.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instruction.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_module.h"
 #include "tensorflow/compiler/xla/service/cpu/target_machine_features_fake.h"
+#include "tensorflow/compiler/xla/service/hlo_computation.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
+#include "tensorflow/compiler/xla/service/hlo_module.h"
 #include "tensorflow/compiler/xla/test.h"
-#include "tensorflow/compiler/xla/test_helpers.h"
 #include "tensorflow/compiler/xla/tests/hlo_test_base.h"
 #include "tensorflow/compiler/xla/util.h"
+
+#include "tensorflow/compiler/xla/test_helpers.h"
 
 namespace xla {
 namespace cpu {
@@ -95,7 +96,7 @@ TEST_F(ConvCanonicalizationTest, NonCanonicalToCanonical) {
         return cpu::TargetMachineFeatures::kEigenExpectedTensorAlignment;
       });
   ConvCanonicalization conv_canonicalization(&target_machine_features);
-  EXPECT_TRUE(conv_canonicalization.Run(module.get()).value());
+  EXPECT_TRUE(conv_canonicalization.Run(module.get()).ValueOrDie());
 
   const HloInstruction* output_reshape = entry_computation->root_instruction();
   EXPECT_EQ(HloOpcode::kTranspose, output_reshape->opcode());
@@ -157,7 +158,7 @@ TEST_F(ConvCanonicalizationTest, CanonicalStaysTheSame) {
         return cpu::TargetMachineFeatures::kEigenExpectedTensorAlignment;
       });
   ConvCanonicalization conv_canonicalization(&target_machine_features);
-  EXPECT_FALSE(conv_canonicalization.Run(module.get()).value());
+  EXPECT_FALSE(conv_canonicalization.Run(module.get()).ValueOrDie());
 }
 
 }  // namespace cpu

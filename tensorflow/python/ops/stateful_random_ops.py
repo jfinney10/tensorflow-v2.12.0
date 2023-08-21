@@ -56,21 +56,12 @@ SEED_SIZE = 16  # in units of SEED_TYPE
 
 STATE_TYPE = SEED_TYPE
 ALGORITHM_TYPE = STATE_TYPE
-
-
-# The following sizes are all in unit of uint64.
-PHILOX_KEY_SIZE = 1
-THREEFRY_KEY_SIZE = 1
-PHILOX_COUNTER_SIZE = 2
-THREEFRY_COUNTER_SIZE = 1
-PHILOX_STATE_SIZE = PHILOX_COUNTER_SIZE + PHILOX_KEY_SIZE
-THREEFRY_STATE_SIZE = THREEFRY_COUNTER_SIZE + THREEFRY_KEY_SIZE
+PHILOX_STATE_SIZE = 3
+THREEFRY_STATE_SIZE = 2
 
 
 RNG_ALG_PHILOX = Algorithm.PHILOX.value
 RNG_ALG_THREEFRY = Algorithm.THREEFRY.value
-
-
 DEFAULT_ALGORITHM = RNG_ALG_PHILOX
 
 
@@ -136,27 +127,27 @@ def _make_1d_state(state_size, seed):
 
 
 def _get_counter_size(alg):
-  if alg == Algorithm.PHILOX.value:
-    return PHILOX_COUNTER_SIZE
-  elif alg == Algorithm.THREEFRY.value:
-    return THREEFRY_COUNTER_SIZE
-  elif alg == Algorithm.AUTO_SELECT.value:
-    # For AUTO_SELECT, we'll manage the counter as if it's for Philox.
-    return PHILOX_COUNTER_SIZE
+  if alg == RNG_ALG_PHILOX:
+    return 2
+  elif alg == RNG_ALG_THREEFRY:
+    return 1
   else:
-    raise ValueError(stateless_random_ops.unsupported_alg_error_msg(alg))
+    raise ValueError(
+        f"Argument `alg` got unsupported value {alg}. Supported values are "
+        f"{RNG_ALG_PHILOX} for the Philox algorithm and {RNG_ALG_THREEFRY} for "
+        f"the ThreeFry algorithm.")
 
 
 def _get_state_size(alg):
-  if alg == Algorithm.PHILOX.value:
+  if alg == RNG_ALG_PHILOX:
     return PHILOX_STATE_SIZE
-  elif alg == Algorithm.THREEFRY.value:
+  elif alg == RNG_ALG_THREEFRY:
     return THREEFRY_STATE_SIZE
-  elif alg == Algorithm.AUTO_SELECT.value:
-    # For AUTO_SELECT, we'll manage the state as if it's for Philox.
-    return PHILOX_STATE_SIZE
   else:
-    raise ValueError(stateless_random_ops.unsupported_alg_error_msg(alg))
+    raise ValueError(
+        f"Argument `alg` got unsupported value {alg}. Supported values are "
+        f"{RNG_ALG_PHILOX} for the Philox algorithm and {RNG_ALG_THREEFRY} for "
+        f"the ThreeFry algorithm.")
 
 
 def _check_state_shape(shape, alg):
@@ -570,10 +561,13 @@ class Generator(autotrackable.AutoTrackable):
         counter-based; otherwise it raises a ValueError.
     """
     alg = self.algorithm
-    if alg in (a.value for a in Algorithm):
+    if alg == RNG_ALG_PHILOX or alg == RNG_ALG_THREEFRY:
       return self._state_var[-1]
     else:
-      raise ValueError(stateless_random_ops.unsupported_alg_error_msg(alg))
+      raise ValueError(
+          f"This generator uses an unsupported algorithm {alg}. Supported "
+          f"values are {RNG_ALG_PHILOX} for the Philox algorithm and "
+          f"{RNG_ALG_THREEFRY} for the ThreeFry algorithm.")
 
   def _skip_single_var(self, var, delta):
     resource_variable_ops.variable_accessed(var)
@@ -904,14 +898,17 @@ class Generator(autotrackable.AutoTrackable):
       A tensor of shape [2, count] and dtype int64.
     """
     alg = self.algorithm
-    if alg in (a.value for a in Algorithm):
+    if alg == RNG_ALG_PHILOX or alg == RNG_ALG_THREEFRY:
       keys = self._make_int64_keys(shape=[count])
       # The two seeds for stateless random ops don't have individual semantics
       # and are scrambled together, so setting one to zero is fine.
       zeros = array_ops.zeros_like(keys)
       return array_ops.stack([keys, zeros])
     else:
-      raise ValueError(stateless_random_ops.unsupported_alg_error_msg(alg))
+      raise ValueError(
+          f"This generator uses an unsupported algorithm {alg}. Supported "
+          f"values are {RNG_ALG_PHILOX} for the Philox algorithm and "
+          f"{RNG_ALG_THREEFRY} for the ThreeFry algorithm.")
 
   def split(self, count=1):
     """Returns a list of independent `Generator` objects.
@@ -956,12 +953,15 @@ class Generator(autotrackable.AutoTrackable):
       return [0] * (_get_state_size(alg) - 1) + [key]
 
     alg = self.algorithm
-    if alg in (a.value for a in Algorithm):
+    if alg == RNG_ALG_PHILOX or alg == RNG_ALG_THREEFRY:
       keys = self._make_int64_keys(shape=[count])
       return [Generator(state=_key_to_state(alg, key), alg=alg)
               for key in array_ops.unstack(keys, num=count)]
     else:
-      raise ValueError(stateless_random_ops.unsupported_alg_error_msg(alg))
+      raise ValueError(
+          f"This generator uses an unsupported algorithm {alg}. Supported "
+          f"values are {RNG_ALG_PHILOX} for the Philox algorithm and "
+          f"{RNG_ALG_THREEFRY} for the ThreeFry algorithm.")
 
 
 # It's not safe to create TF ops before `init_google` is called, so this is

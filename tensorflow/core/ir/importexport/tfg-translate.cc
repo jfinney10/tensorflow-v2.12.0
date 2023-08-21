@@ -19,7 +19,6 @@ limitations under the License.
 #include "mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "mlir/Tools/mlir-translate/MlirTranslateMain.h"  // from @llvm-project
 #include "mlir/Tools/mlir-translate/Translation.h"  // from @llvm-project
-#include "tensorflow/compiler/mlir/init_mlir.h"
 #include "tensorflow/core/ir/dialect.h"
 #include "tensorflow/core/ir/importexport/graphdef_export.h"
 #include "tensorflow/core/ir/importexport/graphdef_import.h"
@@ -28,8 +27,7 @@ limitations under the License.
 namespace mlir {
 
 TranslateToMLIRRegistration graphdef_to_mlir(
-    "graphdef-to-mlir", "graphdef-to-mlir",
-    [](StringRef proto_txt, MLIRContext *context) {
+    "graphdef-to-mlir", [](StringRef proto_txt, MLIRContext *context) {
       tensorflow::GraphDebugInfo debug_info;
       tensorflow::GraphDef graphdef;
       tensorflow::Status status = tensorflow::LoadProtoFromBuffer(
@@ -43,11 +41,11 @@ TranslateToMLIRRegistration graphdef_to_mlir(
         LOG(ERROR) << errorOrModule.status();
         return OwningOpRef<mlir::ModuleOp>{};
       }
-      return std::move(errorOrModule.value());
+      return std::move(errorOrModule.ValueOrDie());
     });
 
 TranslateFromMLIRRegistration mlir_to_graphdef(
-    "mlir-to-graphdef", "mlir-to-graphdef",
+    "mlir-to-graphdef",
     [](ModuleOp module, raw_ostream &output) {
       tensorflow::GraphDef graphdef;
       tensorflow::Status status =
@@ -64,7 +62,6 @@ TranslateFromMLIRRegistration mlir_to_graphdef(
 
 int main(int argc, char **argv) {
   mlir::registerAsmPrinterCLOptions();
-  tensorflow::InitMlir y(&argc, &argv);
   return failed(
       mlir::mlirTranslateMain(argc, argv, "Graph(Def)<->TFG Translation Tool"));
 }

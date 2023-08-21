@@ -19,14 +19,14 @@ limitations under the License.
 namespace tensorflow {
 namespace {
 
-#define GEN_PASS_DEF_LINALGTRIVIALCOPYREMOVAL
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/tfrt/jit/transforms/tf_jitrt_passes.h.inc"
 
 // -------------------------------------------------------------------------- //
 // Remove redundant memref.copy operations
 // -------------------------------------------------------------------------- //
 struct LinalgTrivialCopyRemovalPass
-    : public impl::LinalgTrivialCopyRemovalBase<LinalgTrivialCopyRemovalPass> {
+    : public LinalgTrivialCopyRemovalBase<LinalgTrivialCopyRemovalPass> {
   void runOnOperation() override {
     mlir::func::FuncOp function = getOperation();
 

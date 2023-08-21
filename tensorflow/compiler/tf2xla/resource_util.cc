@@ -27,11 +27,12 @@ limitations under the License.
 #include "tensorflow/core/lib/core/errors.h"
 #include "tensorflow/core/lib/gtl/cleanup.h"
 #include "tensorflow/core/protobuf/error_codes.pb.h"
+#include "tensorflow/stream_executor/lib/statusor.h"
 
 namespace tensorflow {
 namespace {
 
-using tsl::StatusOr;
+using stream_executor::port::StatusOr;
 
 const char kIdentityNOp[] = "IdentityN";
 const char kIfOp[] = "If";

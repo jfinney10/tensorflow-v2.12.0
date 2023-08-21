@@ -27,12 +27,8 @@ limitations under the License.
 #include "llvm/Support/MemoryBuffer.h"
 #include "tensorflow/compiler/mlir/tensorflow/dialect_registration.h"
 #include "tensorflow/compiler/mlir/tfrt/jit/tf_jitrt_pipeline.h"
-#include "tensorflow/compiler/xla/runtime/arguments.h"
-#include "tensorflow/compiler/xla/runtime/jit_executable.h"
-#include "tensorflow/compiler/xla/runtime/types.h"
 #include "tensorflow/core/platform/test_benchmark.h"
-#include "tfrt/jitrt/async_task_runner.h"  // from @tf_runtime
-#include "tfrt/jitrt/results.h"  // from @tf_runtime
+#include "tfrt/jitrt/jitrt.h"  // from @tf_runtime
 #include "tfrt/dtype/dtype.h"  // from @tf_runtime
 #include "tfrt/host_context/host_context.h"  // from @tf_runtime
 #include "tfrt/tensor/dense_host_tensor.h"  // from @tf_runtime
@@ -44,12 +40,11 @@ namespace tensorflow {
 // used only to build benchmarks for different functions in this folder, so
 // it is ok to put convenience using-declarations here.
 
-using ::llvm::MutableArrayRef;
 using ::tfrt::HostContext;
 using ::tfrt::RemainingResults;
-using ::xla::runtime::JitExecutable;
-using ::xla::runtime::MemrefDesc;
-using ::xla::runtime::Type;
+using ::tfrt::jitrt::JitExecutable;
+using ::tfrt::jitrt::MemrefDesc;
+using ::tfrt::jitrt::Type;
 
 // Constants to make shape specification more readable.
 // kStaticDim refers to the static shape in IR taken from ARGS of the benchmark.
@@ -103,14 +98,11 @@ JitExecutable& CreateJitExecutable(const HostContext& host,
 template <typename T, int rank>
 MemrefDesc TensorToMemrefDesc(Eigen::Tensor<T, rank, Eigen::RowMajor>& tensor) {
   tfrt::TensorShape shape(tensor.dimensions().values);
-  return MemrefDesc(
-      shape.GetRank(), xla::primitive_util::NativeToPrimitiveType<T>(),
-      tensor.data(), 0, [&](auto sizes, auto strides) {
-        MutableArrayRef<int64_t> sizes_ref(sizes.data(), sizes.size());
-        MutableArrayRef<int64_t> strides_ref(strides.data(), strides.size());
-        shape.GetDimensions(sizes_ref);
-        shape.GetStrides(strides_ref);
-      });
+  return MemrefDesc(shape.GetRank(), tfrt::GetDType<T>(), tensor.data(), 0,
+                    [&](auto sizes, auto strides) {
+                      shape.GetDimensions(sizes);
+                      shape.GetStrides(strides);
+                    });
 }
 
 // Converts Tensorflow Tensor to Memref descriptor.
@@ -168,10 +160,7 @@ struct ExecuteAssignOp {
 // Common utilities.
 // -------------------------------------------------------------------------- //
 
-static constexpr int64_t kDynSize = mlir::ShapedType::kDynamic;
-
-llvm::SmallVector<int64_t> GetTensorTypeShape(
-    llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<bool> dynamic_dims);
+static constexpr int64_t kDynSize = mlir::ShapedType::kDynamicSize;
 
 // Prints an MLIR tensor type, i.e. for `shape` {1, kDynSize} and `element_type`
 // "f32" the output is "tensor<1x?xf32>".

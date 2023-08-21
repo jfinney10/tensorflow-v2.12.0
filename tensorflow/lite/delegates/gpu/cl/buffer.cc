@@ -58,14 +58,10 @@ absl::Status CreateSubBuffer(const Buffer& parent, size_t origin_in_bytes,
 Buffer::Buffer(cl_mem buffer, size_t size_in_bytes, bool is_sub_buffer)
     : buffer_(buffer), size_(size_in_bytes), is_sub_buffer_(is_sub_buffer) {}
 
-Buffer::Buffer(cl_mem buffer)
-    : buffer_(buffer), size_(0), is_sub_buffer_(false), owner_(false) {}
-
 Buffer::Buffer(Buffer&& buffer)
     : buffer_(buffer.buffer_),
       size_(buffer.size_),
-      is_sub_buffer_(buffer.is_sub_buffer_),
-      owner_(buffer.owner_) {
+      is_sub_buffer_(buffer.is_sub_buffer_) {
   buffer.buffer_ = nullptr;
   buffer.size_ = 0;
   buffer.is_sub_buffer_ = false;
@@ -77,13 +73,12 @@ Buffer& Buffer::operator=(Buffer&& buffer) {
     std::swap(size_, buffer.size_);
     std::swap(buffer_, buffer.buffer_);
     std::swap(is_sub_buffer_, buffer.is_sub_buffer_);
-    std::swap(owner_, buffer.owner_);
   }
   return *this;
 }
 
 void Buffer::Release() {
-  if (owner_ && buffer_) {
+  if (buffer_) {
     clReleaseMemObject(buffer_);
     buffer_ = nullptr;
     size_ = 0;
@@ -112,8 +107,6 @@ absl::Status Buffer::CreateFromBufferDescriptor(const BufferDescriptor& desc,
   return CreateCLBuffer(context->context(), desc.size, read_only, data_ptr,
                         &buffer_);
 }
-
-Buffer CreateBufferShared(cl_mem buffer) { return Buffer(buffer); }
 
 absl::Status CreateReadOnlyBuffer(size_t size_in_bytes, CLContext* context,
                                   Buffer* result) {

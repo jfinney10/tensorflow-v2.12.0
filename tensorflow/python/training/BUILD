@@ -1,9 +1,11 @@
 load("//tensorflow/core/platform:build_config.bzl", "tf_proto_library")
-load("//tensorflow:tensorflow.default.bzl", "cuda_py_test", "tf_py_test")
-load("//tensorflow/core/platform:distribute.bzl", "distribute_py_test")
+load("//tensorflow:tensorflow.bzl", "tf_py_test")
+load("//tensorflow/core/platform/default:distribute.bzl", "distribute_py_test")
+
+# buildifier: disable=same-origin-load
+load("//tensorflow:tensorflow.bzl", "cuda_py_test")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = ["//tensorflow:internal"],
     licenses = ["notice"],
 )
@@ -108,7 +110,6 @@ py_library(
         "//tensorflow/python:learning_rate_decay",
         "//tensorflow/python:sdca_ops",
         "//tensorflow/python/checkpoint:checkpoint_management",
-        "//tensorflow/python/checkpoint:checkpoint_view",
         "//tensorflow/python/trackable:base_delegate",
         "//tensorflow/python/training/experimental:loss_scale_optimizer",
         "//tensorflow/python/training/experimental:mixed_precision",
@@ -122,7 +123,7 @@ py_library(
     srcs_version = "PY3",
     deps = [
         ":training_lib",
-        "//tensorflow/python/checkpoint:checkpoint_core",
+        "//tensorflow/python/checkpoint",
         "//tensorflow/python/trackable:base",
         "//tensorflow/python/trackable:python_state",
         "//tensorflow/python/training/tracking:base",
@@ -232,6 +233,7 @@ py_library(
         "//tensorflow/python/distribute:distribute_lib",
         "//tensorflow/python/training/saving:saveable_object_util",
         "//tensorflow/python/util:tf_export",
+        "@six_archive//:six",
     ],
 )
 
@@ -244,6 +246,7 @@ py_library(
         "//tensorflow/python:platform",
         "//tensorflow/python:util",
         "//tensorflow/python/util:tf_export",
+        "@six_archive//:six",
     ],
 )
 
@@ -256,6 +259,7 @@ py_library(
         "//tensorflow/python:device",
         "//tensorflow/python:platform",
         "//tensorflow/python/util:tf_export",
+        "@six_archive//:six",
     ],
 )
 
@@ -336,9 +340,9 @@ py_library(
         "//tensorflow/python:util",
         "//tensorflow/python:variable_scope",
         "//tensorflow/python/eager:context",
-        "//tensorflow/python/framework:indexed_slices",
         "//tensorflow/python/summary",
         "//tensorflow/python/util:tf_export",
+        "@six_archive//:six",
     ],
 )
 
@@ -397,9 +401,9 @@ py_library(
         "//tensorflow/python/distribute:reduce_util",
         "//tensorflow/python/eager:backprop",
         "//tensorflow/python/eager:context",
-        "//tensorflow/python/framework:indexed_slices",
         "//tensorflow/python/trackable:base",
         "//tensorflow/python/util:tf_export",
+        "@six_archive//:six",
     ],
 )
 
@@ -499,12 +503,12 @@ py_library(
     srcs = ["slot_creator.py"],
     srcs_version = "PY3",
     deps = [
+        "//tensorflow/compiler/xla/experimental/xla_sharding",
         "//tensorflow/python:array_ops",
         "//tensorflow/python:init_ops",
         "//tensorflow/python:resource_variable_ops",
         "//tensorflow/python:variable_scope",
         "//tensorflow/python:variables",
-        "//tensorflow/python/compiler/xla/experimental:xla_sharding",
         "//tensorflow/python/distribute:distribute_lib",
     ],
 )
@@ -570,6 +574,7 @@ py_library(
         "//tensorflow/python:variables",
         "//tensorflow/python/training/saving:saveable_object_util",
         "//tensorflow/python/util:tf_export",
+        "@six_archive//:six",
     ],
 )
 
@@ -913,6 +918,7 @@ cuda_py_test(
         "//tensorflow/python/summary",
         "//tensorflow/python/trackable:base",
         "//third_party/py/numpy",
+        "@six_archive//:six",
     ],
 )
 
@@ -972,6 +978,7 @@ py_library(
         "//tensorflow/python:variable_scope",
         "//tensorflow/python/util:tf_export",
         "//third_party/py/numpy",
+        "@six_archive//:six",
     ],
 )
 
@@ -1131,6 +1138,7 @@ cuda_py_test(
 
 TRAINING_TEST_DEPS = [
     "//third_party/py/numpy",
+    "@six_archive//:six",
     "//tensorflow/core:protos_all_py",
     "//tensorflow/python:array_ops",
     "//tensorflow/python:client",
@@ -1511,6 +1519,7 @@ py_library(
         "//tensorflow/python/distribute:distribute_coordinator_context",
         "//tensorflow/python/summary",
         "//tensorflow/python/util:tf_export",
+        "@six_archive//:six",
     ],
 )
 

@@ -15,24 +15,11 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/shape.h"
 
-#include <algorithm>
-#include <ostream>
-#include <string>
-#include <vector>
-
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
-#include "tensorflow/compiler/xla/printer.h"
 #include "tensorflow/compiler/xla/shape_util.h"
 
 namespace xla {
-
-// Defined in .cc file to avoid inlining these large routines
-Shape::Shape() = default;
-Shape::~Shape() = default;
-Shape::Shape(const Shape&) = default;
-Shape::Shape(Shape&&) = default;
-Shape& Shape::operator=(const Shape&) = default;
 
 Shape::Shape(const ShapeProto& shape_proto) {
   set_element_type(shape_proto.element_type());
@@ -64,13 +51,7 @@ Shape::Shape(const ShapeProto& shape_proto) {
     tuple_shapes_.emplace_back(element_shape);
   }
   if (shape_proto.has_layout()) {
-    if (!IsArray()) {
-      LOG(ERROR) << "Malformed shape proto: element_type "
-                 << PrimitiveType_Name(element_type())
-                 << " should not have a layout.";
-    } else {
-      *mutable_layout() = Layout::CreateFromProto(shape_proto.layout());
-    }
+    *mutable_layout() = Layout::CreateFromProto(shape_proto.layout());
   }
 }
 
@@ -92,14 +73,6 @@ ShapeProto Shape::ToProto() const {
     *proto.mutable_layout() = layout().ToProto();
   }
   return proto;
-}
-
-void Shape::Print(Printer* printer, bool print_layout) const {
-  if (print_layout) {
-    ShapeUtil::PrintHumanStringWithLayout(printer, *this);
-  } else {
-    ShapeUtil::PrintHumanString(printer, *this);
-  }
 }
 
 std::string Shape::ToString(bool print_layout) const {
@@ -147,29 +120,19 @@ void Shape::DeleteDimension(int64_t dim_to_delete) {
   dimensions_.erase(dimensions_.begin() + dim_to_delete);
   dynamic_dimensions_.erase(dynamic_dimensions_.begin() + dim_to_delete);
   if (LayoutUtil::HasLayout(*this)) {
-    for (int64_t i = 0; i < layout_->minor_to_major().size();) {
-      if (layout_->minor_to_major(i) == dim_to_delete) {
-        layout_->mutable_minor_to_major()->erase(
-            layout_->mutable_minor_to_major()->begin() + i);
+    layout_.set_format(DENSE);
+    for (int64_t i = 0; i < layout_.minor_to_major().size();) {
+      if (layout_.minor_to_major(i) == dim_to_delete) {
+        layout_.mutable_minor_to_major()->erase(
+            layout_.mutable_minor_to_major()->begin() + i);
         continue;
       }
-      if (layout_->minor_to_major(i) > dim_to_delete) {
-        (*layout_->mutable_minor_to_major())[i] -= 1;
+      if (layout_.minor_to_major(i) > dim_to_delete) {
+        (*layout_.mutable_minor_to_major())[i] -= 1;
       }
       ++i;
     }
   }
-}
-
-int64_t Shape::dimensions(int index) const { return dimensions_.at(index); }
-
-const Shape& Shape::tuple_shapes(int index) const {
-  return tuple_shapes_.at(index);
-}
-
-Shape* Shape::add_tuple_shapes() {
-  tuple_shapes_.push_back(Shape());
-  return &tuple_shapes_.back();
 }
 
 bool Shape::Equal::operator()(const Shape& lhs, const Shape& rhs) {
@@ -210,23 +173,24 @@ bool Shape::Equal::operator()(const Shape& lhs, const Shape& rhs) {
   }
 
   if (!ignore_layout_) {
-    if (lhs.IsArray()) {
+    if (lhs.layout().format() != rhs.layout().format()) {
+      VLOG(3) << "CompareShapes: lhs layout format != rhs layout format";
+      return false;
+    }
+    if (LayoutUtil::IsDenseArray(lhs)) {
       Layout::Equal equal;
-      if (lhs.has_layout() || rhs.has_layout()) {
-        if (!lhs.has_layout() || !rhs.has_layout()) {
-          VLOG(3) << "CompareShapes: both shapes do not have layouts";
-          return false;
-        }
-        if (ignore_tiles_in_layout_) {
-          equal.IgnoreTiles();
-        }
-        if (ignore_memory_space_in_layout_) {
-          equal.IgnoreMemorySpace();
-        }
-        if (!equal(lhs.layout(), rhs.layout())) {
-          VLOG(3) << "CompareShapes: lhs layout != rhs layout";
-          return false;
-        }
+      if (ignore_tiles_in_layout_) {
+        equal.IgnoreTiles();
+      }
+      if (ignore_element_size_in_layout_) {
+        equal.IgnoreElementSize();
+      }
+      if (ignore_memory_space_in_layout_) {
+        equal.IgnoreMemorySpace();
+      }
+      if (!equal(lhs.layout(), rhs.layout())) {
+        VLOG(3) << "CompareShapes: lhs layout != rhs layout";
+        return false;
       }
     }
   }
@@ -247,12 +211,6 @@ std::ostream& operator<<(std::ostream& out, const Shape& shape) {
   out << shape.ToString(/*print_layout=*/true);
   return out;
 }
-
-ProgramShape::ProgramShape() = default;
-ProgramShape::~ProgramShape() = default;
-ProgramShape::ProgramShape(const ProgramShape&) = default;
-ProgramShape::ProgramShape(ProgramShape&&) = default;
-ProgramShape& ProgramShape::operator=(const ProgramShape&) = default;
 
 ProgramShape::ProgramShape(const ProgramShapeProto& program_shape_proto) {
   for (const ShapeProto& shape_proto : program_shape_proto.parameters()) {
@@ -276,12 +234,15 @@ ProgramShapeProto ProgramShape::ToProto() const {
   return proto;
 }
 
-void ProgramShape::Print(Printer* printer) const {
-  ShapeUtil::PrintHumanString(printer, *this);
-}
-
 std::string ProgramShape::ToString() const {
-  return ShapeUtil::HumanString(*this);
+  std::vector<std::string> parameter_strings(parameters_size());
+  for (int i = 0; i < parameters_size(); ++i) {
+    parameter_strings[i] = absl::StrCat(
+        i < parameter_names_size() ? parameter_names(i) : "(unknown)", ": ",
+        ShapeUtil::HumanString(parameters(i)));
+  }
+  return absl::StrCat("(", absl::StrJoin(parameter_strings, ", "), ") -> ",
+                      ShapeUtil::HumanString(result()));
 }
 
 std::ostream& operator<<(std::ostream& out, const ProgramShape& program_shape) {

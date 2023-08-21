@@ -17,15 +17,17 @@ limitations under the License.
 #define TENSORFLOW_COMPILER_XLA_COMPARISON_UTIL_H_
 
 #include <optional>
-#include <ostream>
 #include <string>
 #include <type_traits>
 
+#include "absl/base/attributes.h"
+#include "absl/base/macros.h"
 #include "tensorflow/compiler/xla/primitive_util.h"
 #include "tensorflow/compiler/xla/statusor.h"
 #include "tensorflow/compiler/xla/types.h"
 #include "tensorflow/compiler/xla/util.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
+#include "tensorflow/core/platform/bfloat16.h"
 
 namespace xla {
 
@@ -201,7 +203,7 @@ class Comparison {
       //  -NaN < -Inf < -Finite < -0 < +0 < +Finite < +Inf < +NaN
       // Reference:
       // https://www.tensorflow.org/xla/operation_semantics#element-wise_comparison_operations
-      using R = SignedIntegerTypeForSizeType<sizeof(T)>;
+      using R = typename SignedIntegerTypeForSize<sizeof(T)>::type;
       return GetComparator<R>()(ToSignMagnitude(a), ToSignMagnitude(b));
     }
     return GetComparator<T>()(a, b);
@@ -250,5 +252,4 @@ auto LessThanByKey(KeyFn&& key_fn) {
 }
 
 }  // namespace xla
-
 #endif  // TENSORFLOW_COMPILER_XLA_COMPARISON_UTIL_H_

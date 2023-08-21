@@ -23,6 +23,7 @@ limitations under the License.
 #include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_device.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes_detail.h"
 #include "tensorflow/compiler/mlir/tensorflow/utils/device_util.h"
 
 namespace mlir {
@@ -31,11 +32,8 @@ namespace {
 constexpr char kReplicaIdAttr[] = "_xla_replica_id";
 constexpr char kDeviceOrdinalAttr[] = "device_ordinal";
 
-#define GEN_PASS_DEF_REPLICAIDTODEVICEORDINALPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
-
 struct ReplicaIDToDeviceOrdinalPass
-    : public impl::ReplicaIDToDeviceOrdinalPassBase<
+    : public TF::ReplicaIDToDeviceOrdinalPassBase<
           ReplicaIDToDeviceOrdinalPass> {
   void runOnOperation() override;
 };

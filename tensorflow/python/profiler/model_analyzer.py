@@ -18,6 +18,8 @@ Analyze model, including shape, params, time, memory, structure, etc.
 """
 import sys
 
+import six
+
 from google.protobuf import message
 from tensorflow.core.profiler import tfprof_options_pb2
 from tensorflow.core.profiler import tfprof_output_pb2
@@ -110,16 +112,16 @@ def _build_advisor_options(options):
   opts = tfprof_options_pb2.AdvisorOptionsProto()
   if options is None:
     return opts
-  for checker, checker_opts in options.items():
+  for checker, checker_opts in six.iteritems(options):
     checker_ops_pb = tfprof_options_pb2.AdvisorOptionsProto.CheckerOption()
-    for k, v in checker_opts.items():
+    for k, v in six.iteritems(checker_opts):
       checker_ops_pb[k] = v
     opts.checkers[checker].MergeFrom(checker_ops_pb)
   return opts
 
 
 @tf_export(v1=['profiler.Profiler'])
-class Profiler:
+class Profiler(object):
   """TensorFlow multi-step profiler.
 
 
@@ -321,7 +323,7 @@ def profile(graph=None,
   Args:
     graph: tf.Graph. If None and eager execution is not enabled, use default
       graph.
-    run_meta: optional tensorflow.RunMetadata proto. It is necessary to
+    run_meta: optional tensorflow.RunMetadata proto. It is necessary to to
       support run time information profiling, such as time and memory.
     op_log: tensorflow.tfprof.OpLogProto proto. User can assign "types" to graph
       nodes with op_log. "types" allow user to flexibly group and account
@@ -393,7 +395,7 @@ def advise(graph=None, run_meta=None, options=_DEFAULT_ADVISE_OPTIONS):
   Args:
     graph: tf.Graph. If None and eager execution is not enabled, use default
       graph.
-    run_meta: optional tensorflow.RunMetadata proto. It is necessary to
+    run_meta: optional tensorflow.RunMetadata proto. It is necessary to to
       support run time information profiling, such as time and memory.
     options: see ALL_ADVICE example above. Default checks everything.
 

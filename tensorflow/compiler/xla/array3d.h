@@ -26,7 +26,7 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/array.h"
 #include "tensorflow/compiler/xla/types.h"
-#include "tensorflow/tsl/platform/logging.h"
+#include "tensorflow/core/platform/logging.h"
 
 namespace xla {
 

@@ -1,10 +1,7 @@
-load("//tensorflow:tensorflow.default.bzl", "filegroup")
+load("//tensorflow:tensorflow.bzl", "filegroup")
 load("//tensorflow/compiler/mlir:glob_lit_test.bzl", "glob_lit_tests")
 
-package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
-    licenses = ["notice"],
-)
+package(licenses = ["notice"])
 
 glob_lit_tests(
     data = [":test_utilities"],
@@ -18,8 +15,8 @@ filegroup(
     testonly = True,
     data = [
         "//tensorflow/compiler/mlir:tf-opt",
+        "//tensorflow/compiler/mlir/hlo:mlir-hlo-opt",
         "//tensorflow/compiler/mlir/tools/kernel_gen:kernel-gen-opt",
-        "//tensorflow/compiler/xla/mlir_hlo:mlir-hlo-opt",
         "@llvm-project//llvm:FileCheck",
         "@llvm-project//mlir:run_lit.sh",
     ],

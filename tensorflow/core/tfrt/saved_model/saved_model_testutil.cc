@@ -17,14 +17,8 @@ limitations under the License.
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <memory>
-#include <optional>
 #include <string>
-#include <utility>
-#include <vector>
 
-#include "tensorflow/compiler/xla/status_macros.h"
-#include "tensorflow/core/framework/tensor.pb.h"
 #include "tensorflow/core/framework/tensor_testutil.h"
 #include "tensorflow/core/lib/io/record_reader.h"
 #include "tensorflow/core/profiler/lib/traceme.h"
@@ -39,6 +33,10 @@ ABSL_FLAG(bool, enable_optimizer, true,
 ABSL_FLAG(std::string, force_data_format, "",
           "force data format for all layout sensitive operations. Currently "
           "the supported formats are 'NHWC' and 'NCHW'");
+
+ABSL_FLAG(bool, enable_native_ops, true,
+          "If true, native ops will be used if they are implemented in TFRT. "
+          "If false, all ops are using fallback.");
 
 ABSL_FLAG(
     bool, enable_grappler, false,
@@ -59,6 +57,7 @@ SavedModel::Options DefaultSavedModelOptions(
   SavedModel::Options options(runtime);
   auto& compile_options = options.graph_execution_options.compile_options;
   compile_options.enable_optimizer = absl::GetFlag(FLAGS_enable_optimizer);
+  compile_options.enable_native_ops = absl::GetFlag(FLAGS_enable_native_ops);
   compile_options.enable_grappler = absl::GetFlag(FLAGS_enable_grappler);
   compile_options.force_data_format = absl::GetFlag(FLAGS_force_data_format);
   return options;
@@ -75,10 +74,10 @@ TFRTSavedModelTest::TFRTSavedModelTest(
   CHECK(runtime_);
   auto options = DefaultSavedModelOptions(runtime_.get());
 
-  auto saved_model = SavedModelImpl::LoadSavedModel(options, saved_model_dir,
-                                                    /*tags=*/{"serve"});
-  TF_DCHECK_OK(saved_model.status());
-  saved_model_ = *std::move(saved_model);
+  tensorflow::Status status;
+  saved_model_ = SavedModelImpl::LoadSavedModel(options, saved_model_dir,
+                                                /*tags=*/{"serve"}, &status);
+  TF_DCHECK_OK(status);
 }
 
 // Compute the results using TF1 session loaded from the saved model. In
@@ -142,7 +141,7 @@ void ComputeCurrentTFResult(const std::string& saved_model_dir,
 }
 
 void ExpectTensorEqual(const tensorflow::Tensor& x, const tensorflow::Tensor& y,
-                       std::optional<double> error) {
+                       absl::optional<double> error) {
   DCHECK_EQ(x.dtype(), y.dtype());
   VLOG(1) << "TFRT result: " << x.DebugString();
   VLOG(1) << "TF result  : " << y.DebugString();
@@ -166,16 +165,16 @@ void ExpectTensorEqual(const tensorflow::Tensor& x, const tensorflow::Tensor& y,
 
 SavedModel::Options DefaultTpuModelOptions(
     tensorflow::tfrt_stub::Runtime* runtime,
-    tensorflow::TfrtDeviceInfraTarget device_target) {
+    tensorflow::TfrtTpuInfraTarget tpu_target) {
   SavedModel::Options options(runtime);
   auto& compile_options = options.graph_execution_options.compile_options;
   compile_options.variable_device =
       "/job:localhost/replica:0/task:0/device:CPU:0";
   compile_options.enable_optimizer = false;
+  compile_options.enable_native_ops = false;
   compile_options.enable_grappler = true;
-  compile_options.device_target = device_target;
+  compile_options.tpu_target = tpu_target;
   compile_options.hoist_invariant_ops = true;
-  compile_options.sink_in_invariant_ops = true;
   compile_options.cost_threshold =
       1024;  // Servo currently uses 1024 as threshold for TPU models
 
@@ -235,8 +234,7 @@ void ProcessPredictRequestsAndMaybeProfile(
     if (func_metadata.has_value()) {
       LOG(INFO) << "Running requests for model signature " << signature;
       for (const std::string& key : func_metadata->GetInputNames()) {
-        const tensorflow::TensorProto& tensor_proto = input_map.at(key);
-        inputs.push_back(CreateTensorFromTensorProto(tensor_proto));
+        inputs.push_back(CreateTensorFromTensorProto(input_map.at(key)));
       }
 
       for (int32_t step = 0; step < num_steps; ++step) {

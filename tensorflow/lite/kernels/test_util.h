@@ -36,12 +36,10 @@ limitations under the License.
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "absl/algorithm/container.h"
-#include "absl/types/span.h"
 #include "flatbuffers/flatbuffers.h"  // from @flatbuffers
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/lite/core/api/op_resolver.h"
-#include "tensorflow/lite/core/interpreter.h"
+#include "tensorflow/lite/interpreter.h"
 #include "tensorflow/lite/kernels/internal/tensor_utils.h"
 #include "tensorflow/lite/kernels/internal/utils/sparsity_format_converter.h"
 #include "tensorflow/lite/schema/schema_generated.h"
@@ -85,11 +83,6 @@ inline std::vector<float> Dequantize(const std::vector<T>& data, float scale,
     f.push_back(scale * (q - zero_point));
   }
   return f;
-}
-
-template <>
-constexpr TfLiteType typeToTfLiteType<Eigen::half>() {
-  return kTfLiteFloat16;
 }
 
 // A test model that contains a single operator. All operator inputs and
@@ -178,25 +171,6 @@ class SingleOpResolver : public OpResolver {
  private:
   const BuiltinOperator op_;
   TfLiteRegistration registration_;
-};
-
-class SingleOpModel;
-class AccelerationValidator {
- public:
-  using Callback = std::function<void(const SingleOpModel& model)>;
-
-  // Returns a global AccelerationValidator instance.
-  static AccelerationValidator* Get();
-
-  // Adds a callback function that will be invoked at the end of a kernel test
-  // to validate acceleration.
-  void AddCallback(Callback callback);
-
-  // Performs acceleration validation with all registered callbacks.
-  void Validate(const SingleOpModel& model) const;
-
- private:
-  std::vector<Callback> callbacks_;
 };
 
 class SingleOpModel {
@@ -494,19 +468,11 @@ class SingleOpModel {
                                                    : params->scale->data[i];
       scales_inv[i] = 1.0f / scale;
     }
-
     optimize::utils::SymmetricPerChannelQuantizeValues(
-        input_data.data(), scales_inv, shape, channel_index, &quantized_output,
-        t->type);
+        input_data.data(), scales_inv, shape, channel_index, &quantized_output);
 
-    if (t->type == kTfLiteInt4) {
-      PopulateTensor4bit(index, /*offset=*/0, quantized_output.data(),
-                         quantized_output.data() + quantized_output.size());
-
-    } else {
-      PopulateTensor(index, /*offset=*/0, quantized_output.data(),
-                     quantized_output.data() + quantized_output.size());
-    }
+    PopulateTensor(index, /*offset=*/0, quantized_output.data(),
+                   quantized_output.data() + quantized_output.size());
   }
 
   template <typename T>
@@ -590,22 +556,62 @@ class SingleOpModel {
     buf.WriteToTensor(tensor, /*new_shape=*/nullptr);
   }
 
-  // Populates the tensor given its index.
+  // Populate the tensor given its index.
+  // TODO(b/110696148) clean up and merge with vector-taking variant below.
   template <typename T>
   void PopulateTensor(int index, const std::initializer_list<T>& data) {
-    PopulateTensorImpl<T>(index, /*offset=*/0, data);
+    T* v = interpreter_->typed_tensor<T>(index);
+    if (!v) {
+      auto* t = interpreter_->tensor(index);
+      CHECK(t) << "No tensor with index " << index << ".";
+      CHECK(t->data.raw) << "Empty data for tensor with index " << index << ".";
+      CHECK_EQ(t->type, typeToTfLiteType<T>())
+          << "Type mismatch for tensor with index " << index << ". Requested "
+          << TfLiteTypeGetName(typeToTfLiteType<T>()) << ", got "
+          << TfLiteTypeGetName(t->type) << ".";
+      LOG(FATAL) << "Unknown tensor error.";
+    }
+    for (const T& f : data) {
+      *v = f;
+      ++v;
+    }
   }
 
-  // Populates the tensor given its index.
+  // Populate the tensor given its index.
+  // TODO(b/110696148) clean up and merge with initializer_list-taking variant
+  // above.
   template <typename T>
   void PopulateTensor(int index, const std::vector<T>& data) {
-    PopulateTensorImpl<T>(index, /*offset=*/0, data);
+    T* v = interpreter_->typed_tensor<T>(index);
+    if (!v) {
+      auto* t = interpreter_->tensor(index);
+      CHECK(t) << "No tensor with index " << index << ".";
+      CHECK(t->data.raw) << "Empty data for tensor with index " << index << ".";
+      CHECK_EQ(t->type, typeToTfLiteType<T>())
+          << "Type mismatch for tensor with index " << index << ". Requested "
+          << TfLiteTypeGetName(typeToTfLiteType<T>()) << ", got "
+          << TfLiteTypeGetName(t->type) << ".";
+      LOG(FATAL) << "Unknown tensor error.";
+    }
+    for (const T& f : data) {
+      *v = f;
+      ++v;
+    }
   }
 
-  // Partially populates the tensor, starting at the given offset.
+  // Partially populate the tensor, starting at the given offset.
   template <typename T>
   void PopulateTensor(int index, int offset, T* begin, T* end) {
-    PopulateTensorImpl<T>(index, offset, absl::Span<T>(begin, end - begin));
+    T* v = interpreter_->typed_tensor<T>(index);
+    if (!v) {
+      auto* t = interpreter_->tensor(index);
+      CHECK(t) << "No tensor with index " << index << ".";
+      CHECK(t->data.raw) << "Empty data for tensor with index " << index << ".";
+      CHECK(v) << "Type mismatch for tensor with index " << index
+               << ". Requested " << typeToTfLiteType<T>() << ", got "
+               << t->type;
+    }
+    memcpy(v + offset, begin, (end - begin) * sizeof(T));
   }
 
   // Return a vector with the flattened contents of a tensor.
@@ -662,8 +668,6 @@ class SingleOpModel {
   // Indicate whether the test has the NNAPI delegate applied.
   static bool GetForceUseNnapi();
   int CountOpsExecutedByCpuKernel();
-  int CountNumberOfDelegatedPartitions() const;
-  int GetNumberOfAppliedDelegates() const { return num_applied_delegates_; }
 
  protected:
   int32_t GetTensorSize(int index) const;
@@ -747,79 +751,12 @@ class SingleOpModel {
   }
 
  private:
-  // Populates the tensor starting at offset using given data.
-  template <typename T, typename Container>
-  void PopulateTensorImpl(int index, int offset, const Container& data) {
-    T* v = interpreter_->typed_tensor<T>(index);
-    if (!v) {
-      auto* t = interpreter_->tensor(index);
-      CHECK(t) << "No tensor with index " << index << ".";
-      CHECK(t->data.raw) << "Empty data for tensor with index " << index << ".";
-      CHECK_EQ(t->type, typeToTfLiteType<T>())
-          << "Type mismatch for tensor with index " << index << ". Requested "
-          << TfLiteTypeGetName(typeToTfLiteType<T>()) << ", got "
-          << TfLiteTypeGetName(t->type) << ".";
-      LOG(FATAL) << "Unknown tensor error.";
-    }
-    absl::c_copy(data, v + offset);
-  }
-
-  void PackInt4ValuesDenselyInPlace(uint8_t* src_buffer, int buffer_size) {
-    for (int i = 0; i < buffer_size; ++i) {
-      if (i % 2 == 0) {
-        src_buffer[i / 2] = src_buffer[i] & 0x0F;
-      } else {
-        src_buffer[i / 2] |= src_buffer[i] << 4;
-      }
-    }
-    // the rest of the buffer should be empty since half of it is packed with
-    // the values
-    memset(src_buffer + (buffer_size + 1) / 2, 0, buffer_size / 2);
-  }
-
-  int ElementCount(TfLiteIntArray& dims) {
-    int result = 1;
-    for (int i = 0; i < dims.size; ++i) {
-      result *= dims.data[i];
-    }
-    return result;
-  }
-
-  // Partially populates the tensor, starting at the given offset.
-  void PopulateTensor4bit(int index, int offset, int8_t* begin, int8_t* end) {
-    auto data = absl::Span<int8_t>(begin, end - begin);
-    TfLiteTensor* tensor_ptr = interpreter_->tensor(index);
-    uint8_t* v = nullptr;
-    if (tensor_ptr) {
-      v = reinterpret_cast<uint8_t*>(tensor_ptr->data.data);
-    }
-
-    if (!v) {
-      auto* t = interpreter_->tensor(index);
-      CHECK(t) << "No tensor with index " << index << ".";
-      CHECK(t->data.raw) << "Empty data for tensor with index " << index << ".";
-      LOG(FATAL) << "Unknown tensor error.";
-    }
-    absl::c_copy(data, v + offset);
-    PackInt4ValuesDenselyInPlace(v, ElementCount(*tensor_ptr->dims));
-    tensor_ptr->bytes = ((ElementCount(*tensor_ptr->dims) + 1) / 2);
-  }
-
   template <typename T>
-  std::pair<float, int32_t> QuantizationParams(
-      float f_min, float f_max, TfLiteType type = kTfLiteNoType) {
+  std::pair<float, int32_t> QuantizationParams(float f_min, float f_max) {
     int32_t zero_point = 0;
     float scale = 0;
-    T qmin;
-    T qmax;
-
-    if (type == kTfLiteInt4) {
-      qmin = -7;
-      qmax = 7;
-    } else {
-      qmin = std::numeric_limits<T>::min();
-      qmax = std::numeric_limits<T>::max();
-    }
+    const T qmin = std::numeric_limits<T>::min();
+    const T qmax = std::numeric_limits<T>::max();
     const float qmin_double = qmin;
     const float qmax_double = qmax;
     // 0 should always be a representable value. Let's assume that the initial
@@ -1040,7 +977,6 @@ template <typename T>
 TensorType GetTensorType() {
   if (std::is_same<T, float>::value) return TensorType_FLOAT32;
   if (std::is_same<T, TfLiteFloat16>::value) return TensorType_FLOAT16;
-  if (std::is_same<T, Eigen::half>::value) return TensorType_FLOAT16;
   if (std::is_same<T, double>::value) return TensorType_FLOAT64;
   if (std::is_same<T, int8_t>::value) return TensorType_INT8;
   if (std::is_same<T, int16_t>::value) return TensorType_INT16;

@@ -127,7 +127,7 @@ TEST_F(ShapeInferenceTest, TestShapeAndTypeInference) {
 
   GraphFuncOp func = GetModule().lookupSymbol<GraphFuncOp>("test");
   ASSERT_TRUE(func);
-  Block &block = *func.getBody().begin();
+  Block &block = *func.body().begin();
 
   SmallVector<SmallVector<ShapedTypeComponents>> all_results;
 
@@ -152,8 +152,7 @@ TEST_F(ShapeInferenceTest, TestShapeAndTypeInference) {
     all_results.push_back(results);
   }
 
-  VerifyInferredShapes(func.getBody().begin()->without_terminator(),
-                       all_results,
+  VerifyInferredShapes(func.body().begin()->without_terminator(), all_results,
                        /*check_type*/ true);
 
   // In general, `operand_as_constant_fn` and `op_result_as_shape_fn` may have
@@ -192,8 +191,7 @@ TEST_F(ShapeInferenceTest, TestShapeAndTypeInference) {
     all_results.push_back(results);
   }
 
-  VerifyInferredShapes(func.getBody().begin()->without_terminator(),
-                       all_results,
+  VerifyInferredShapes(func.body().begin()->without_terminator(), all_results,
                        /*check_type*/ true);
 }
 
@@ -211,7 +209,7 @@ TEST_F(ShapeInferenceTest, TestInferenceFailure) {
 
   GraphFuncOp func = GetModule().lookupSymbol<GraphFuncOp>("test");
   ASSERT_TRUE(func);
-  Block &block = *func.getBody().begin();
+  Block &block = *func.body().begin();
 
   SmallVector<SmallVector<ShapedTypeComponents>> all_results;
 

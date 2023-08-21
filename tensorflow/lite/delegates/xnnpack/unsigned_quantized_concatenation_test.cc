@@ -18,7 +18,6 @@ limitations under the License.
 #include <functional>
 #include <memory>
 #include <random>
-#include <vector>
 
 #include <gtest/gtest.h>
 #include "tensorflow/lite/delegates/xnnpack/concatenation_tester.h"

@@ -25,7 +25,6 @@ limitations under the License.
 #include "tensorflow/core/kernels/one_hot_op.h"
 
 #include <memory>
-
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/register_types.h"
@@ -137,7 +136,6 @@ class OneHotOp : public OpKernel {
 
 #define REGISTER_ONE_HOT(type)         \
   REGISTER_ONE_HOT_INDEX(type, uint8); \
-  REGISTER_ONE_HOT_INDEX(type, int8);  \
   REGISTER_ONE_HOT_INDEX(type, int32); \
   REGISTER_ONE_HOT_INDEX(type, int64_t)
 
@@ -159,11 +157,9 @@ namespace functor {
 
 #define DECLARE_GPU_SPEC(T)         \
   DECLARE_GPU_SPEC_INDEX(T, uint8); \
-  DECLARE_GPU_SPEC_INDEX(T, int8);  \
   DECLARE_GPU_SPEC_INDEX(T, int32); \
   DECLARE_GPU_SPEC_INDEX(T, int64_t);
 
-TF_CALL_int8(DECLARE_GPU_SPEC);
 TF_CALL_int32(DECLARE_GPU_SPEC);
 TF_CALL_int64(DECLARE_GPU_SPEC);
 TF_CALL_GPU_ALL_TYPES(DECLARE_GPU_SPEC);
@@ -184,11 +180,9 @@ TF_CALL_GPU_ALL_TYPES(DECLARE_GPU_SPEC);
 
 #define REGISTER_ONE_HOT_GPU(type)         \
   REGISTER_ONE_HOT_GPU_INDEX(type, uint8); \
-  REGISTER_ONE_HOT_GPU_INDEX(type, int8);  \
   REGISTER_ONE_HOT_GPU_INDEX(type, int32); \
   REGISTER_ONE_HOT_GPU_INDEX(type, int64_t);
 
-TF_CALL_int8(REGISTER_ONE_HOT_GPU);
 TF_CALL_int32(REGISTER_ONE_HOT_GPU);
 TF_CALL_int64(REGISTER_ONE_HOT_GPU);
 TF_CALL_GPU_ALL_TYPES(REGISTER_ONE_HOT_GPU);

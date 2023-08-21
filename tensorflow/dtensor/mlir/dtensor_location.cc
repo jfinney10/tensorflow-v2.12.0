@@ -37,26 +37,23 @@ std::string CreateLocalLocationString(mlir::FileLineColLoc loc) {
 }  // namespace
 
 mlir::Location DTensorLocation(mlir::Location loc, llvm::StringRef file,
-                               unsigned int line, llvm::StringRef name) {
+                               unsigned int line) {
   // Strip dirname.
   auto split = file.rsplit("/");
   if (!split.second.empty()) file = split.second;
   mlir::Location callee_loc =
       mlir::FileLineColLoc::get(loc.getContext(), file, line, 0);
-  std::string new_name = GetNameFromLoc(loc);
-  if (!new_name.empty()) {
-    if (!name.empty()) {
-      new_name = llvm::formatv("{0}/{1}", new_name, name).str();
-    }
+  const std::string name = GetNameFromLoc(loc);
+  if (!name.empty()) {
     callee_loc = mlir::NameLoc::get(
-        mlir::StringAttr::get(loc.getContext(), new_name), callee_loc);
+        mlir::StringAttr::get(loc.getContext(), name), callee_loc);
   }
   return mlir::CallSiteLoc::get(/*callee=*/callee_loc, /*caller=*/loc);
 }
 
 mlir::Location DTensorLocation(mlir::Operation* op, llvm::StringRef file,
-                               unsigned int line, llvm::StringRef name) {
-  return DTensorLocation(op->getLoc(), file, line, name);
+                               unsigned int line) {
+  return DTensorLocation(op->getLoc(), file, line);
 }
 
 std::string DTensorLocationToString(mlir::Location loc) {

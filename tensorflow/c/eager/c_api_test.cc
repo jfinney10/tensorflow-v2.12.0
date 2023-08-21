@@ -715,8 +715,7 @@ TEST(CAPI, ExecuteAdd) {
       /*forward_input*/ false,
       /*tfrt*/ false);
 }
-// TODO(b/234067483): Investigate flakiness and re-enable.
-TEST(CAPI, DISABLED_ExecuteAddAsync) {
+TEST(CAPI, ExecuteAddAsync) {
   ExecuteAdd(
       /*async=*/true,
       /*forward_input*/ false,

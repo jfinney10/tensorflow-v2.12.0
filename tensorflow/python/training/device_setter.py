@@ -13,6 +13,8 @@
 # limitations under the License.
 # ==============================================================================
 """Device function for replicated training."""
+import six
+
 from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.framework import device as pydev
 from tensorflow.python.platform import tf_logging as logging
@@ -31,7 +33,7 @@ STANDARD_PS_OPS = ("Variable", "VariableV2", "AutoReloadVariable",
                    "DecisionTreeResource")
 
 
-class _RoundRobinStrategy:
+class _RoundRobinStrategy(object):
   """Returns the next ps task index for placement in round-robin order.
 
   This class is not to be used directly by users.  See instead
@@ -62,7 +64,7 @@ class _RoundRobinStrategy:
     return task
 
 
-class _ReplicaDeviceChooser:
+class _ReplicaDeviceChooser(object):
   """Class to choose devices for Ops in a replicated training setup.
 
   This class is not to be used directly by users.  See instead
@@ -218,7 +220,7 @@ def replica_device_setter(ps_tasks=0,
         "replica_device_setter")
   if ps_strategy is None:
     ps_strategy = _RoundRobinStrategy(ps_tasks)
-  if not callable(ps_strategy):
+  if not six.callable(ps_strategy):
     raise TypeError("ps_strategy must be callable")
   chooser = _ReplicaDeviceChooser(ps_tasks, ps_device, worker_device,
                                   merge_devices, ps_ops, ps_strategy)

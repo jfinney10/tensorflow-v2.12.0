@@ -18,6 +18,8 @@
 
 import abc
 
+import six
+
 from tensorflow.python.distribute import distribute_lib
 from tensorflow.python.distribute import distribute_utils
 from tensorflow.python.distribute import distribution_strategy_context as distribute_ctx
@@ -79,7 +81,8 @@ def _deduplicate_indexed_slices(values, indices):
 def _var_key(var):
   """Returns slot key for `var`."""
   # pylint: disable=protected-access
-  var = distribute_utils.value_container(var)
+  if hasattr(var, "_distributed_container"):
+    var = var._distributed_container()
   if (distribute_utils.is_distributed_variable(var) and
       not ops.executing_eagerly_outside_functions()):
     return (var.graph, var._shared_name)
@@ -89,7 +92,8 @@ def _var_key(var):
   # pylint: enable=protected-access
 
 
-class _OptimizableVariable(metaclass=abc.ABCMeta):
+@six.add_metaclass(abc.ABCMeta)
+class _OptimizableVariable(object):
   """Interface for abstracting over variables in the optimizers."""
 
   @abc.abstractmethod
@@ -677,7 +681,7 @@ class Optimizer(
       if g is not None:
         try:
           # Convert the grad to Tensor or IndexedSlices if necessary.
-          g = indexed_slices.convert_to_tensor_or_indexed_slices(g)
+          g = ops.convert_to_tensor_or_indexed_slices(g)
         except TypeError:
           raise TypeError(
               "Gradient must be convertible to a Tensor"
@@ -779,7 +783,7 @@ class Optimizer(
 
       try:
         # Convert the grad to Tensor or IndexedSlices if necessary.
-        g = indexed_slices.convert_to_tensor_or_indexed_slices(g)
+        g = ops.convert_to_tensor_or_indexed_slices(g)
       except TypeError:
         raise TypeError("Gradient must be convertible to a Tensor"
                         " or IndexedSlices, or None: %s" % g)
@@ -957,7 +961,7 @@ class Optimizer(
 
   def _get_non_slot_variable(self, name, graph=None):
     non_slot = self._non_slot_dict.get((name, graph), None)
-    if distribute_utils.value_container(non_slot) is not non_slot:
+    if hasattr(non_slot, "_distributed_container"):
       # This is a mirrored non-slot.  In order to enable code like `_finish`
       # to assign to a non-slot, return the current context replica.
       return non_slot.get()
@@ -1198,8 +1202,7 @@ class Optimizer(
     """
     named_slots = self._slot_dict(slot_name)
     if _var_key(var) not in named_slots:
-      new_slot_variable = slot_creator.create_slot(
-          var, val, op_name, copy_xla_sharding=True)
+      new_slot_variable = slot_creator.create_slot(var, val, op_name)
       self._restore_slot_variable(
           slot_name=slot_name, variable=var,
           slot_variable=new_slot_variable)
@@ -1225,7 +1228,7 @@ class Optimizer(
     named_slots = self._slot_dict(slot_name)
     if _var_key(var) not in named_slots:
       new_slot_variable = slot_creator.create_slot_with_initializer(
-          var, initializer, shape, dtype, op_name, copy_xla_sharding=True)
+          var, initializer, shape, dtype, op_name)
       self._restore_slot_variable(
           slot_name=slot_name, variable=var,
           slot_variable=new_slot_variable)

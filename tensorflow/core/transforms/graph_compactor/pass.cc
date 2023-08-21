@@ -35,14 +35,10 @@ limitations under the License.
 #include "tensorflow/core/ir/ops.h"
 #include "tensorflow/core/ir/tf_op_registry.h"
 #include "tensorflow/core/platform/statusor.h"
+#include "tensorflow/core/transforms/pass_detail.h"
 
 namespace mlir {
 namespace tfg {
-
-#define GEN_PASS_DEF_ADDDEFAULTATTRS
-#define GEN_PASS_DEF_NAMECOMPRESS
-#define GEN_PASS_DEF_STRIPDEFAULTATTRS
-#include "tensorflow/core/transforms/passes.h.inc"
 
 // Encode an unsigned integer in as few characters as possible to a string that
 // is still a valid TensorFlow node name. The regex for valid names, according
@@ -77,12 +73,13 @@ static void EncodeName(unsigned counter, std::string &output) {
   constexpr unsigned valid_trailing_chars = valid_first_chars + 3;
   static_assert(sizeof(valid_chars) == valid_trailing_chars + 1,
                 "alphabet sanity check");
-  EncodeName(counter, output, llvm::ArrayRef(valid_chars, valid_first_chars),
-             llvm::ArrayRef(valid_chars, valid_trailing_chars));
+  EncodeName(counter, output,
+             llvm::makeArrayRef(valid_chars, valid_first_chars),
+             llvm::makeArrayRef(valid_chars, valid_trailing_chars));
 }
 
 namespace {
-class NameCompressPass : public impl::NameCompressBase<NameCompressPass> {
+class NameCompressPass : public NameCompressBase<NameCompressPass> {
  public:
   LogicalResult initialize(MLIRContext *context) override {
     dialect_ = context->getOrLoadDialect<TFGraphDialect>();
@@ -105,36 +102,35 @@ class NameCompressPass : public impl::NameCompressBase<NameCompressPass> {
     // Rename the arguments and results.
     NamedAttrList attrs = func->getAttrDictionary();
     if (func.getNumArguments()) {
-      assert(func.getArgAttrs().has_value() && "expected argument attributes");
+      assert(func.arg_attrs().has_value() && "expected argument attributes");
       SmallVector<Attribute> arg_attrs;
       arg_attrs.reserve(func.getNumArguments());
       // Iterate over the function arguments, skipping the control tokens.
       for (int i = 0, e = func.getNumArguments(); i != e; i += 2) {
-        NamedAttrList attrs = func.getArgAttrsAttr()[i].cast<DictionaryAttr>();
+        NamedAttrList attrs = func.arg_attrsAttr()[i].cast<DictionaryAttr>();
         attrs.set(dialect_->getTfgNameAttrIdentifier(), encode_new_name());
         arg_attrs.append({attrs.getDictionary(&getContext()), empty_dict_});
       }
-      attrs.set(func.getArgAttrsAttrName(), b.getArrayAttr(arg_attrs));
+      attrs.set(func.arg_attrsAttrName(), b.getArrayAttr(arg_attrs));
     }
     if (func.getNumResults()) {
-      assert(func.getResAttrs().has_value() && "expected result attributes");
+      assert(func.res_attrs().has_value() && "expected result attributes");
       SmallVector<Attribute> res_attrs;
       res_attrs.reserve(func.getNumResults());
       for (NamedAttrList attrs :
-           func.getResAttrsAttr().getAsRange<DictionaryAttr>()) {
+           func.res_attrsAttr().getAsRange<DictionaryAttr>()) {
         attrs.set(dialect_->getTfgNameAttrIdentifier(), encode_new_name());
         res_attrs.push_back(attrs.getDictionary(&getContext()));
       }
-      attrs.set(func.getResAttrsAttrName(), b.getArrayAttr(res_attrs));
+      attrs.set(func.res_attrsAttrName(), b.getArrayAttr(res_attrs));
     }
     if (func.getNumArguments() || func.getNumResults()) {
       func->setAttrs(attrs.getDictionary(&getContext()));
     }
 
     // Rename the control results.
-    ReturnOp terminator =
-        cast<ReturnOp>(func.SingleBlock::getBody()->getTerminator());
-    ArrayAttr control_attrs = terminator.getControlRetAttrs();
+    ReturnOp terminator = cast<ReturnOp>(func.getBody()->getTerminator());
+    ArrayAttr control_attrs = terminator.control_ret_attrs();
     if (!attrs.empty()) {
       SmallVector<Attribute> control_ret_attrs;
       control_ret_attrs.reserve(control_attrs.size());
@@ -142,7 +138,7 @@ class NameCompressPass : public impl::NameCompressBase<NameCompressPass> {
         attrs.set(dialect_->getTfgNameAttrIdentifier(), encode_new_name());
         control_ret_attrs.push_back(attrs.getDictionary(&getContext()));
       }
-      terminator.setControlRetAttrsAttr(b.getArrayAttr(control_ret_attrs));
+      terminator.control_ret_attrsAttr(b.getArrayAttr(control_ret_attrs));
     }
 
     // Rename all non-intrisic operations.
@@ -166,7 +162,7 @@ std::unique_ptr<Pass> CreateNameCompressPass() {
 
 namespace {
 class StripDefaultAttrsPass
-    : public impl::StripDefaultAttrsBase<StripDefaultAttrsPass> {
+    : public StripDefaultAttrsBase<StripDefaultAttrsPass> {
  public:
   LogicalResult initialize(MLIRContext *context) override {
     // Initialize the pass by getting a registered instance of the TensorFlow
@@ -222,17 +218,16 @@ LogicalResult StripDefaultAttrsPass::removeDefaultValuedAttrs(Operation *op) {
   for (const tensorflow::OpDef::AttrDef &attr : op_reg_data->op_def.attr()) {
     // Ignore attributes without default values.
     if (!attr.has_default_value()) continue;
-    auto it =
-        ::mlir::impl::findAttrSorted(attrs.begin(), attrs.end(), attr.name());
+    auto it = impl::findAttrSorted(attrs.begin(), attrs.end(), attr.name());
     // Ignore default-valued attributes that are already missing.
     if (!it.second) continue;
     // Convert the TensorFlow attribute value and compare it to the MLIR
     // attribute.
     tensorflow::StatusOr<Attribute> maybe_attr =
-        ConvertAttributeValue(attr.default_value(), b);
+        ConvertAttributeValue(attr.default_value(), b, dialect_);
     if (!maybe_attr.ok())
       return op->emitError(maybe_attr.status().error_message());
-    if (maybe_attr.value() == it.first->getValue())
+    if (maybe_attr.ValueOrDie() == it.first->getValue())
       indices_to_remove.set(std::distance(attrs.begin(), it.first));
   }
   if (indices_to_remove.none()) return success();
@@ -254,8 +249,7 @@ std::unique_ptr<Pass> CreateStripDefaultAttrsPass() {
 }
 
 namespace {
-class AddDefaultAttrsPass
-    : public impl::AddDefaultAttrsBase<AddDefaultAttrsPass> {
+class AddDefaultAttrsPass : public AddDefaultAttrsBase<AddDefaultAttrsPass> {
  public:
   LogicalResult initialize(MLIRContext *context) override {
     // Initialize the pass by getting a registered instance of the TensorFlow
@@ -319,10 +313,10 @@ LogicalResult AddDefaultAttrsPass::addDefaultValuedAttrs(Operation *op) {
     if (attrs.get(attr.name())) continue;
     // Convert the TensorFlow attribute value and set it.
     tensorflow::StatusOr<Attribute> maybe_attr =
-        ConvertAttributeValue(attr.default_value(), b);
+        ConvertAttributeValue(attr.default_value(), b, dialect_);
     if (!maybe_attr.ok())
       return op->emitError(maybe_attr.status().error_message());
-    attrs.set(attr.name(), maybe_attr.value());
+    attrs.set(attr.name(), maybe_attr.ValueOrDie());
   }
   op->setAttrs(attrs.getDictionary(&getContext()));
 

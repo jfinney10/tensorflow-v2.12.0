@@ -1,8 +1,7 @@
-load("//tensorflow:tensorflow.default.bzl", "cuda_py_test")
+load("//tensorflow:tensorflow.bzl", "cuda_py_test")
 load("//tensorflow:tensorflow.bzl", "py_test", "tf_py_test")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = ["//visibility:public"],
     licenses = ["notice"],
 )
@@ -71,19 +70,6 @@ cuda_py_test(
     ],
 )
 
-py_test(
-    name = "profiler_wrapper_test",
-    srcs = ["profiler_wrapper_test.py"],
-    python_version = "PY3",
-    tags = [
-        "no_pip",
-    ],
-    deps = [
-        "//tensorflow/python/eager:test",
-        "//tensorflow/python/profiler/internal:_pywrap_profiler",
-    ],
-)
-
 py_library(
     name = "option_builder",
     srcs = ["option_builder.py"],
@@ -103,6 +89,7 @@ py_library(
         "//tensorflow/core/profiler:protos_all_py",
         "//tensorflow/python:errors",
         "//tensorflow/python/util:_pywrap_tfprof",
+        "@six_archive//:six",
     ],
 )
 
@@ -155,6 +142,7 @@ py_library(
         "//tensorflow/python:framework_for_generated_wrappers",
         "//tensorflow/python:platform",
         "//tensorflow/python/profiler/internal:flops_registry",
+        "@six_archive//:six",
     ],
 )
 

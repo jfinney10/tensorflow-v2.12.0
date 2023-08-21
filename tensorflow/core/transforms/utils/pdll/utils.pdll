@@ -13,4 +13,4 @@
 // limitations under the License.
 
 // Check if the op's requested device is CPU.
-Constraint OpHasCpuDevice(op: Op);
+Constraint NodeIsOnCpu(op: Op);

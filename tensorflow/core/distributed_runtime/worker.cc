@@ -27,14 +27,11 @@ limitations under the License.
 #include "tensorflow/core/framework/collective.h"
 #include "tensorflow/core/platform/tracing.h"
 #include "tensorflow/core/profiler/lib/device_profiler_session.h"
-#include "tensorflow/tsl/protobuf/distributed_runtime_payloads.pb.h"
+#include "tensorflow/core/protobuf/distributed_runtime_payloads.pb.h"
 
 namespace tensorflow {
 
-Worker::Worker(WorkerEnv* env)
-    : env_(env), recent_request_ids_(100000, env_->experimental_num_shards) {
-  DCHECK_GT(env_->experimental_num_shards, 0);
-
+Worker::Worker(WorkerEnv* env) : env_(env), recent_request_ids_(100000) {
   // Enable log history collection in StatusGroup so that recent warning and
   // error log messages will be attached to the root error status to be
   // forwarded to the master.

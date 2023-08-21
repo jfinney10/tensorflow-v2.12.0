@@ -30,27 +30,24 @@ limitations under the License.
 namespace tensorflow {
 namespace dtensor {
 
+// We always forward replicated layout to operands/output of
+// UnsortedSegmentedSum op.
+// TODO(b/171079751): Implement layout propagation for non-trivial layouts
+// This should be the following:
+// Forward propagate the last data.rank() - segment_ids.rank() parts of the data
+// layout to the output (with the 'new' first dimension being replicated).
+// Backwards propagate the same, but in reverse.
+// Note that this has the same issues as MatMul, ideally we would like to
+// propagate the layout of segment_ids to data and vice versa, but this isn't
+// possible with the simple forwards/backwards API.
 StatusOr<llvm::DenseMap<int, Layout>>
 UnsortedSegmentSumSPMDExpander::ComputeLayoutForward(
     mlir::Operation* op, const llvm::DenseMap<int, Layout>& input_layouts) {
   TF_ASSIGN_OR_RETURN(const auto mesh, ExtractDeviceMeshEnclosingCluster(op));
   auto unsorted_segmented_sum = llvm::cast<mlir::TF::UnsortedSegmentSumOp>(op);
-  const int output_rank = ValueRank(unsorted_segmented_sum.getOutput());
-  if (input_layouts.find(0) != input_layouts.end()) {
-    // If the data layout exists, we can use it to forward propagate a layout
-    // to the output.
-    const int segment_ids_rank =
-        ValueRank(unsorted_segmented_sum.getSegmentIds());
-
-    return llvm::DenseMap<int, Layout>(
-        {{0, input_layouts.lookup(0)
-                 .Truncate(segment_ids_rank, /*end=*/true)
-                 .LeftPad(output_rank)}});
-  }
-
-  // When we don't have a data layout we can only output a replicated layout.
   return llvm::DenseMap<int, Layout>(
-      {{0, Layout::ReplicatedOnMesh(mesh, output_rank)}});
+      {{0, Layout::ReplicatedOnMesh(
+               mesh, /*rank=*/ValueRank(unsorted_segmented_sum.output()))}});
 }
 
 StatusOr<llvm::DenseMap<int, Layout>>
@@ -58,25 +55,12 @@ UnsortedSegmentSumSPMDExpander::ComputeLayoutBackward(
     mlir::Operation* op, const llvm::DenseMap<int, Layout>& output_layouts) {
   TF_ASSIGN_OR_RETURN(const auto mesh, ExtractDeviceMeshEnclosingCluster(op));
   auto unsorted_segmented_sum = llvm::cast<mlir::TF::UnsortedSegmentSumOp>(op);
-
-  Layout segment_ids_layout =
-      Layout::ReplicatedOnMesh(mesh, ValueRank(op->getOperand(1)));
-  Layout num_segments_layout = Layout::ReplicatedOnMesh(mesh, /*rank=*/0);
-  if (!output_layouts.empty()) {
-    // If we have an output layout, we can send it backwards to the last few
-    // dimension
-    const int data_rank = ValueRank(unsorted_segmented_sum.getData());
-    return llvm::DenseMap<int, Layout>({{0, output_layouts.lookup(0)
-                                                .Truncate(1, /*end=*/true)
-                                                .LeftPad(data_rank)},
-                                        {1, segment_ids_layout},
-                                        {2, num_segments_layout}});
-  }
   return llvm::DenseMap<int, Layout>(
       {{0, Layout::ReplicatedOnMesh(
-               mesh, /*rank=*/ValueRank(unsorted_segmented_sum.getData()))},
-       {1, segment_ids_layout},
-       {2, num_segments_layout}});
+               mesh, /*rank=*/ValueRank(unsorted_segmented_sum.data()))},
+       {1,
+        Layout::ReplicatedOnMesh(mesh, /*rank=*/ValueRank(op->getOperand(1)))},
+       {2, Layout::ReplicatedOnMesh(mesh, /*rank=*/0)}});
 }
 
 StatusOr<mlir::Operation*> UnsortedSegmentSumSPMDExpander::ExpandOp(
@@ -92,8 +76,8 @@ StatusOr<mlir::Operation*> UnsortedSegmentSumSPMDExpander::ExpandOp(
   // 4. Emit a Relayout to the output layout.
 
   auto sum_op = mlir::cast<mlir::TF::UnsortedSegmentSumOp>(op);
-  mlir::Value data = sum_op.getData();
-  mlir::Value segment_ids = sum_op.getSegmentIds();
+  mlir::Value data = sum_op.data();
+  mlir::Value segment_ids = sum_op.segment_ids();
 
   TF_ASSIGN_OR_RETURN(Layout data_layout,
                       ExtractRequiredLayoutFromOperand(data));
@@ -116,8 +100,8 @@ StatusOr<mlir::Operation*> UnsortedSegmentSumSPMDExpander::ExpandOp(
 
   mlir::OpBuilder builder(op);
   mlir::Operation* new_sum_op = builder.create<mlir::TF::UnsortedSegmentSumOp>(
-      op->getLoc(), sum_op.getOutput().getType(), data, new_segment_ids,
-      sum_op.getNumSegments());
+      op->getLoc(), sum_op.output().getType(), data, new_segment_ids,
+      sum_op.num_segments());
 
   InferSPMDExpandedLocalShape(new_sum_op);
 

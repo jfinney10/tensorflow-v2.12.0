@@ -32,19 +32,17 @@ Java and C++.
 
 To use the Task Library in your Android app, use the AAR from MavenCentral for
 [Task Vision library](https://search.maven.org/artifact/org.tensorflow/tensorflow-lite-task-vision)
-,
-[Task Text library](https://search.maven.org/artifact/org.tensorflow/tensorflow-lite-task-text)
 and
-[Task Audio Library](https://search.maven.org/artifact/org.tensorflow/tensorflow-lite-task-audio)
+[Task Text library](https://search.maven.org/artifact/org.tensorflow/tensorflow-lite-task-text)
 , respectively.
 
 You can specify this in your `build.gradle` dependencies as follows:
 
 ```build
 dependencies {
-    implementation 'org.tensorflow:tensorflow-lite-task-vision:+'
-    implementation 'org.tensorflow:tensorflow-lite-task-text:+'
-    implementation 'org.tensorflow:tensorflow-lite-task-audio:+'
+    implementation 'org.tensorflow:tensorflow-lite-task-vision:0.3.0'
+    implementation 'org.tensorflow:tensorflow-lite-task-text:0.3.0'
+    implementation 'org.tensorflow:tensorflow-lite-task-audio:0.3.0'
 }
 ```
 
@@ -66,7 +64,7 @@ You can specify this in your `build.gradle` dependencies as follows:
 
 ```build
 dependencies {
-    implementation 'org.tensorflow:tensorflow-lite:+'
+    implementation 'org.tensorflow:tensorflow-lite:0.0.0-nightly-SNAPSHOT'
 }
 ```
 
@@ -116,7 +114,7 @@ You can specify this in your `build.gradle` dependencies as follows:
 
 ```build
 dependencies {
-    implementation 'org.tensorflow:tensorflow-lite-support:+'
+    implementation 'org.tensorflow:tensorflow-lite-support:0.3.0'
 }
 ```
 

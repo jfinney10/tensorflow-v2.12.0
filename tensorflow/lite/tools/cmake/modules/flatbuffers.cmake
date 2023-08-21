@@ -17,7 +17,7 @@ if(TARGET flatbuffers OR flatbuffers_POPULATED)
   return()
 endif()
 
-include(OverridableFetchContent)
+include(FetchContent)
 
 OverridableFetchContent_Declare(
   flatbuffers
@@ -41,6 +41,7 @@ add_definitions(-DNOMINMAX=1)
 add_subdirectory(
   "${flatbuffers_SOURCE_DIR}"
   "${flatbuffers_BINARY_DIR}"
+  EXCLUDE_FROM_ALL
 )
 remove_definitions(-DNOMINMAX)
 
@@ -74,5 +75,6 @@ ExternalProject_Add(flatbuffers-flatc
              -DFLATBUFFERS_STATIC_FLATC=OFF
              -DFLATBUFFERS_BUILD_FLATHASH=OFF
              -DCMAKE_INSTALL_PREFIX=$CACHE{FLATC_INSTALL_PREFIX}
+             -DCMAKE_DISABLE_FIND_PACKAGE_Python3=TRUE
   EXCLUDE_FROM_ALL ${FLATC_EXCLUDE_FROM_ALL}
 )

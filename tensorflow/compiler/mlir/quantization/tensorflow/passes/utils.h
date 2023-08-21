@@ -12,9 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-#ifndef TENSORFLOW_COMPILER_MLIR_QUANTIZATION_TENSORFLOW_PASSES_UTILS_H_
-#define TENSORFLOW_COMPILER_MLIR_QUANTIZATION_TENSORFLOW_PASSES_UTILS_H_
-
 #include <type_traits>
 
 #include "llvm/ADT/ArrayRef.h"
@@ -27,17 +24,21 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/quantization/tensorflow/quantization_options.pb.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
 
+#ifndef TENSORFLOW_COMPILER_MLIR_QUANTIZATION_TENSORFLOW_PASSES_UTIL_H_
+#define TENSORFLOW_COMPILER_MLIR_QUANTIZATION_TENSORFLOW_PASSES_UTIL_H_
 namespace mlir {
 namespace quant {
 
-constexpr char kQuantizeFuncName[] = "quantize_i8";
-constexpr char kDequantizeFuncName[] = "dequantize_i8";
-constexpr char kAttrMapAttribute[] = "attr_map";
-
 // TODO(b/238829558): Populate quantization config based on the
-// QuantizationOptions proto.
-// TODO(b/263449239): Put the OpSet aliases separately within each file
+// QuantizationOptions proto. We might want to clean QuantizationMethod as well
+// as this can be inferred from the proto.
 using OpSet = tensorflow::quantization::OpSet;
+
+enum class QuantizationMethod {
+  kQuantizationAwareTraining,
+  kPostTrainingQuantization,
+  kDynamicRangeQuantization
+};
 
 // Returns true if the value has static shape.
 bool HasStaticShape(Value value);
@@ -128,20 +129,6 @@ bool AreSplatValuesEqual(Value x, Value y) {
   return splat_x == splat_y;
 }
 
-// Clones an operation with new operands while keeping attributes.
-llvm::SmallVector<Value> CloneOpWithReplacedOperands(
-    OpBuilder &builder, Operation *op,
-    const llvm::SmallVector<Value> &new_operands);
-
-// TODO(b/241488936): Remove these functions after adding a new constant folding
-// pass to TensorFlow.
-// Checks if an Operation is foldable.
-LogicalResult IsOperationFoldable(Operation *op);
-
-// Applies constant folding to the operation if possible and return the folded
-// results.
-llvm::SmallVector<Value> ConstantFoldOpIfPossible(Operation *op);
-
 }  // namespace quant
 }  // namespace mlir
-#endif  // TENSORFLOW_COMPILER_MLIR_QUANTIZATION_TENSORFLOW_PASSES_UTILS_H_
+#endif  // TENSORFLOW_COMPILER_MLIR_QUANTIZATION_TENSORFLOW_PASSES_UTIL_H_

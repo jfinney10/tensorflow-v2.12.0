@@ -16,13 +16,12 @@ limitations under the License.
 #ifndef TENSORFLOW_COMPILER_XLA_SERVICE_MULTI_OUTPUT_FUSION_H_
 #define TENSORFLOW_COMPILER_XLA_SERVICE_MULTI_OUTPUT_FUSION_H_
 
-#include <optional>
 #include <queue>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_module.h"
+#include "tensorflow/compiler/xla/service/hlo_module.h"
 #include "tensorflow/compiler/xla/service/hlo_pass_interface.h"
 #include "tensorflow/compiler/xla/service/hlo_reachability.h"
 #include "tensorflow/compiler/xla/statusor.h"
@@ -106,8 +105,7 @@ class MultiOutputFusion : public HloModulePass {
       HloInstruction* instr1, HloInstruction* instr2,
       absl::Span<const std::pair<HloInstruction*, HloReachabilityMap::Index>>
           instrs_to_update,
-      std::optional<absl::FunctionRef<bool(HloInstruction*)>> skip =
-          std::nullopt);
+      const std::function<bool(HloInstruction*)>& skip = nullptr);
 
   // Hook for multi-output fusion along producer-consumer edges.
   // Returns whether any instructions were fused.

@@ -42,7 +42,8 @@ StatusOr<std::unique_ptr<PjRtClient>> GetInterpreterClient() {
                       ClientLibrary::GetOrCreateLocalClient(options));
 
   std::vector<std::unique_ptr<PjRtStreamExecutorDevice>> devices;
-  se::StreamExecutor* executor = client->backend().stream_executor(0).value();
+  se::StreamExecutor* executor =
+      client->backend().stream_executor(0).ValueOrDie();
   auto device_state = std::make_unique<LocalDeviceState>(
       executor, client, LocalDeviceState::kSynchronous,
       /*max_inflight_computations=*/1,

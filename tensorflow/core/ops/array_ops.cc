@@ -15,10 +15,8 @@ limitations under the License.
 
 #include <algorithm>
 #include <ostream>
-#include <vector>
 
 #include "tensorflow/core/framework/common_shape_fns.h"
-#include "tensorflow/core/framework/full_type.pb.h"
 #include "tensorflow/core/framework/kernel_shape_util.h"
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
@@ -26,7 +24,6 @@ limitations under the License.
 #include "tensorflow/core/framework/types.h"
 #include "tensorflow/core/framework/types.pb.h"
 #include "tensorflow/core/lib/core/errors.h"
-#include "tensorflow/core/platform/status.h"
 #include "tensorflow/core/platform/types.h"
 #include "tensorflow/core/util/mirror_pad_mode.h"
 #include "tensorflow/core/util/padding.h"
@@ -309,12 +306,6 @@ REGISTER_OP("ParallelConcat")
         if (!c->FullyDefined(c->input(i))) {
           return errors::InvalidArgument(
               "All input shapes must be fully defined.");
-        }
-        if (c->Rank(c->input(i)) < 1) {
-          return errors::InvalidArgument(
-              "The rank of all input shapes must be greater than 0, "
-              "but input ",
-              i, " had rank ", c->Rank(c->input(i)), ".");
         }
         DimensionHandle unused;
         if (!c->WithValue(c->Dim(c->input(i), 0), 1, &unused).ok()) {
@@ -615,7 +606,7 @@ REGISTER_OP("SplitV")
     .Output("output: num_split * T")
     .Attr("num_split: int >= 1")
     .Attr("T: type")
-    .Attr("Tlen: {int8, int32, int64} = DT_INT64")
+    .Attr("Tlen: {int32, int64} = DT_INT64")
     .SetShapeFn([](InferenceContext* c) {
       DimensionHandle split_dimension;
       ShapeHandle input = c->input(0);
@@ -1080,22 +1071,11 @@ REGISTER_OP("EditDistance")
         // or else the output shape is unknown.
         return shape_inference::UnknownShape(c);
       }
+
       if (hypothesis_shape_t->NumElements() != truth_shape_t->NumElements()) {
         return errors::InvalidArgument(
             "Num elements of hypothesis_shape does not match truth_shape: ",
             hypothesis_shape_t->NumElements(), " vs. ",
-            truth_shape_t->NumElements());
-      }
-      if (hypothesis_shape_t->NumElements() < 2) {
-        return errors::InvalidArgument(
-            "Input Hypothesis SparseTensors must have rank at least 2, but "
-            "hypothesis_shape rank is: ",
-            hypothesis_shape_t->NumElements());
-      }
-      if (truth_shape_t->NumElements() < 2) {
-        return errors::InvalidArgument(
-            "Input Truth SparseTensors must have rank at least 2, but "
-            "truth_shape rank is: ",
             truth_shape_t->NumElements());
       }
 
@@ -1611,7 +1591,6 @@ REGISTER_OP("Shape")
     .Output("output: out_type")
     .Attr("T: type")
     .Attr("out_type: {int32, int64} = DT_INT32")
-    .SetTypeConstructor(full_type::Unary(TFT_SHAPE_TENSOR, "out_type"))
     .SetShapeFn(ShapeShapeFn);
 
 REGISTER_OP("ShapeN")
@@ -2832,7 +2811,7 @@ REGISTER_OP("OneHot")
     .Attr("axis: int = -1")
     .Output("output: T")
     .Attr("T: type")
-    .Attr("TI: {uint8, int8, int32, int64} = DT_INT64")
+    .Attr("TI: {uint8, int32, int64} = DT_INT64")
     .SetShapeFn([](InferenceContext* c) {
       int32_t axis;
       TF_RETURN_IF_ERROR(c->GetAttr("axis", &axis));

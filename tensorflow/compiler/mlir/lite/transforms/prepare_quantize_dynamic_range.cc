@@ -19,7 +19,6 @@ limitations under the License.
 #include <utility>
 
 #include "llvm/Support/CommandLine.h"
-#include "mlir/Dialect/Quant/QuantOps.h"  // from @llvm-project
 #include "mlir/Dialect/Quant/QuantTypes.h"  // from @llvm-project
 #include "mlir/IR/BuiltinTypes.h"  // from @llvm-project
 #include "mlir/IR/Dialect.h"  // from @llvm-project
@@ -31,7 +30,7 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/lite/transforms/passes.h"
 #include "tensorflow/compiler/mlir/lite/transforms/prepare_quantize_helper.h"
 #include "tensorflow/core/framework/types.pb.h"
-#include "tensorflow/core/platform/types.h"
+#include "tensorflow/core/platform/logging.h"
 
 // NOLINTNEXTLINE
 //===----------------------------------------------------------------------===//
@@ -41,7 +40,7 @@ namespace mlir {
 namespace TFL {
 
 namespace {
-#define GEN_PASS_DEF_PREPAREDYNAMICRANGEQUANTIZEPASS
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/lite/transforms/passes.h.inc"
 
 // A boolean attribute used to describe whether input activations need to be
@@ -54,7 +53,7 @@ using QuantizationUnits = llvm::SetVector<std::pair<Operation*, int>>;
 // This pass runs before the quantization pass and apply preprocess if
 // applicable.
 class PrepareDynamicRangeQuantizePass
-    : public impl::PrepareDynamicRangeQuantizePassBase<
+    : public PrepareDynamicRangeQuantizePassBase<
           PrepareDynamicRangeQuantizePass> {
  public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(PrepareDynamicRangeQuantizePass)
@@ -143,7 +142,7 @@ class PrepareDynamicRangeQuantizableOp
   // provided map.
   bool hasInt8QuantizableOperandAt(Operation* op, int operand_index) const {
     if (auto custom_op = llvm::dyn_cast_or_null<CustomOp>(op)) {
-      std::string op_name = custom_op.getCustomCode().str();
+      std::string op_name = custom_op.custom_code().str();
       auto custom_map_iter = quant_specs_.custom_map.find(op_name);
       if (custom_map_iter != quant_specs_.custom_map.end())
         return isQuantizableIndex(
@@ -399,7 +398,7 @@ class PrepareDynamicRangeQuantizableOp
 
 // Remove all the stats ops which are redundant for dynamic range quantizaiton.
 void PrepareDynamicRangeQuantizePass::removeAllStatsOp(func::FuncOp func) {
-  func.walk([&](quantfork::StatisticsOp stats_op) {
+  func.walk([&](quant::StatisticsOp stats_op) {
     stats_op.replaceAllUsesWith(stats_op.getArg());
     stats_op.erase();
   });
@@ -419,7 +418,7 @@ void PrepareDynamicRangeQuantizePass::runOnOperation() {
 
   if (!enable_custom_op_quantization_.empty()) {
     ParseCustomOpSpecs(enable_custom_op_quantization_,
-                       quant::CustomOpUpdateOptions::kInputIndices,
+                       quant::CustomOpUpdateOptions::kINputIndices,
                        quant_specs_.custom_map);
   }
 

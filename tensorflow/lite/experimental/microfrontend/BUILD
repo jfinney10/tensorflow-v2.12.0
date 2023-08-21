@@ -9,10 +9,9 @@ load(
     "tf_opts_nortti_if_android",
     "tf_py_test",
 )
-load("//tensorflow:tensorflow.default.bzl", "tf_custom_op_py_library")
+load("//tensorflow:tensorflow.bzl", "tf_custom_op_py_library")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = ["//visibility:public"],
     licenses = ["notice"],
 )
@@ -69,7 +68,6 @@ cc_test(
     deps = [
         ":audio_microfrontend",
         "//tensorflow/lite:framework",
-        "//tensorflow/lite/core:framework",
         "//tensorflow/lite/kernels:test_util",
         "@com_google_googletest//:gtest_main",
         "@flatbuffers",

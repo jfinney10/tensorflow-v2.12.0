@@ -14,6 +14,9 @@
 # ==============================================================================
 """Tests for `tf.data.Options`."""
 
+import platform
+import sys
+
 from absl.testing import parameterized
 
 from tensorflow.core.framework import dataset_options_pb2
@@ -70,6 +73,9 @@ class OptionsTest(test_base.DatasetTestBase, parameterized.TestCase):
 
   @combinations.generate(test_base.default_test_combinations())
   def testOptionsTwiceSameOption(self):
+    if sys.version_info >= (3, 8) and platform.system() == "Windows":
+      # TODO(b/165013260): Fix this
+      self.skipTest("Test is currently broken on Windows with Python 3.8")
     options1 = options_lib.Options()
     options1.autotune.enabled = False
     options2 = options_lib.Options()
@@ -122,9 +128,9 @@ class OptionsTest(test_base.DatasetTestBase, parameterized.TestCase):
     ds = dataset_ops.Dataset.from_tensors(0)
     result = ds
 
-    for _ in range(99):
+    for _ in range(999):
       result = result.concatenate(ds)
-    self.assertDatasetProduces(result, [0]*100)
+    self.assertDatasetProduces(result, [0]*1000)
 
   @combinations.generate(test_base.default_test_combinations())
   def testOptionsProtoRoundTrip(self):
@@ -141,7 +147,7 @@ class OptionsTest(test_base.DatasetTestBase, parameterized.TestCase):
     options.experimental_optimization.apply_default_optimizations = True
     options.experimental_optimization.filter_fusion = True
     options.experimental_optimization.filter_parallelization = True
-    options.experimental_optimization.inject_prefetch = False
+    options.experimental_optimization.inject_prefetch = True
     options.experimental_optimization.map_and_batch_fusion = True
     options.experimental_optimization.map_and_filter_fusion = True
     options.experimental_optimization.map_fusion = True

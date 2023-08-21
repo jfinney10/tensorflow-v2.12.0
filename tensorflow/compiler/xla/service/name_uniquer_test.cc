@@ -19,7 +19,7 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
-#include "tensorflow/tsl/platform/test.h"
+#include "tensorflow/core/platform/test.h"
 
 namespace xla {
 namespace {

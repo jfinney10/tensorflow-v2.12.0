@@ -16,8 +16,9 @@
 # Description:
 #   Keras saving and loading libraries.
 
+# buildifier: disable=same-origin-load
+
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = [
         "//tensorflow/python/keras:__subpackages__",
     ],

@@ -1,4 +1,4 @@
-load("//tensorflow:tensorflow.default.bzl", "filegroup")
+load("//tensorflow:tensorflow.bzl", "filegroup")
 load("//tensorflow/core/platform:rules_cc.bzl", "cc_library")
 load("@local_config_cuda//cuda:build_defs.bzl", "if_cuda")
 load("//tensorflow:tensorflow.bzl", "tf_cc_test", "tf_cuda_library")
@@ -8,7 +8,12 @@ load(
 )
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
+    licenses = ["notice"],
+)
+
+config_setting(
+    name = "xsmm",
+    define_values = {"tensorflow_xsmm": "1"},
     licenses = ["notice"],
 )
 
@@ -21,12 +26,15 @@ tf_cuda_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//third_party/eigen3",
         "//tensorflow/core:framework",
+        "//tensorflow/core/common_runtime/gpu:gpu_id",
         "//tensorflow/core:lib",
         "//tensorflow/core:protos_all_cc",
-        "//tensorflow/core/common_runtime/gpu:gpu_id",
-        "//third_party/eigen3",
-    ],
+    ] + select({
+        ":xsmm": ["@libxsmm_archive//:xsmm_avx"],
+        "//conditions:default": [],
+    }),
 )
 
 tf_cc_test(

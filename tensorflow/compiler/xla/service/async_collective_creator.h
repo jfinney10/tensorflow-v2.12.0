@@ -17,9 +17,6 @@ limitations under the License.
 #define TENSORFLOW_COMPILER_XLA_SERVICE_ASYNC_COLLECTIVE_CREATOR_H_
 
 #include <functional>
-#include <iterator>
-#include <memory>
-#include <vector>
 
 #include "tensorflow/compiler/xla/service/hlo_pass_interface.h"
 

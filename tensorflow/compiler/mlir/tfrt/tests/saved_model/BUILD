@@ -1,16 +1,12 @@
 load("//tensorflow:tensorflow.bzl", "tf_cc_test")
 
-package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
-    licenses = ["notice"],
-)
+package(licenses = ["notice"])
 
 tf_cc_test(
     name = "saved_model_test",
     srcs = ["saved_model_test.cc"],
     data = [
         "testdata/test.mlir",
-        "testdata/xla_launch.mlir",
     ],
     tags = ["no_oss"],
     deps = [

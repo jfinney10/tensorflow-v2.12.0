@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 """A library of common shape functions."""
-import itertools
+import six
 
 from tensorflow.python.framework import tensor_shape
 
@@ -31,12 +31,10 @@ def _broadcast_shape_helper(shape_x, shape_y):
   """
   # To compute the broadcasted dimensions, we zip together shape_x and shape_y,
   # and pad with 1 to make them the same length.
-  broadcasted_dims = reversed(
-      list(
-          itertools.zip_longest(
-              reversed(shape_x.dims),
-              reversed(shape_y.dims),
-              fillvalue=tensor_shape.Dimension(1))))
+  broadcasted_dims = reversed(list(six.moves.zip_longest(
+      reversed(shape_x.dims),
+      reversed(shape_y.dims),
+      fillvalue=tensor_shape.Dimension(1))))
   # Next we combine the dimensions according to the numpy broadcasting rules.
   # http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html
   return_dims = []

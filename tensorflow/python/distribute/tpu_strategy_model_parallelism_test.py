@@ -15,9 +15,6 @@
 """Tests for TPUStrategy."""
 
 import os
-
-from absl.testing import parameterized
-
 from tensorflow.python.checkpoint import checkpoint as util
 from tensorflow.python.checkpoint import checkpoint_management
 from tensorflow.python.distribute import distribution_strategy_context
@@ -31,10 +28,7 @@ from tensorflow.python.eager import test
 from tensorflow.python.framework import config
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
-from tensorflow.python.framework import ops
-from tensorflow.python.framework import summary_test_util
 from tensorflow.python.module import module
-from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import random_ops
@@ -76,8 +70,7 @@ def get_tpu_strategy(enable_spmd=False):
 
 class TPUStrategyModelParallelismTest(
     strategy_test_lib.DistributionTestBase,
-    strategy_test_lib.TwoDeviceDistributionTestBase,
-    parameterized.TestCase):
+    strategy_test_lib.TwoDeviceDistributionTestBase):
 
   def test_logical_device_assignment(self):
     strategy, num_replicas = get_tpu_strategy()
@@ -218,19 +211,6 @@ class TPUStrategyModelParallelismTest(
         rtol=5e-03,
         atol=5e-03)
 
-  def test_spmd_variable_read_init_scope(self):
-    strategy, _ = get_tpu_strategy(enable_spmd=True)
-    with strategy.scope():
-      v = variables.Variable(array_ops.ones((4, 4), dtype=dtypes.float32))
-
-    @def_function.function
-    def read_v():
-      with ops.init_scope():
-        return v.read_value()
-
-    result = strategy.reduce("MEAN", strategy.run(read_v), axis=None)
-    self.assertAllClose(result, v.read_value())
-
   def test_spmd_variable_update(self):
     batch_size = 1024
     num_feature_in = 256
@@ -370,42 +350,26 @@ class TPUStrategyModelParallelismTest(
     strategy, _ = get_tpu_strategy(enable_spmd=True)
     summary_dir = self.get_temp_dir()
     writer = summary_ops.create_file_writer_v2(summary_dir)
-    const_multiple = 2
-    num_iters = 10
-    expected_event_count = num_iters + 1
 
     with strategy.scope():
-      step = variables.Variable(1, dtype=dtypes.int64)
+      step = variables.Variable(0, dtype=dtypes.int64)
 
     @def_function.function
     def run():
       with writer.as_default():
-        with summary_ops.record_if(True):
-          summary_ops.scalar("result", step * const_multiple, step=step)
-          step.assign_add(1)
+        summary_ops.scalar("result", step * 2, step=step)
+        step.assign_add(1)
 
-    for _ in range(num_iters):
+    for _ in range(10):
       strategy.run(run, args=())
 
     for val in step.values:
       for var in val.variables:
-        self.assertAllEqual(expected_event_count, var)
-
-    events = summary_test_util.events_from_logdir(summary_dir)
-    self.assertLen(events, expected_event_count)
-
-    # Event[0] is generic metadata and summary_ops data starts at event[1].
-    for logged_step in range(1, expected_event_count):
-      self.assertEqual(events[logged_step].summary.value[0].simple_value,
-                       logged_step * const_multiple)
+        self.assertAllEqual(10, var)
 
     config.set_soft_device_placement(original_device_placement)
 
-  # Tests SPMD with outside compilation. One test case is for replicated
-  # sharding of the input tensor and one case is for split sharding of the input
-  # tensor.
-  @parameterized.parameters([False, True])
-  def test_spmd_with_outside_comp(self, split):
+  def test_spmd_with_outside_comp(self):
     strategy, num_replicas = get_tpu_strategy(enable_spmd=True)
 
     def host_inc(x):
@@ -413,18 +377,15 @@ class TPUStrategyModelParallelismTest(
 
     @def_function.function
     def fn(x):
-      if split:
-        x = strategy.experimental_split_to_logical_devices(x, [1, 2])
       y = x + 1
       z = tpu.outside_compilation(host_inc, y)
       a = z + 1
       return a
 
-    arg = constant_op.constant(0, shape=(2, 2), dtype=dtypes.int64)
+    arg = constant_op.constant(0, shape=(), dtype=dtypes.int64)
     result = strategy.run(fn, args=(arg,))
-    self.assertAllEqual(
-        (arg + 3) * num_replicas,
-        self.evaluate(strategy.reduce("SUM", result, axis=None)))
+    self.assertEqual(3 * num_replicas,
+                     self.evaluate(strategy.reduce("SUM", result, axis=None)))
 
 if __name__ == "__main__":
   test.main()

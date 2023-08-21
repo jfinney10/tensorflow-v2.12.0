@@ -33,7 +33,8 @@ def FallbackAsync_Dialect : Dialect {
   }];
 
   let cppNamespace = "::tfrt::fallback_async";
-  let useFoldAPI = kEmitFoldAdaptorFolder;
+
+  let emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 
 class FallbackAsync_Op<string mnemonic, list<Trait> traits = []> :
@@ -95,7 +96,7 @@ def GetResourceOp : FallbackAsync_Op<"get_resource",
 }
 
 def ConstTensorProtoOp : FallbackAsync_Op<"const_tensor_proto",
-    [Pure, CoreRT_TypedAttributeTrait,
+    [NoSideEffect, CoreRT_TypedAttributeTrait,
      TFRT_CostFunctionInterface, TFRT_FixedCost<1>]> {
   let summary = "Create a tensorflow tensor from serialized tensor proto";
 
@@ -118,7 +119,7 @@ def ConstTensorProtoOp : FallbackAsync_Op<"const_tensor_proto",
 }
 
 def ConstDenseTensorOp : FallbackAsync_Op<"const_dense_tensor",
-    [ConstantLike, Pure, CoreRT_TypedAttributeTrait,
+    [ConstantLike, NoSideEffect, CoreRT_TypedAttributeTrait,
      TFRT_CostFunctionInterface, TFRT_FixedCost<1>]> {
   let summary = "Create a constant dense tensorflow tensor.";
 
@@ -144,7 +145,7 @@ def ConstDenseTensorOp : FallbackAsync_Op<"const_dense_tensor",
 
 // TODO(b/181257202): This should be `ConstantLike`.
 def ConstStringTensorOp : FallbackAsync_Op<"const_string_tensor",
-    [Pure, CoreRT_TypedAttributeTrait,
+    [NoSideEffect, CoreRT_TypedAttributeTrait,
      TFRT_CostFunctionInterface, TFRT_FixedCost<1>]> {
   let summary = "Create a constant string tensorflow tensor.";
   let description = [{
@@ -173,14 +174,14 @@ def ConstStringTensorOp : FallbackAsync_Op<"const_string_tensor",
 
 def FallbackTensorToCoreRTTensorHandleOp : FallbackAsync_Op<
                               "fallback_tensor_to_corert_tensorhandle",
-                              [Pure, CoreRT_TypedAttributeTrait,
+                              [NoSideEffect, CoreRT_TypedAttributeTrait,
                                TFRT_CostFunctionInterface, TFRT_FixedCost<1>]> {
   let summary = "Convert fallback tensor to corert tensorhandle";
 
   let description = [{
     Convert the fallback tensor to corert tensorhandle.
 
-    args: a list of fallback tensors.
+    operands: a list of fallback tensors.
     device: the name of the tensorflow device that is associated with the
       input fallback tensors.
 
@@ -188,7 +189,7 @@ def FallbackTensorToCoreRTTensorHandleOp : FallbackAsync_Op<
   }];
 
   let arguments = (ins
-    Variadic<TFTensorType>:$args,
+    Variadic<TFTensorType>:$operands,
     StrAttr:$device
   );
 
@@ -196,19 +197,19 @@ def FallbackTensorToCoreRTTensorHandleOp : FallbackAsync_Op<
     Variadic<CoreRT_TensorHandleType>:$results
   );
 
-  let assemblyFormat = "operands attr-dict `:` `(` type($args) `)` `->` `(` type($results) `)`";
+  let assemblyFormat = "operands attr-dict `:` `(` type($operands) `)` `->` `(` type($results) `)`";
 }
 
 def CoreRTTensorHandleToFallbackTensorOp : FallbackAsync_Op<
                               "corert_tensorhandle_to_fallback_tensor",
-                              [Pure, CoreRT_TypedAttributeTrait,
+                              [NoSideEffect, CoreRT_TypedAttributeTrait,
                                TFRT_CostFunctionInterface, TFRT_FixedCost<1>]> {
   let summary = "Convert corert tensorhandle to fallback tensor";
 
   let description = [{
     Convert the corert tensorhandle to the fallback tensor.
 
-    args: a list of corert tensorhandles.
+    operands: a list of corert tensorhandles.
     device: the name of the tensorflow device that is associated with the
       output fallback tensor.
 
@@ -216,7 +217,7 @@ def CoreRTTensorHandleToFallbackTensorOp : FallbackAsync_Op<
   }];
 
   let arguments = (ins
-    Variadic<CoreRT_TensorHandleType>:$args,
+    Variadic<CoreRT_TensorHandleType>:$operands,
     StrAttr:$device
   );
 
@@ -224,13 +225,13 @@ def CoreRTTensorHandleToFallbackTensorOp : FallbackAsync_Op<
     Variadic<TFTensorType>:$results
   );
 
-  let assemblyFormat = "operands attr-dict `:` `(` type($args) `)` `->` `(` type($results) `)`";
+  let assemblyFormat = "operands attr-dict `:` `(` type($operands) `)` `->` `(` type($results) `)`";
 
   let hasCanonicalizer = 1;
 }
 
 def PredicateOp : FallbackAsync_Op<"predicate",
-    [Pure, CoreRT_TypedAttributeTrait,
+    [NoSideEffect, CoreRT_TypedAttributeTrait,
      TFRT_CostFunctionInterface, TFRT_FixedCost<1>]> {
   let summary = "Converts a fallback tensor to a bool";
 
@@ -266,7 +267,7 @@ def PredicateOp : FallbackAsync_Op<"predicate",
 }
 
 def CopyIfSmallOp : FallbackAsync_Op<"copy_if_small",
-    [Pure, CoreRT_TypedAttributeTrait,
+    [NoSideEffect, CoreRT_TypedAttributeTrait,
      TFRT_CostFunctionInterface, TFRT_FixedCost<1>]> {
   let summary = "Copy the CPU fallback tensor if it is small";
 
@@ -328,7 +329,7 @@ def CreateOp: FallbackAsync_Op<"createop", [CoreRT_TypedAttributeTrait]> {
 }
 
 def ExecuteOp : FallbackAsync_Op<"executeop",
-    [Pure, CoreRT_TypedAttributeTrait,
+    [NoSideEffect, CoreRT_TypedAttributeTrait,
      TFRT_CostFunctionInterface, TFRT_AttrCostTrait]> {
   let summary = "The Fallback ExecuteOp";
   let description = [{
@@ -354,7 +355,7 @@ def ExecuteOp : FallbackAsync_Op<"executeop",
   }];
 
   let arguments = (ins
-    Variadic<TFTensorType>:$args,
+    Variadic<TFTensorType>:$operands,
     StrAttr:$device,
     ArrayAttr:$op_attrs,
     // TODO(b/173025975): consider using DictionaryAttr after we support
@@ -374,7 +375,7 @@ def ExecuteOp : FallbackAsync_Op<"executeop",
   }];
 
   let builders = [
-    OpBuilder<(ins "ArrayRef<Type>":$results, "ValueRange":$args,
+    OpBuilder<(ins "ArrayRef<Type>":$results, "ValueRange":$operands,
       "StringRef":$device,
       "::llvm::ArrayRef<std::pair<::llvm::StringRef, ::mlir::Attribute>>":$op_attrs,
       "::llvm::ArrayRef<std::pair<::llvm::StringRef, ::mlir::Attribute>>":$op_func_attrs,
@@ -417,7 +418,7 @@ def ExecuteOpSeq : FallbackAsync_Op<"executeop.seq",
 
   let arguments = (ins
     TFRT_ChainType:$in_op_chain,
-    Variadic<TFTensorType>:$args,
+    Variadic<TFTensorType>:$operands,
     StrAttr:$device,
     ArrayAttr:$op_attrs,
     // TODO(b/173025975): consider using DictionaryAttr after we support
@@ -437,15 +438,14 @@ def ExecuteOpSeq : FallbackAsync_Op<"executeop.seq",
   let hasCustomAssemblyFormat = 1;
 }
 
-def BatchFunctionOp : FallbackAsync_Op<"batch_function",
-    [Pure, CoreRT_TypedAttributeTrait]> {
+def BatchFunctionOp : FallbackAsync_Op<"batch_function", [CoreRT_TypedAttributeTrait]> {
   let summary = "Fallback ExecuteOp specialized for tf.BatchFunction.";
   let description = [{
     This kernel executes a variant tf.BatchFunction kernel that supports having
     the `f` attribute as a BEF function.
 
     Example:
-      %res = tfrt_fallback_async.batch_function device("/CPU:0") @f(%input, %captured_input)  {
+      %op_ch_out, %res = tfrt_fallback_async.atch_function(%op_ch_in) @f (%input, %captured_input) {
           num_batch_threads = 1,
           max_batch_size = 4,
           allowed_batch_sizes = [2 , 4],
@@ -462,14 +462,15 @@ def BatchFunctionOp : FallbackAsync_Op<"batch_function",
   }];
 
   let arguments = (ins
-    Variadic<TFTensorType>:$args,
-    StrAttr:$device,
+                   TFRT_ChainType:$in_op_chain,
+    Variadic<CoreRT_TensorHandleType>:$operands,
     SymbolRefAttr:$f,
     ArrayAttr:$op_attrs
   );
 
   let results = (outs
-    Variadic<TFTensorType>:$results
+    TFRT_ChainType:$out_op_chain,
+    Variadic<CoreRT_TensorHandleType>:$results
   );
 
   let hasVerifier = 1;
@@ -477,7 +478,7 @@ def BatchFunctionOp : FallbackAsync_Op<"batch_function",
 }
 
 def ExecuteOpWithAllocator : FallbackAsync_Op<"executeop.allocator",
-    [Pure, CoreRT_TypedAttributeTrait, TFRT_CostFunctionInterface, TFRT_AttrCostTrait]> {
+    [NoSideEffect, CoreRT_TypedAttributeTrait, TFRT_CostFunctionInterface, TFRT_AttrCostTrait]> {
   let summary = "The Fallback ExecuteOp with custom allocator";
   let description = [{
     Similar to ExecuteOp but takes a custom allocator for allocating output tensors.
@@ -485,7 +486,7 @@ def ExecuteOpWithAllocator : FallbackAsync_Op<"executeop.allocator",
 
   let arguments = (ins
     TFAllocatorType:$allocator,
-    Variadic<TFTensorType>:$args,
+    Variadic<TFTensorType>:$operands,
     StrAttr:$device,
     ArrayAttr:$op_attrs,
     ArrayAttr:$op_func_attrs,
@@ -516,7 +517,7 @@ def ExecuteOpSeqWithAllocator : FallbackAsync_Op<"executeop.seq.allocator",
   let arguments = (ins
     TFRT_ChainType:$in_op_chain,
     TFAllocatorType:$allocator,
-    Variadic<TFTensorType>:$args,
+    Variadic<TFTensorType>:$operands,
     StrAttr:$device,
     ArrayAttr:$op_attrs,
     // TODO(b/173025975): consider using DictionaryAttr after we support

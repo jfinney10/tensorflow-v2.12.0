@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_CORE_IR_IMPORTEXPORT_CONVERT_ATTRIBUTES_H_
-#define TENSORFLOW_CORE_IR_IMPORTEXPORT_CONVERT_ATTRIBUTES_H_
+#ifndef TENSORFLOW_CORE_IR_IMPORTEXPORT_EXPORT_UTILS_H_
+#define TENSORFLOW_CORE_IR_IMPORTEXPORT_EXPORT_UTILS_H_
 
 #include <string>
 
@@ -54,11 +54,13 @@ ShapeAttr ConvertTypeToTensorShapeAttr(const Type& type);
 // exclused in this function because the function might be renamed when the
 // function definition is imported.
 tensorflow::StatusOr<Attribute> ConvertNonFuncAttributeValue(
-    const tensorflow::AttrValue& value, Builder& builder);
+    const tensorflow::AttrValue& value, Builder& builder,
+    TFGraphDialect* tfgDialect);
 
 // Converts all kinds of AttrValue proto into an MLIR attribute.
 tensorflow::StatusOr<Attribute> ConvertAttributeValue(
-    const tensorflow::AttrValue& value, Builder& builder);
+    const tensorflow::AttrValue& value, Builder& builder,
+    TFGraphDialect* tfgDialect);
 
 // Convert the MLIR FullTyoe attribute `attr` and return a
 // `tensorflow::FullTypeDef`.
@@ -67,7 +69,8 @@ tensorflow::StatusOr<tensorflow::FullTypeDef> ConvertAttribute(
 
 // Converts fulltype proto to attribute.
 tensorflow::StatusOr<::mlir::tf_type::FullTypeAttr> ConvertAttribute(
-    const tensorflow::FullTypeDef& full_type, Builder& builder);
+    const tensorflow::FullTypeDef& full_type, Builder& builder,
+    TFGraphDialect* tfgDialect);
 
 // Convert an array of handle data (pairs of data types and shapes) to an array
 // attribute of tensor types.
@@ -84,4 +87,4 @@ tensorflow::Status ConvertHandleData(ArrayAttr handle_data_arr,
 }  // namespace tfg
 }  // namespace mlir
 
-#endif  // TENSORFLOW_CORE_IR_IMPORTEXPORT_CONVERT_ATTRIBUTES_H_
+#endif  // TENSORFLOW_CORE_IR_IMPORTEXPORT_EXPORT_UTILS_H_

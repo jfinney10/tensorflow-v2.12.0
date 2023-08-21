@@ -29,11 +29,11 @@ limitations under the License.
 #include "tensorflow/compiler/xla/statusor.h"
 #include "tensorflow/compiler/xla/types.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
-#include "tensorflow/tsl/platform/init_main.h"
-#include "tensorflow/tsl/platform/logging.h"
+#include "tensorflow/core/platform/init_main.h"
+#include "tensorflow/core/platform/logging.h"
 
 int main(int argc, char** argv) {
-  tsl::port::InitMain(argv[0], &argc, &argv);
+  tensorflow::port::InitMain(argv[0], &argc, &argv);
 
   xla::LocalClient* client(xla::ClientLibrary::LocalClientOrDie());
 

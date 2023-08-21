@@ -56,7 +56,7 @@ TEST(TensorFlowOpRegistryInterface, TestIntrinsicOps) {
   ASSERT_TRUE(module);
 
   auto func_op = cast<GraphFuncOp>(&module->front());
-  auto ret_op = cast<ReturnOp>(func_op.getBody().front().getTerminator());
+  auto ret_op = cast<ReturnOp>(func_op.body().front().getTerminator());
   EXPECT_FALSE(dyn_cast<TensorFlowRegistryInterface>(*func_op));
   EXPECT_FALSE(dyn_cast<TensorFlowRegistryInterface>(*ret_op));
 }
@@ -75,8 +75,7 @@ TEST(TensorFlowOpRegistryInterface, TestStatelessTFOps) {
       mlir::parseSourceString<mlir::ModuleOp>(code, &context);
   ASSERT_TRUE(module);
 
-  Operation *add =
-      &cast<GraphFuncOp>(&module->front()).getBody().front().front();
+  Operation *add = &cast<GraphFuncOp>(&module->front()).body().front().front();
   auto iface = dyn_cast<TensorFlowRegistryInterface>(add);
   ASSERT_TRUE(iface);
   EXPECT_FALSE(iface.isStateful());
@@ -103,7 +102,7 @@ TEST(TensorFlowOpRegistryInterface, TestStatelessAndStatefulRegionOps) {
     ASSERT_TRUE(module);
 
     Operation *case_op =
-        &cast<GraphFuncOp>(&module->front()).getBody().front().front();
+        &cast<GraphFuncOp>(&module->front()).body().front().front();
     auto iface = dyn_cast<TensorFlowRegistryInterface>(case_op);
     ASSERT_TRUE(iface);
     EXPECT_EQ(iface.isStateful(), std::get<1>(it));

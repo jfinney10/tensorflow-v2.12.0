@@ -36,7 +36,6 @@ limitations under the License.
 #include "tensorflow/core/framework/op_gen_lib.h"
 #endif  // !defined(IS_MOBILE_PLATFORM) && !defined(IS_SLIM_BUILD)
 #include "tensorflow/c/c_api_internal.h"
-#include "tensorflow/c/tf_buffer_internal.h"
 #include "tensorflow/c/tf_status_internal.h"
 #include "tensorflow/c/tf_tensor.h"
 #include "tensorflow/core/common_runtime/device_mgr.h"
@@ -117,13 +116,7 @@ const char* TF_Version() { return TF_VERSION_STRING; }
 // --------------------------------------------------------------------------
 
 // --------------------------------------------------------------------------
-TF_SessionOptions* TF_NewSessionOptions() {
-  TF_SessionOptions* out = new TF_SessionOptions;
-  // Disable optimizations for static graph to allow calls to Session::Extend.
-  out->options.config.mutable_experimental()
-      ->set_disable_optimize_for_static_graph(true);
-  return out;
-}
+TF_SessionOptions* TF_NewSessionOptions() { return new TF_SessionOptions; }
 void TF_DeleteSessionOptions(TF_SessionOptions* opt) { delete opt; }
 
 void TF_SetTarget(TF_SessionOptions* options, const char* target) {
@@ -135,10 +128,33 @@ void TF_SetConfig(TF_SessionOptions* options, const void* proto,
   if (!options->options.config.ParseFromArray(proto, proto_len)) {
     status->status = InvalidArgument("Unparseable ConfigProto");
   }
-  // Disable optimizations for static graph to allow calls to Session::Extend.
-  options->options.config.mutable_experimental()
-      ->set_disable_optimize_for_static_graph(true);
 }
+// --------------------------------------------------------------------------
+TF_Buffer* TF_NewBuffer() { return new TF_Buffer{nullptr, 0, nullptr}; }
+
+TF_Buffer* TF_NewBufferFromString(const void* proto, size_t proto_len) {
+  void* copy = tensorflow::port::Malloc(proto_len);
+  memcpy(copy, proto, proto_len);
+
+  TF_Buffer* buf = new TF_Buffer;
+  buf->data = copy;
+  buf->length = proto_len;
+  buf->data_deallocator = [](void* data, size_t length) {
+    tensorflow::port::Free(data);
+  };
+  return buf;
+}
+
+void TF_DeleteBuffer(TF_Buffer* buffer) {
+  if (buffer == nullptr) return;
+  if (buffer->data_deallocator != nullptr) {
+    (*buffer->data_deallocator)(const_cast<void*>(buffer->data),
+                                buffer->length);
+  }
+  delete buffer;
+}
+
+TF_Buffer TF_GetBuffer(TF_Buffer* buffer) { return *buffer; }
 
 void TF_TensorFromProto(const TF_Buffer* from, TF_Tensor* to,
                         TF_Status* status) {
@@ -211,6 +227,39 @@ void TF_Reset(const TF_SessionOptions* opt, const char** containers,
 }  // end extern "C"
 
 namespace tensorflow {
+
+Status MessageToBuffer(const tensorflow::protobuf::MessageLite& in,
+                       TF_Buffer* out) {
+  if (out->data != nullptr) {
+    return InvalidArgument("Passing non-empty TF_Buffer is invalid.");
+  }
+  const size_t proto_size = in.ByteSizeLong();
+  void* buf = port::Malloc(proto_size);
+  if (buf == nullptr) {
+    return tensorflow::errors::ResourceExhausted(
+        "Failed to allocate memory to serialize message of type '",
+        in.GetTypeName(), "' and size ", proto_size);
+  }
+  if (!in.SerializeWithCachedSizesToArray(static_cast<uint8*>(buf))) {
+    port::Free(buf);
+    return InvalidArgument("Unable to serialize ", in.GetTypeName(),
+                           " protocol buffer, perhaps the serialized size (",
+                           proto_size, " bytes) is too large?");
+  }
+  out->data = buf;
+  out->length = proto_size;
+  out->data_deallocator = [](void* data, size_t length) { port::Free(data); };
+  return OkStatus();
+}
+
+Status BufferToMessage(const TF_Buffer* in,
+                       tensorflow::protobuf::MessageLite* out) {
+  if (in == nullptr || !out->ParseFromArray(in->data, in->length)) {
+    return errors::InvalidArgument("Unparseable ", out->GetTypeName(),
+                                   " proto");
+  }
+  return OkStatus();
+}
 
 void RecordMutation(TF_Graph* graph, const TF_Operation& op,
                     const char* mutation_type) {

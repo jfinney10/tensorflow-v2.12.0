@@ -32,10 +32,7 @@ class Converter;
 
 // Specifies the expected type taken by a TRT_TensorOrWeights input during op
 // conversion.
-// kResource is only used for resource variable ops. For an operation like
-// Add(tensor, ReadVariableOp(...)), the second operand of Add is the result of
-// the ReadVariableOp, which is a kWeight.
-enum class TrtInputArg { kTensor = 1, kWeight = 2, kBoth = 3, kResource = 4 };
+enum class TrtInputArg { kTensor = 1, kWeight = 2, kBoth = 3 };
 
 // Parameters for each op converter.
 struct OpConverterParams {
@@ -66,7 +63,7 @@ struct OpConverterParams {
 };
 
 // Operation converter function specification.
-using OpConverter = std::function<Status(const OpConverterParams*)>;
+using OpConverter = std::function<Status(OpConverterParams*)>;
 
 struct InputArgSpec {
   absl::string_view name;
@@ -77,45 +74,29 @@ struct InputArgSpec {
   }
 };
 
-template <typename T>
-std::string convert_not_supported_dtype_msg(const T& allowed_types,
-                                            DataType tf_type,
-                                            const NodeDef& node) {
-  string allowed_types_string =
-      absl::StrJoin(allowed_types, ", ", [](string* out, const DataType& type) {
-        absl::StrAppendFormat(out, "%s", DataTypeString(type));
-      });
-
-  return absl::StrCat("Data type ", DataTypeString(tf_type),
-                      " is not supported for ", node.op(), ", must be one of [",
-                      allowed_types_string, "]");
-}
-
-std::string convert_not_supported_implicit(const std::string& pOpName,
-                                           const std::string& pNodeName,
-                                           const char* pOpType = NULL);
-
 // A Curiously recurring template pattern (CRTP) template class for operation
 // converters.
 template <typename Impl>
 class OpConverterBase {
  public:
-  explicit OpConverterBase(const OpConverterParams* params,
-                           const std::vector<DataType>& data_types =
-                               {DataType::DT_FLOAT, DataType::DT_HALF})
-      : params_(params),
-        node_def_attrs_(params->node_def),
-        allowed_dtypes_(data_types) {}
+  explicit OpConverterBase(OpConverterParams* params)
+      : params_(params), node_def_attrs_(params->node_def) {}
 
   // Default NodeDef attribute name to inspect in order to determine node data
   // type. The Impl class can override this by implementing the same function.
   static constexpr const char* NodeDefDataTypeAttributeName() { return "T"; }
 
+  // Default allowed data types for the NodeDef data type attribute. The Impl
+  // class can override this by implementing the same function.
+  static constexpr std::array<DataType, 2> AllowedDataTypes() {
+    return {DataType::DT_FLOAT, DataType::DT_HALF};
+  }
+
   // Validate data type of the given NodeDef against allowed types.
   Status ValidateNodeDefDataType() {
     // If the attribute name is empty, we should skip this check.
     if (absl::string_view(Impl::NodeDefDataTypeAttributeName()).empty()) {
-      return OkStatus();
+      return Status::OK();
     }
 
     // Get the NodeDef data type.
@@ -126,13 +107,21 @@ class OpConverterBase {
                                      " not found.");
     }
 
-    // Check allowed data types.;
-    if (std::find(allowed_dtypes_.begin(), allowed_dtypes_.end(), *dtype) ==
-        allowed_dtypes_.end()) {
-      return errors::Unimplemented(convert_not_supported_dtype_msg(
-          allowed_dtypes_, *dtype, params_->node_def));
+    // Check allowed data types.
+    const auto& node_def = params_->node_def;
+    const auto& allowed_dtypes = Impl::AllowedDataTypes();
+    if (std::find(allowed_dtypes.begin(), allowed_dtypes.end(), *dtype) ==
+        allowed_dtypes.end()) {
+      std::string allowed_types_string = absl::StrJoin(
+          allowed_dtypes, ", ", [](std::string* out, const DataType& type) {
+            absl::StrAppendFormat(out, "%s", DataTypeString(type));
+          });
+      return errors::Unimplemented("Data type ", DataTypeString(*dtype),
+                                   " is not supported for ", node_def.op(),
+                                   ", must be one of [", allowed_types_string,
+                                   "], at ", node_def.name());
     }
-    return OkStatus();
+    return Status::OK();
   }
 
   static constexpr bool HasFixNumberOfInputs() { return true; }
@@ -161,7 +150,7 @@ class OpConverterBase {
                                      node_def.name());
       }
     }
-    return OkStatus();
+    return Status::OK();
   }
 
   Status operator()() {
@@ -172,7 +161,7 @@ class OpConverterBase {
     // Perform op-level validation.
     TF_RETURN_IF_ERROR(reinterpret_cast<Impl*>(this)->Validate());
     if (params_->validation_only) {
-      return OkStatus();
+      return Status::OK();
     }
 
     // Perform conversion.
@@ -180,16 +169,6 @@ class OpConverterBase {
   }
 
  protected:
-  Status NotSupportedInImplicitBatch(const char* pOpType = nullptr) {
-    if (params_->use_implicit_batch) {
-      const auto& op = params_->node_def.op();
-      const auto& nodeName = params_->node_def.name();
-      const auto& error = convert_not_supported_implicit(op, nodeName, pOpType);
-      return errors::Unimplemented(error);
-    }
-    return OkStatus();
-  }
-
   void AddOutput(const TRT_TensorOrWeights& out) {
     params_->outputs->push_back(out);
   }
@@ -201,16 +180,15 @@ class OpConverterBase {
     return result;
   }
 
-  const OpConverterParams* const params_;
-  const AttrSlice node_def_attrs_;
-  const std::vector<DataType> allowed_dtypes_;
+  OpConverterParams* const params_;
+  AttrSlice node_def_attrs_;
 };
 
 // Constructs and returns a converter function for a given operation converter
 // class T. This requires T to be a derived class of StructuredOpConverter.
 template <typename T>
 OpConverter MakeConverterFunction() {
-  return [](const OpConverterParams* params) -> Status {
+  return [](OpConverterParams* params) -> Status {
     T converter(params);
     return converter();
   };

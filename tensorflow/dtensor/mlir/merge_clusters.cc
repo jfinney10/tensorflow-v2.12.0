@@ -44,16 +44,14 @@ limitations under the License.
 #include "tensorflow/dtensor/cc/constants.h"
 #include "tensorflow/dtensor/mlir/dtensor_dialect/ir/dialect.h"
 #include "tensorflow/dtensor/mlir/dtensor_mlir_passes.h"
+#include "tensorflow/dtensor/mlir/dtensor_mlir_passes_classes.h"
 #include "tensorflow/dtensor/mlir/ir/tf_dtensor.h"
 #include "tensorflow/dtensor/mlir/layout_parsing.h"
 #include "tensorflow/dtensor/mlir/spmd_expander_common.h"
 
 namespace tensorflow {
 namespace dtensor {
-
 namespace {
-#define GEN_PASS_DEF_DTENSORMERGECLUSTERS
-#include "tensorflow/dtensor/mlir/dtensor_passes.h.inc"
 
 constexpr char kMissingMeshErrorMsg[] =
     "Failed to extract mesh for DTensorMergeCluster pass. "
@@ -244,7 +242,7 @@ mlir::LogicalResult InlineNestedDeviceClusters(mlir::ModuleOp module) {
     // enclosing cluster. Remove the child cluster and move all ops to parent
     // cluster instead.
     for (auto it : llvm::zip(cluster.GetBody().getTerminator()->getOperands(),
-                             cluster.getResults())) {
+                             cluster.results())) {
       mlir::Value new_value = std::get<0>(it);
       mlir::Value value_to_replace = std::get<1>(it);
       value_to_replace.replaceAllUsesWith(new_value);
@@ -272,21 +270,21 @@ void CloneEmptyIfWithPredicate(mlir::TF::IfRegionOp if_region, const Mesh& mesh,
   // DTensorSend op sends the predicate to `mesh` cluster with replicated
   // layout.
   mlir::TensorType predicate_tensor_type =
-      if_region.getCond().getType().cast<mlir::TensorType>();
+      if_region.cond().getType().cast<mlir::TensorType>();
   const std::string send_recv_key =
       absl::StrCat(kSendRecvKeyPrefix, *num_send_recvs);
   *num_send_recvs += 1;
 
   const Layout target_layout = Layout::ReplicatedOnMesh(mesh, 0);
   builder.create<mlir::TF::DTensorSend>(
-      if_region.getLoc(), if_region.getCond(),
+      if_region.getLoc(), if_region.cond(),
       builder.getStringAttr(send_recv_key),
       mlir::dtensor::LayoutAttr::get(context, target_layout));
 
   // Create new cluster op that contains cloned if operation.
   auto new_cluster = builder.create<mlir::tf_device::ClusterOp>(
       if_region.getLoc(), llvm::SmallVector<mlir::Type, 4>{});
-  new_cluster.getBody().push_back(new mlir::Block);
+  new_cluster.body().push_back(new mlir::Block);
   builder.setInsertionPointToEnd(&new_cluster.GetBody());
   auto return_op = builder.create<mlir::tf_device::ReturnOp>(
       if_region.getLoc(), llvm::SmallVector<mlir::Value, 4>{});
@@ -302,21 +300,21 @@ void CloneEmptyIfWithPredicate(mlir::TF::IfRegionOp if_region, const Mesh& mesh,
   // Clone tf.IfRegion op inside newly created cluster and make sure
   // that the predicate tensor is from DTensorRecv op created above.
   auto host_side_if = builder.create<mlir::TF::IfRegionOp>(
-      if_region.getLoc(), llvm::SmallVector<mlir::Type, 4>{},
-      recv_op.getOutput(), if_region.getIsStateless(),
+      if_region.getLoc(), llvm::SmallVector<mlir::Type, 4>{}, recv_op.output(),
+      if_region.is_stateless(),
       GetUniqueControlflowFnName("cloned_if_then", builder),
       GetUniqueControlflowFnName("cloned_if_else", builder));
   *cloned_if_region_op = host_side_if;
 
   // Create empty then branch region.
-  auto& then_branch = host_side_if.getThenBranch();
+  auto& then_branch = host_side_if.then_branch();
   then_branch.push_back(new mlir::Block);
   builder.setInsertionPointToEnd(&then_branch.front());
   builder.create<mlir::TF::YieldOp>(if_region.getLoc(),
                                     /*operands=*/llvm::ArrayRef<mlir::Value>{});
 
   // Create empty else branch region.
-  auto& else_branch = host_side_if.getElseBranch();
+  auto& else_branch = host_side_if.else_branch();
   else_branch.push_back(new mlir::Block);
   builder.setInsertionPointToEnd(&else_branch.front());
   builder.create<mlir::TF::YieldOp>(if_region.getLoc(),
@@ -335,7 +333,7 @@ mlir::LogicalResult VerifyClusterInputOutput(
 
   mlir::LogicalResult result = mlir::success();
   mlir::visitUsedValuesDefinedAbove(
-      cluster.getBody(), cluster.getBody(), [&](mlir::OpOperand* input) {
+      cluster.body(), cluster.body(), [&](mlir::OpOperand* input) {
         if (!input->get().isa<mlir::BlockArgument>()) {
           result = cluster.emitOpError(
               "found nested tf_device.Cluster op with inputs. Nested cluster "
@@ -350,7 +348,7 @@ mlir::LogicalResult VerifyClusterInputOutput(
 bool IsInsideIfThenBranch(mlir::TF::IfRegionOp if_op,
                           mlir::tf_device::ClusterOp cluster) {
   assert(if_op->isProperAncestor(cluster));
-  return if_op.getThenBranch().isAncestor(cluster->getParentRegion());
+  return if_op.then_branch().isAncestor(cluster->getParentRegion());
 }
 
 // Decomposes multi-mesh computation nested inside tf_if operations. See
@@ -379,19 +377,19 @@ mlir::LogicalResult DecomposeIf(mlir::TF::IfRegionOp if_op,
     // corresponding branch.
     if (IsInsideIfThenBranch(if_op, nested_cluster)) {
       mlir::Operation* then_branch_terminator =
-          cloned_if.getThenBranch().begin()->getTerminator();
+          cloned_if.then_branch().begin()->getTerminator();
       auto& nested_cluster_operations =
           nested_cluster.GetBody().getOperations();
-      cloned_if.getThenBranch().begin()->getOperations().splice(
+      cloned_if.then_branch().begin()->getOperations().splice(
           then_branch_terminator->getIterator(), nested_cluster_operations,
           nested_cluster_operations.begin(),
           std::prev(nested_cluster_operations.end()));
     } else {
       mlir::Operation* else_branch_terminator =
-          cloned_if.getElseBranch().begin()->getTerminator();
+          cloned_if.else_branch().begin()->getTerminator();
       auto& nested_cluster_operations =
           nested_cluster.GetBody().getOperations();
-      cloned_if.getElseBranch().begin()->getOperations().splice(
+      cloned_if.else_branch().begin()->getOperations().splice(
           else_branch_terminator->getIterator(), nested_cluster_operations,
           nested_cluster_operations.begin(),
           std::prev(nested_cluster_operations.end()));
@@ -517,8 +515,8 @@ mlir::LogicalResult MergeClusters(mlir::ModuleOp module) {
 
     for (mlir::tf_device::ClusterOp cluster : mesh_cluster_list) {
       merged_cluster_outputs.insert(merged_cluster_outputs.end(),
-                                    cluster.getResults().begin(),
-                                    cluster.getResults().end());
+                                    cluster.results().begin(),
+                                    cluster.results().end());
 
       auto return_values = cluster.GetBody().getTerminator()->getOperands();
       merged_return_values.insert(merged_return_values.end(),
@@ -533,7 +531,7 @@ mlir::LogicalResult MergeClusters(mlir::ModuleOp module) {
     builder.setInsertionPoint(&func_block.front());
     auto new_cluster = builder.create<mlir::tf_device::ClusterOp>(
         module.getLoc(), merged_return_types);
-    new_cluster.getBody().push_back(new mlir::Block);
+    new_cluster.body().push_back(new mlir::Block);
     new_cluster->setAttr(kMeshAttr, builder.getStringAttr(mesh.ToString()));
 
     // Move all ops inside clusters in cluster mesh to `new_cluster`.
@@ -553,8 +551,8 @@ mlir::LogicalResult MergeClusters(mlir::ModuleOp module) {
                    nullptr;
           });
         }
-        op_to_move.moveBefore(new_cluster.SingleBlock::getBody(),
-                              new_cluster.SingleBlock::getBody()->end());
+        op_to_move.moveBefore(new_cluster.getBody(),
+                              new_cluster.getBody()->end());
       }
     }
 
@@ -586,7 +584,7 @@ mlir::LogicalResult MergeClusters(mlir::ModuleOp module) {
 // into a single cluster. After this pass, exactly one tf_device.Cluster op
 // exists for each device mesh.
 struct DTensorMergeClusters
-    : public impl::DTensorMergeClustersBase<DTensorMergeClusters> {
+    : public DTensorMergeClustersBase<DTensorMergeClusters> {
   void getDependentDialects(mlir::DialectRegistry& registry) const override {
     registry.insert<mlir::dtensor::DTensorDialect>();
   }

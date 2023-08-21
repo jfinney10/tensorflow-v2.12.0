@@ -35,6 +35,7 @@ limitations under the License.
 #include "mlir/Pass/PassRegistry.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_executor.h"
 #include "tensorflow/compiler/mlir/tensorflow/transforms/passes.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes_detail.h"
 #include "tensorflow/core/platform/logging.h"
 
 namespace mlir {
@@ -121,7 +122,7 @@ class CoarseningAnalysis {
 CoarseningAnalysis::CoarseningAnalysis(GraphOp graph) {
   // As an initial step, construct a merged island for each island in the
   // graph.
-  for (IslandOp island : graph.SingleBlock::getBody()->getOps<IslandOp>())
+  for (IslandOp island : graph.getBody()->getOps<IslandOp>())
     merged_islands_.push_back(MergedIsland(island));
 
   // Record the mapping from the island to the merge group as a secondary step,
@@ -209,7 +210,7 @@ MergedIsland* CoarseningAnalysis::GetOperandCandidateToMergeWith(
 
   // Check island control operands.
   for (IslandOp island : merged_island.islands) {
-    for (Value input : island.getControlInputs()) {
+    for (Value input : island.controlInputs()) {
       Operation* def = input.getDefiningOp();
       DCHECK_EQ(def->getParentOp(), graph);
       try_update_current_candidate(def);
@@ -260,14 +261,14 @@ MergedIsland* CoarseningAnalysis::GetResultCandidateToMergeWith(
 
   // Check island control results.
   for (IslandOp island : merged_island.islands) {
-    for (Operation* user : island.getControl().getUsers()) {
+    for (Operation* user : island.control().getUsers()) {
       DCHECK_EQ(user->getParentOp(), graph);
       try_update_current_candidate(user);
     }
 
     // Check island data results.
     Block& graph_body = llvm::cast<GraphOp>(graph).GetBody();
-    for (Value result : island.getOutputs()) {
+    for (Value result : island.outputs()) {
       for (Operation* user : result.getUsers()) {
         Operation* def = graph_body.findAncestorOpInBlock(*user);
         DCHECK_NE(def, nullptr);
@@ -321,7 +322,7 @@ void GetNewIslandResultsAndForwardResults(
 
   for (IslandOp island : merged_island.islands) {
     for (auto ret_vals :
-         llvm::zip(island.GetYield().getOperands(), island.getOutputs())) {
+         llvm::zip(island.GetYield().getOperands(), island.outputs())) {
       bool result_captured = false;
       Value inner_op_result = std::get<0>(ret_vals);
       Value island_result = std::get<1>(ret_vals);
@@ -356,7 +357,7 @@ IslandOp CreateNewIsland(const MergedIsland& merged_island,
   OpBuilder builder(merged_island.insert_point);
   auto new_island = builder.create<IslandOp>(
       merged_island.insert_point->getLoc(), result_types, operands);
-  new_island.getBody().push_back(new Block);
+  new_island.body().push_back(new Block);
   return new_island;
 }
 
@@ -366,7 +367,7 @@ YieldOp CreateNewIslandYieldOp(IslandOp new_island,
   llvm::SmallVector<Value, 8> yield_operands;
   yield_operands.reserve(results.size());
 
-  for (auto ret_vals : llvm::zip(results, new_island.getOutputs())) {
+  for (auto ret_vals : llvm::zip(results, new_island.outputs())) {
     const auto& old_result = std::get<0>(ret_vals);
 
     // Replace original island result with new island result.
@@ -407,7 +408,7 @@ void MergeIslands(const MergedIsland& merged_island,
     island_operands_and_results.operands.insert(island.operand_begin(),
                                                 island.operand_end());
   for (IslandOp island : merged_island.islands)
-    island_operands_and_results.operands.remove(island.getControl());
+    island_operands_and_results.operands.remove(island.control());
 
   // Collect results for the new merged island.
   GetNewIslandResultsAndForwardResults(merged_island,
@@ -427,7 +428,7 @@ void MergeIslands(const MergedIsland& merged_island,
 
   // Update control inputs to point to the new merged island.
   for (IslandOp island : merged_island.islands)
-    island.getControl().replaceAllUsesWith(new_island.getControl());
+    island.control().replaceAllUsesWith(new_island.control());
   for (IslandOp island : merged_island.islands) island->erase();
 }
 
@@ -440,11 +441,11 @@ void InsertDummyIslandForFetch(FetchOp fetch) {
   llvm::SmallVector<Value, 4> data_fetches;
   llvm::SmallVector<Type, 4> data_types;
   llvm::SmallVector<Value, 4> control_fetches;
-  data_fetches.reserve(fetch.getFetches().size());
+  data_fetches.reserve(fetch.fetches().size());
   data_types.reserve(data_fetches.capacity());
   control_fetches.reserve(data_fetches.capacity());
 
-  for (auto value : fetch.getFetches()) {
+  for (auto value : fetch.fetches()) {
     if (value.getType().isa<ControlType>()) {
       control_fetches.push_back(value);
     } else {
@@ -456,7 +457,7 @@ void InsertDummyIslandForFetch(FetchOp fetch) {
       fetch.getLoc(), data_types,
       /*control=*/ControlType::get(fetch.getContext()),
       /*controlInputs=*/control_fetches);
-  island.getBody().push_back(new Block);
+  island.body().push_back(new Block);
   OpBuilder::atBlockEnd(&island.GetBody())
       .create<YieldOp>(fetch.getLoc(), data_fetches);
   const int fetch_control_idx = data_fetches.size();
@@ -476,11 +477,8 @@ void InsertDummyIslandForFetch(FetchOp fetch) {
 // Pass Entry Point
 //===----------------------------------------------------------------------===//
 
-#define GEN_PASS_DEF_EXECUTORISLANDCOARSENINGPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
-
 struct ExecutorIslandCoarseningPass
-    : public impl::ExecutorIslandCoarseningPassBase<
+    : public TF::ExecutorIslandCoarseningPassBase<
           ExecutorIslandCoarseningPass> {
   void runOnOperation() override;
 };

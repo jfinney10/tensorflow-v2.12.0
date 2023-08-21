@@ -1761,12 +1761,13 @@ class ListOpsTest(test_util.TensorFlowTestCase, parameterized.TestCase):
     self.skipTest("b/150742232")
 
     @function.defun_with_attributes(attributes={"_noinline": True})
-    def generator(c):
+    def generator():
+      c = constant_op.constant(["a", "b", "c"])
       return list_ops.tensor_list_from_tensor(c, element_shape=[])
 
     @def_function.function
-    def f(c):
-      l = generator(c)
+    def f():
+      l = generator()
 
       def upper(i):
         e = list_ops.tensor_list_get_item(l, i, element_dtype=dtypes.string)
@@ -1775,8 +1776,7 @@ class ListOpsTest(test_util.TensorFlowTestCase, parameterized.TestCase):
       return map_fn.map_fn(
           upper, constant_op.constant([0, 1, 2]), dtype=dtypes.string)
 
-    c = constant_op.constant(["a", "b", "c"])
-    self.assertAllEqual(f(c), [b"A", b"B", b"C"])
+    self.assertAllEqual(f(), [b"A", b"B", b"C"])
 
   def testPopBackGrad(self):
     # https://github.com/tensorflow/tensorflow/issues/37230

@@ -82,7 +82,7 @@ Status UpdateFunctionSpecificConversionParams(
     int tmp = 0;
     TF_RETURN_IF_ERROR(GetNodeAttr(attr, name, &tmp));
     *dst = static_cast<size_t>(tmp);
-    return OkStatus();
+    return Status::OK();
   };
 
   TF_RETURN_IF_ERROR(
@@ -112,14 +112,14 @@ Status UpdateFunctionSpecificConversionParams(
       ProfileStrategyFromName(profile_strategy, &cp.profile_strategy));
   TF_RETURN_IF_ERROR(GetNodeAttr(attr, "_tftrt_allow_build_at_runtime",
                                  &cp.allow_build_at_runtime));
-  return OkStatus();
+  return Status::OK();
 }
 }  // namespace
 
 Status TRTOptimizationPass::Init(
     const RewriterConfig_CustomGraphOptimizer* config) {
   if (config == nullptr) {
-    return OkStatus();
+    return Status::OK();
   }
   const auto params = config->parameter_map();
   if (params.count("minimum_segment_size")) {
@@ -159,7 +159,7 @@ Status TRTOptimizationPass::Init(
     TF_RETURN_IF_ERROR(ProfileStrategyFromName(
         params.at("profile_strategy").s(), &params_.profile_strategy));
   }
-  return OkStatus();
+  return Status::OK();
 }
 
 static bool ExplicitPrecisionModePolicy() {
@@ -178,7 +178,7 @@ Status TRTOptimizationPass::Optimize(grappler::Cluster* cluster,
       (item.id != "tf_graph" && !do_function_conversion)) {
     VLOG(1) << "Not optimizing this grappler item: " << item.id;
     *optimized_graph = item.graph;
-    return OkStatus();
+    return Status::OK();
   }
 
   if (params_.use_calibration &&

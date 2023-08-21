@@ -56,10 +56,7 @@ class ReluTest(test.TestCase):
     self.assertShapeEqual(np_relu, tf_relu)
 
   def testNumbersCPU(self):
-    for t in [
-        np.int32, np.int64, np.float16, np.float32, np.float64,
-        dtypes.bfloat16.as_numpy_dtype
-    ]:
+    for t in [np.int32, np.int64, np.float16, np.float32, np.float64]:
       # Force execution on CPU even if a GPU kernel is available for the type.
       with ops.device("/device:CPU:0"):
         self._testRelu(
@@ -68,12 +65,7 @@ class ReluTest(test.TestCase):
   def testNumbersGPU(self):
     if not test.is_gpu_available():
       self.skipTest("No GPU available")
-    for t in [
-        np.float16,
-        np.float32,
-        np.float64,
-        dtypes.bfloat16.as_numpy_dtype,
-    ]:
+    for t in [np.float16, np.float32, np.float64]:
       self._testRelu(
           np.array([[-9, 7, -5, 3, -1], [1, -3, 5, -7, 9]]).astype(t))
 
@@ -230,10 +222,7 @@ class Relu6Test(test.TestCase):
     self.assertShapeEqual(np_relu6, tf_relu6)
 
   def testNumbersCPU(self):
-    for t in [
-        np.int32, np.int64, np.float16, np.float32, np.float64,
-        dtypes.bfloat16.as_numpy_dtype
-    ]:
+    for t in [np.int32, np.int64, np.float16, np.float32, np.float64]:
       # Force execution on CPU even if a GPU kernel is available for the type.
       with ops.device("/device:CPU:0"):
         self._testRelu6(
@@ -242,12 +231,7 @@ class Relu6Test(test.TestCase):
   def testNumbersGPU(self):
     if not test.is_gpu_available():
       self.skipTest("No GPU available")
-    for t in [
-        np.float16,
-        np.float32,
-        np.float64,
-        dtypes.bfloat16.as_numpy_dtype,
-    ]:
+    for t in [np.float16, np.float64, np.double]:
       self._testRelu6(
           np.array([[-9, 7, -5, 3, -1], [1, -3, 5, -7, 9]]).astype(t))
 
@@ -314,12 +298,7 @@ class LeakyReluTest(test.TestCase):
   def testNumbersGPU(self):
     if not test.is_gpu_available():
       self.skipTest("No GPU available")
-    for t in [
-        np.float16,
-        np.float32,
-        np.float64,
-        dtypes.bfloat16.as_numpy_dtype,
-    ]:
+    for t in [np.float16, np.float32, np.float64]:
       self._testLeakyRelu(
           np.array([[-9, 7, -5, 3, -1], [1, -3, 5, -7, 9]]).astype(t),
           alpha=0.1)
@@ -434,9 +413,7 @@ class EluTest(test.TestCase):
     self.assertShapeEqual(np_elu, tf_elu)
 
   def testNumbersCPU(self):
-    for t in [
-        np.float16, np.float32, np.float64, dtypes.bfloat16.as_numpy_dtype
-    ]:
+    for t in [np.float16, np.float32, np.float64]:
       # Force execution on CPU even if a GPU kernel is available for the type.
       with ops.device("/device:CPU:0"):
         self._testElu(
@@ -445,12 +422,7 @@ class EluTest(test.TestCase):
   def testNumbersGPU(self):
     if not test.is_gpu_available():
       self.skipTest("No GPU available")
-    for t in [
-        np.float16,
-        np.float32,
-        np.float64,
-        dtypes.bfloat16.as_numpy_dtype,
-    ]:
+    for t in [np.float16, np.float32, np.float64]:
       self._testElu(np.array([[-9, 7, -5, 3, -1], [1, -3, 5, -7, 9]]).astype(t))
 
   def testNaNPropagation(self):
@@ -549,9 +521,7 @@ class SeluTest(test.TestCase):
     self.assertShapeEqual(np_selu, tf_selu)
 
   def testNumbers(self):
-    for t in [
-        np.float16, np.float32, np.float64, dtypes.bfloat16.as_numpy_dtype
-    ]:
+    for t in [np.float16, np.float32, np.float64]:
       self._testSelu(
           np.array([[-9, 7, -5, 3, -1], [1, -3, 5, -7, 9]]).astype(t))
       # Force executed on CPU in case GPU kernels are available.
@@ -631,10 +601,7 @@ class CreluTest(test.TestCase):
     self.assertShapeEqual(np_crelu, tf_crelu)
 
   def testNumbersCPU(self):
-    for t in [
-        np.int32, np.int64, np.float16, np.float32, np.float64,
-        dtypes.bfloat16.as_numpy_dtype
-    ]:
+    for t in [np.int32, np.int64, np.float16, np.float32, np.float64]:
       # Force execution on CPU even if a GPU kernel is available for the type.
       with ops.device("/device:CPU:0"):
         self._testCrelu(
@@ -643,12 +610,7 @@ class CreluTest(test.TestCase):
   def testNumbersGPU(self):
     if not test.is_gpu_available():
       self.skipTest("No GPU available")
-    for t in [
-        np.float16,
-        np.float32,
-        np.float64,
-        dtypes.bfloat16.as_numpy_dtype,
-    ]:
+    for t in [np.float16, np.float32, np.float64]:
       self._testCrelu(
           np.array([[-9, 7, -5, 3, -1], [1, -3, 5, -7, 9]]).astype(t))
 

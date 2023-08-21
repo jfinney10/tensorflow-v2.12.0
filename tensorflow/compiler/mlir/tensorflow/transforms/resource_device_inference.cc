@@ -15,7 +15,6 @@ limitations under the License.
 
 #include <iterator>
 #include <memory>
-#include <optional>
 #include <tuple>
 #include <utility>
 
@@ -44,6 +43,7 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/tensorflow/analysis/resource_alias_analysis.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_types.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes_detail.h"
 
 #define DEBUG_TYPE "tf-resource-device-inference"
 
@@ -54,9 +54,6 @@ namespace {
 constexpr char kDeviceAttr[] = "device";
 constexpr char kFuncDeviceAttr[] = "tf.device";
 
-#define GEN_PASS_DEF_RESOURCEDEVICEINFERENCEPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
-
 // A pass that propagates device assignment of resources on a module. It
 // performs in-function propagation, as well as cross-function propagation from
 // callers to callees.
@@ -64,7 +61,7 @@ constexpr char kFuncDeviceAttr[] = "tf.device";
 // This pass changes the module by adding "tf.device" attribute to function
 // arguments and adding "device" attribute to TF ops.
 struct ResourceDeviceInference
-    : public impl::ResourceDeviceInferencePassBase<ResourceDeviceInference> {
+    : public ResourceDeviceInferencePassBase<ResourceDeviceInference> {
   void runOnOperation() override;
 };
 
@@ -79,7 +76,7 @@ class PerFunctionResult {
   // Returns the recorded device assignment for a resource, if any.
   Optional<StringRef> DeviceForResource(Value resource) const {
     Optional<StringRef> result;
-    if (alias_analysis_.IsUnknownResource(resource)) return std::nullopt;
+    if (alias_analysis_.IsUnknownResource(resource)) return llvm::None;
     for (int64_t id : alias_analysis_.GetResourceUniqueIds(resource)) {
       auto it = resource_id_to_device_.find(id);
       if (it == resource_id_to_device_.end()) continue;
@@ -88,7 +85,7 @@ class PerFunctionResult {
         continue;
       }
       // Got conflicting assignments
-      return std::nullopt;
+      return llvm::None;
     }
     return result;
   }
@@ -146,8 +143,7 @@ inline StringRef GetDeviceAttr(Operation* op) {
 // Print operation with debug info (to get line number info for debugging)
 void dump(StringRef message, Operation* op) {
   llvm::dbgs() << message;
-  op->print(llvm::dbgs(), OpPrintingFlags().enableDebugInfo(
-                              /*enable=*/true, /*prettyForm=*/true));
+  op->print(llvm::dbgs(), OpPrintingFlags().enableDebugInfo(true));
   llvm::dbgs() << "\n";
 }
 
@@ -180,7 +176,7 @@ LogicalResult ComputeResourceDevicesInComputation(func::FuncOp func_op,
       // Record VarHandleOp's device attribute.
       StringRef device_attr = GetDeviceAttr(op);
       if (device_attr.empty()) return WalkResult::advance();
-      auto res = AddResourceDeviceAndEmitError(var_handle.getResource(),
+      auto res = AddResourceDeviceAndEmitError(var_handle.resource(),
                                                device_attr, op, result);
       if (failed(res)) return WalkResult::interrupt();
     } else if (auto identity = dyn_cast<IdentityOp>(op)) {
@@ -288,7 +284,7 @@ void ResourceDeviceInference::runOnOperation() {
           return WalkResult::interrupt();
       } else if (auto if_op = dyn_cast<IfOp>(op)) {
         if (failed(propagate_operands_to_callee_arguments(
-                if_op, if_op.getInput(),
+                if_op, if_op.input(),
                 {if_op.then_function(), if_op.else_function()}, func_res)))
           return WalkResult::interrupt();
       } else if (auto call = dyn_cast<CallOpInterface>(op)) {

@@ -17,23 +17,20 @@ limitations under the License.
 
 #include <memory>
 #include <random>
-#include <string_view>
-#include <tuple>
 #include <utility>
-#include <vector>
 
-#include "tensorflow/compiler/xla/hlo/ir/hlo_computation.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instruction.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_module.h"
 #include "tensorflow/compiler/xla/layout_util.h"
-#include "tensorflow/compiler/xla/stream_executor/kernel_spec.h"
+#include "tensorflow/compiler/xla/service/hlo_computation.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
+#include "tensorflow/compiler/xla/service/hlo_module.h"
 #include "tensorflow/compiler/xla/util.h"
-#include "tensorflow/tsl/platform/errors.h"
-#include "tensorflow/tsl/platform/regexp.h"
-#include "tensorflow/tsl/profiler/lib/traceme.h"
-#include "tensorflow/tsl/util/determinism.h"
-#include "tensorflow/tsl/util/env_var.h"
-#include "tensorflow/tsl/util/proto/proto_utils.h"
+#include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/platform/regexp.h"
+#include "tensorflow/core/profiler/lib/traceme.h"
+#include "tensorflow/core/util/determinism.h"
+#include "tensorflow/core/util/env_var.h"
+#include "tensorflow/core/util/proto/proto_utils.h"
+#include "tensorflow/stream_executor/kernel_spec.h"
 
 namespace xla {
 namespace gpu {
@@ -64,53 +61,42 @@ int64_t FindMissingDnum(absl::Span<const int64_t> vals) {
   return vals.size();
 }
 
-StatusOr<Layout> DataLayoutToXlaLayout(
-    DataLayout data_layout, int64_t batch_dimension, int64_t feature_dimension,
-    absl::Span<int64_t const> spatial_dimensions) {
-  std::vector<int64_t> layout;
-  switch (data_layout) {
-    case DataLayout::kBatchDepthYX:  // NCHW
-      layout.push_back(batch_dimension);
-      layout.push_back(feature_dimension);
-      layout.insert(layout.end(), spatial_dimensions.begin(),
-                    spatial_dimensions.end());
-      break;
-    case DataLayout::kBatchDepthYX4:   // NCHW_VECT_C
-    case DataLayout::kBatchDepthYX32:  // NCHW_VECT_C
-      layout.push_back(batch_dimension);
-      layout.push_back(feature_dimension);
-      layout.insert(layout.end(), spatial_dimensions.begin(),
-                    spatial_dimensions.end());
-      layout.push_back(FindMissingDnum(layout));
-      break;
-    case DataLayout::kBatchYXDepth:  // NHWC
-      layout.push_back(batch_dimension);
-      layout.insert(layout.end(), spatial_dimensions.begin(),
-                    spatial_dimensions.end());
-      layout.push_back(feature_dimension);
-      break;
-    default:
-      return InternalError("Invalid layout %s", DataLayoutString(data_layout));
-  }
-  return LayoutUtil::MakeLayoutFromMajorToMinor(layout);
-}
-
 }  // anonymous namespace
 
 StatusOr<std::tuple<Layout, Layout, Layout>>
 StreamExecutorConvLayoutsToXlaLayouts(const ConvolutionDimensionNumbers& dnums,
                                       DataLayout input, FilterLayout filter,
                                       DataLayout output) {
-  TF_ASSIGN_OR_RETURN(
-      Layout input_layout,
-      DataLayoutToXlaLayout(input, dnums.input_batch_dimension(),
-                            dnums.input_feature_dimension(),
-                            dnums.input_spatial_dimensions()));
-  TF_ASSIGN_OR_RETURN(
-      Layout output_layout,
-      DataLayoutToXlaLayout(input, dnums.output_batch_dimension(),
-                            dnums.output_feature_dimension(),
-                            dnums.output_spatial_dimensions()));
+  std::vector<int64_t> input_layout;
+  switch (input) {
+    case DataLayout::kBatchDepthYX:  // NCHW
+      input_layout.push_back(dnums.input_batch_dimension());
+      input_layout.push_back(dnums.input_feature_dimension());
+      input_layout.insert(input_layout.end(),
+                          dnums.input_spatial_dimensions().begin(),
+                          dnums.input_spatial_dimensions().end());
+      break;
+    case DataLayout::kBatchDepthYX4:   // NCHW_VECT_C
+    case DataLayout::kBatchDepthYX32:  // NCHW_VECT_C
+      input_layout.push_back(dnums.input_batch_dimension());
+      input_layout.push_back(dnums.input_feature_dimension());
+      input_layout.insert(input_layout.end(),
+                          dnums.input_spatial_dimensions().begin(),
+                          dnums.input_spatial_dimensions().end());
+      input_layout.push_back(FindMissingDnum(input_layout));
+      break;
+    case DataLayout::kBatchYXDepth:  // NHWC
+      input_layout.push_back(dnums.input_batch_dimension());
+      input_layout.insert(input_layout.end(),
+                          dnums.input_spatial_dimensions().begin(),
+                          dnums.input_spatial_dimensions().end());
+      input_layout.push_back(dnums.input_feature_dimension());
+      break;
+    default:
+      return InternalError("Invalid input layout %s for conv with dnums %s",
+                           DataLayoutString(input),
+                           ConvolutionDimensionNumbersToString(dnums));
+  }
 
   std::vector<int64_t> filter_layout;
   switch (filter) {
@@ -138,14 +124,45 @@ StreamExecutorConvLayoutsToXlaLayouts(const ConvolutionDimensionNumbers& dnums,
       filter_layout.push_back(dnums.kernel_input_feature_dimension());
       break;
     default:
-      return InternalError("Invalid filter layout %s for conv with dnums %s,",
+      return InternalError("Invalid filter layout %s for conv with dnums %s",
                            FilterLayoutString(filter),
                            ConvolutionDimensionNumbersToString(dnums));
   }
 
-  return std::make_tuple(input_layout,
+  std::vector<int64_t> output_layout;
+  switch (output) {
+    case DataLayout::kBatchDepthYX:  // NCHW
+      output_layout.push_back(dnums.output_batch_dimension());
+      output_layout.push_back(dnums.output_feature_dimension());
+      output_layout.insert(output_layout.end(),
+                           dnums.output_spatial_dimensions().begin(),
+                           dnums.output_spatial_dimensions().end());
+      break;
+    case DataLayout::kBatchDepthYX4:   // NCHW_VECT_C
+    case DataLayout::kBatchDepthYX32:  // NCHW_VECT_C
+      output_layout.push_back(dnums.output_batch_dimension());
+      output_layout.push_back(dnums.output_feature_dimension());
+      output_layout.insert(output_layout.end(),
+                           dnums.output_spatial_dimensions().begin(),
+                           dnums.output_spatial_dimensions().end());
+      output_layout.push_back(FindMissingDnum(output_layout));
+      break;
+    case DataLayout::kBatchYXDepth:  // NHWC
+      output_layout.push_back(dnums.output_batch_dimension());
+      output_layout.insert(output_layout.end(),
+                           dnums.output_spatial_dimensions().begin(),
+                           dnums.output_spatial_dimensions().end());
+      output_layout.push_back(dnums.output_feature_dimension());
+      break;
+    default:
+      return InternalError("Invalid output layout %s for conv with dnums %s",
+                           DataLayoutString(output),
+                           ConvolutionDimensionNumbersToString(dnums));
+  }
+
+  return std::make_tuple(LayoutUtil::MakeLayoutFromMajorToMinor(input_layout),
                          LayoutUtil::MakeLayoutFromMajorToMinor(filter_layout),
-                         output_layout);
+                         LayoutUtil::MakeLayoutFromMajorToMinor(output_layout));
 }
 
 StatusOr<std::tuple<DataLayout, FilterLayout, DataLayout>>
@@ -198,12 +215,9 @@ XlaConvShapesToStreamExecutorLayouts(const ConvolutionDimensionNumbers& dnums,
   } else if (LayoutUtil::Equal(input.layout(), nhwc_input)) {
     input_layout = DataLayout::kBatchYXDepth;
   } else {
-    return InternalError(
-        "Invalid input layout %s for conv with dnums %s; expected one of (%s, "
-        "%s, %s)",
-        LayoutUtil::HumanString(input.layout()),
-        ConvolutionDimensionNumbersToString(dnums), nchw_input.ToString(),
-        nchw_vect_input.ToString(), nhwc_input.ToString());
+    return InternalError("Invalid input layout %s for conv with dnums %s",
+                         LayoutUtil::HumanString(input.layout()),
+                         ConvolutionDimensionNumbersToString(dnums));
   }
 
   FilterLayout filter_layout;
@@ -225,12 +239,9 @@ XlaConvShapesToStreamExecutorLayouts(const ConvolutionDimensionNumbers& dnums,
   } else if (LayoutUtil::Equal(filter.layout(), nhwc_filter)) {
     filter_layout = FilterLayout::kOutputYXInput;
   } else {
-    return InternalError(
-        "Invalid filter layout %s for conv with dnums %s, expected one of (%s, "
-        "%s, %s)",
-        LayoutUtil::HumanString(filter.layout()),
-        ConvolutionDimensionNumbersToString(dnums), nchw_filter.ToString(),
-        nchw_vect_filter.ToString(), nhwc_filter.ToString());
+    return InternalError("Invalid filter layout %s for conv with dnums %s",
+                         LayoutUtil::HumanString(filter.layout()),
+                         ConvolutionDimensionNumbersToString(dnums));
   }
 
   DataLayout output_layout;
@@ -319,8 +330,7 @@ absl::Mutex& GetGpuMutex(const se::StreamExecutor* stream_exec) {
 
 StatusOr<std::unique_ptr<se::KernelBase>> CreateKernel(
     absl::string_view kernel_name, uint64_t num_args, absl::string_view ptx,
-    absl::Span<const uint8_t> cubin_data, se::StreamExecutor* stream_exec,
-    uint32_t shared_mem_bytes) {
+    absl::Span<const uint8_t> cubin_data, se::StreamExecutor* stream_exec) {
   se::MultiKernelLoaderSpec loader_spec(num_args);
   loader_spec.AddCudaPtxInMemory(ptx, kernel_name);
 
@@ -331,21 +341,15 @@ StatusOr<std::unique_ptr<se::KernelBase>> CreateKernel(
 
   auto kernel_base = std::make_unique<se::KernelBase>(stream_exec);
   TF_RETURN_IF_ERROR(stream_exec->GetKernel(loader_spec, kernel_base.get()));
-  se::KernelMetadata m;
-  m.set_shared_memory_bytes(shared_mem_bytes);
-  kernel_base->set_metadata(m);
   return std::move(kernel_base);
 }
 
 template <int n>
 static std::unique_ptr<se::KernelArgsArrayBase> MakeKernelArgs(
-    absl::Span<const se::DeviceMemoryBase> args, uint32_t shared_mem_bytes) {
+    absl::Span<const se::DeviceMemoryBase> args) {
   auto kernel_args = std::make_unique<se::KernelArgsArray<n>>();
   for (const se::DeviceMemoryBase& buf : args) {
     kernel_args->add_device_memory_argument(buf);
-  }
-  if (shared_mem_bytes > 0) {
-    kernel_args->add_shared_bytes(shared_mem_bytes);
   }
   return kernel_args;
 }
@@ -353,8 +357,6 @@ static std::unique_ptr<se::KernelArgsArrayBase> MakeKernelArgs(
 Status ExecuteKernelOnStream(const se::KernelBase& kernel,
                              absl::Span<const se::DeviceMemoryBase> args,
                              const LaunchDimensions& dims, se::Stream* stream) {
-  int shared_mem_bytes = 0;
-  kernel.metadata().shared_memory_bytes(&shared_mem_bytes);
   static constexpr int kKernelArgsLimit = 1024;
   std::unique_ptr<se::KernelArgsArrayBase> kernel_args;
   // The KernelArgsArray structure requires at a minimum 48 * args.size()
@@ -362,11 +364,11 @@ Status ExecuteKernelOnStream(const se::KernelBase& kernel,
   // specializations for smaller sizes. 64 arguments are likely to fit in a
   // 4KiB page.
   if (args.size() <= 64) {
-    kernel_args = MakeKernelArgs<64>(args, shared_mem_bytes);
+    kernel_args = MakeKernelArgs<64>(args);
   } else if (args.size() <= 256) {
-    kernel_args = MakeKernelArgs<256>(args, shared_mem_bytes);
+    kernel_args = MakeKernelArgs<256>(args);
   } else {
-    kernel_args = MakeKernelArgs<kKernelArgsLimit>(args, shared_mem_bytes);
+    kernel_args = MakeKernelArgs<kKernelArgsLimit>(args);
   }
 
   LaunchDimensions::Dim3D thread_counts = dims.thread_counts_per_block();
@@ -515,19 +517,18 @@ bool RequireDeterminism(const HloModuleConfig& config) {
   static bool require_cudnn_determinism = [] {
     // TODO(reedwm): Remove the TF_CUDNN_DETERMINISTIC env var.
     bool cudnn_deterministic = false;
-    TF_CHECK_OK(tsl::ReadBoolFromEnvVar("TF_CUDNN_DETERMINISTIC",
-                                        /*default_val=*/false,
-                                        &cudnn_deterministic));
+    TF_CHECK_OK(tensorflow::ReadBoolFromEnvVar("TF_CUDNN_DETERMINISTIC",
+                                               /*default_val=*/false,
+                                               &cudnn_deterministic));
     return cudnn_deterministic;
   }();
-  return tsl::OpDeterminismRequired() || require_cudnn_determinism ||
+  return tensorflow::OpDeterminismRequired() || require_cudnn_determinism ||
          config.debug_options().xla_gpu_deterministic_ops();
 }
 
 StatusOr<AutotuneResult> PickBestResult(
     absl::Span<AutotuneResult const> profile_results,
-    std::optional<std::string_view> instr_str,
-    HloModuleConfig hlo_module_config) {
+    const HloInstruction& instr) {
   std::vector<AutotuneResult> filtered_results;
 
   // For now, we ignore WRONG_RESULT failures because false-positives are
@@ -543,14 +544,8 @@ StatusOr<AutotuneResult> PickBestResult(
 
   if (filtered_results.empty()) {
     std::ostringstream msg;
-    if (instr_str.has_value()) {
-      msg << "All algorithms tried for " << instr_str.value()
-          << " failed. Falling back to default algorithm.  Per-algorithm "
-             "errors:";
-    } else {
-      msg << "All algorithms failed. Falling back to the default algorithm. "
-          << "Per-algorithm errors:";
-    }
+    msg << "All algorithms tried for " << instr.ToString()
+        << " failed. Falling back to default algorithm.  Per-algorithm errors:";
     for (const auto& result : profile_results) {
       msg << "\n  " << result.failure().msg();
     }
@@ -558,12 +553,12 @@ StatusOr<AutotuneResult> PickBestResult(
   }
 
   auto selected_result = filtered_results.begin();
-  if (!RequireDeterminism(hlo_module_config)) {
+  if (!RequireDeterminism(instr.parent()->parent()->config())) {
     selected_result = absl::c_min_element(
         filtered_results,
         [](const AutotuneResult& lhs, const AutotuneResult& rhs) {
-          return tsl::proto_utils::FromDurationProto(lhs.run_time()) <
-                 tsl::proto_utils::FromDurationProto(rhs.run_time());
+          return tensorflow::proto_utils::FromDurationProto(lhs.run_time()) <
+                 tensorflow::proto_utils::FromDurationProto(rhs.run_time());
         });
   }
   return *selected_result;

@@ -34,6 +34,7 @@ limitations under the License.
 #include "tensorflow/dtensor/cc/constants.h"
 #include "tensorflow/dtensor/cc/tensor_layout.h"
 #include "tensorflow/dtensor/mlir/dtensor_mlir_passes.h"
+#include "tensorflow/dtensor/mlir/dtensor_mlir_passes_classes.h"
 #include "tensorflow/dtensor/mlir/ir/tf_dtensor.h"
 #include "tensorflow/dtensor/mlir/layout_parsing.h"
 #include "tensorflow/dtensor/mlir/op_utils.h"
@@ -41,10 +42,7 @@ limitations under the License.
 
 namespace tensorflow {
 namespace dtensor {
-
 namespace {
-#define GEN_PASS_DEF_DTENSORCLUSTERFUNCTIONCONVERSION
-#include "tensorflow/dtensor/mlir/dtensor_passes.h.inc"
 
 // Attach layouts for all the returned values so that custom device could get
 // layouts for the handles.
@@ -70,7 +68,7 @@ mlir::LogicalResult AttachRetvalLayouts(
       return func.emitOpError("error while parsing result layout for function");
     }
 
-    auto result_layout = result_layout_or_status.value();
+    auto result_layout = result_layout_or_status.ValueOrDie();
 
     // When function returns its arguments directly, layout information for the
     // return value of `func` may be only obtainable by looking at it's callsite
@@ -83,7 +81,7 @@ mlir::LogicalResult AttachRetvalLayouts(
         if (!layout_or_status.ok())
           return func.emitOpError(
               "error while parsing result layout for function");
-        result_layout = std::move(layout_or_status.value());
+        result_layout = std::move(layout_or_status.ValueOrDie());
       }
 
       if (!result_layout)
@@ -133,7 +131,7 @@ mlir::LogicalResult ReplaceClusterWithPartitionCallOp(
       cluster_func.getResultTypes().begin(),
       cluster_func.getResultTypes().end()};
 
-  llvm::StringRef function_name = cluster_func.getFunc();
+  auto function_name = cluster_func.funcAttr();
 
   builder->setInsertionPoint(cluster_func);
   auto call_op = builder->create<mlir::TF::StatefulPartitionedCallOp>(
@@ -158,7 +156,7 @@ mlir::LogicalResult ReplaceClusterWithPartitionCallOp(
 // MLIR pass that converts tf_device.cluster_func to TF partitioned call
 // op with device mesh config added to `config` attribute.
 struct DTensorClusterFunctionConversion
-    : public impl::DTensorClusterFunctionConversionBase<
+    : public DTensorClusterFunctionConversionBase<
           DTensorClusterFunctionConversion> {
   void runOnOperation() override {
     mlir::MLIRContext& context = getContext();

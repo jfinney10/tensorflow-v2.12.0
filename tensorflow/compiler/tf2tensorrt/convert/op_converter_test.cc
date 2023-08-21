@@ -33,11 +33,15 @@ using ::testing::HasSubstr;
 
 class ExampleOpConverter : public OpConverterBase<ExampleOpConverter> {
  public:
-  explicit ExampleOpConverter(const OpConverterParams* params)
-      : OpConverterBase<ExampleOpConverter>(params, {DataType::DT_FLOAT}) {}
+  explicit ExampleOpConverter(OpConverterParams* params)
+      : OpConverterBase<ExampleOpConverter>(params) {}
 
   static constexpr const char* NodeDefDataTypeAttributeName() {
     return "data_type";
+  }
+
+  static constexpr std::array<DataType, 2> AllowedDataTypes() {
+    return {DataType::DT_FLOAT};
   }
 
   static constexpr std::array<InputArgSpec, 2> InputSpec() {
@@ -46,12 +50,12 @@ class ExampleOpConverter : public OpConverterBase<ExampleOpConverter> {
         InputArgSpec::Create("weight", TrtInputArg::kWeight)};
   }
 
-  Status Validate() { return OkStatus(); }
+  Status Validate() { return Status::OK(); }
 
   Status Convert() {
     AddOutput(TRT_TensorOrWeights(nvinfer1::DataType::kFLOAT,
                                   nvinfer1::Dims{1, {1, 1, 1}}, 1));
-    return OkStatus();
+    return Status::OK();
   }
 };
 

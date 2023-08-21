@@ -25,6 +25,7 @@ limitations under the License.
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "tensorflow/core/data/service/auto_shard_rewriter.h"
 #include "tensorflow/core/data/service/common.h"
 #include "tensorflow/core/data/service/common.pb.h"
@@ -167,7 +168,7 @@ class DispatcherState {
     const std::string dataset_id;
     const ProcessingModeDef processing_mode;
     const std::string job_name;
-    const std::optional<int64_t> num_consumers;
+    const absl::optional<int64_t> num_consumers;
     const bool use_cross_trainer_cache;
     const TargetWorkers target_workers;
   };
@@ -191,7 +192,7 @@ class DispatcherState {
     const int64_t iteration_id;
     const IterationKey iteration_key;
     const std::shared_ptr<Job> job;
-    std::optional<DistributedEpochState> distributed_epoch_state;
+    absl::optional<DistributedEpochState> distributed_epoch_state;
     std::queue<PendingTask> pending_tasks;
     int64_t num_clients = 0;
     int64_t last_client_released_micros = -1;
@@ -294,12 +295,6 @@ class DispatcherState {
   // deterministically sharding a dataset among a fixed set of workers.
   StatusOr<int64_t> GetWorkerIndex(absl::string_view worker_address) const;
 
-  // Returns the paths of all snapshots inititated during the lifetime of this
-  // journal.
-  const absl::flat_hash_set<std::string>& ListSnapshotPaths() const {
-    return snapshot_paths_;
-  }
-
  private:
   void RegisterDataset(const RegisterDatasetUpdate& register_dataset);
   void RegisterWorker(const RegisterWorkerUpdate& register_worker);
@@ -317,8 +312,6 @@ class DispatcherState {
   void ClientHeartbeat(const ClientHeartbeatUpdate& client_heartbeat);
   void CreateTask(const CreateTaskUpdate& create_task);
   void FinishTask(const FinishTaskUpdate& finish_task);
-  void Snapshot(const SnapshotUpdate& snapshot);
-
   // Updates the next available dataset ID.
   void UpdateNextAvailableDatasetId();
 
@@ -363,8 +356,6 @@ class DispatcherState {
   // Tasks, keyed by worker addresses. The values are a map from task id to
   // task.
   absl::flat_hash_map<std::string, TasksById> tasks_by_worker_;
-  // Paths for all snapshots initiated during the lifetime of this journal.
-  absl::flat_hash_set<std::string> snapshot_paths_;
 };
 
 }  // namespace data

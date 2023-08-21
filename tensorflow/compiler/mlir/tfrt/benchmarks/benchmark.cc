@@ -22,9 +22,7 @@ limitations under the License.
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "mlir/IR/BuiltinTypeInterfaces.h"  // from @llvm-project
 #include "mlir/IR/BuiltinTypes.h"  // from @llvm-project
-#include "tensorflow/compiler/xla/mlir/runtime/transforms/compiler.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tfrt/jitrt/jitrt_compiler.h"  // from @tf_runtime
 #include "tfrt/host_context/concurrent_work_queue.h"  // from @tf_runtime
@@ -33,8 +31,9 @@ limitations under the License.
 namespace tensorflow {
 
 using ::tfrt::HostContext;
+using ::tfrt::jitrt::CompilationOptions;
 using ::tfrt::jitrt::CompilationPipelineOptions;
-using ::xla::runtime::MemrefType;
+using ::tfrt::jitrt::MemrefType;
 
 const bool kStaticDim = false;
 const bool kDynamicDim = true;
@@ -63,21 +62,19 @@ JitExecutable& CreateJitExecutable(
   copts.alignment = EIGEN_MAX_ALIGN_BYTES;
   copts.num_worker_threads = host.GetNumWorkerThreads();
 
-  JitExecutable::Options opts;
-  opts.compiler.register_dialects =
-      [](xla::runtime::DialectRegistry& dialects) {
-        mlir::RegisterAllTensorFlowDialects(*dialects);
-        tfrt::jitrt::RegisterDefaultJitRtDialects(dialects);
-      };
-  opts.compiler.create_compilation_pipeline =
-      [&, copts, lower_from_tensorflow](xla::runtime::PassManager& passes) {
+  CompilationOptions opts;
+  opts.register_dialects = [](mlir::DialectRegistry& registry) {
+    mlir::RegisterAllTensorFlowDialects(registry);
+    tfrt::jitrt::RegisterDefaultJitRtDialects(registry);
+  };
+  opts.create_compilation_pipeline =
+      [&, copts, lower_from_tensorflow](mlir::PassManager& pm) {
         if (lower_from_tensorflow)
-          tensorflow::CreateTfJitRtPipeline(*passes, tf_jitrt_opts);
-        tfrt::jitrt::CreateDefaultJitRtCompilationPipeline(passes, copts);
+          tensorflow::CreateTfJitRtPipeline(pm, tf_jitrt_opts);
+        tfrt::jitrt::CreateDefaultJitRtCompilationPipeline(pm, copts);
       };
-  opts.compiler.create_specialization_pipeline =
-      CreateJitRtSpecializationPipeline;
-  opts.compiler.calling_convention = xla::runtime::DefaultCallingConvention(
+  opts.create_specialization_pipeline = CreateJitRtSpecializationPipeline;
+  opts.calling_convention = CompilationOptions::DefaultCallingConvention(
       mlir::bufferization::BufferizeTypeConverter());
 
   // Cache all jit executables, otherwise different benchmark runs will produce
@@ -92,12 +89,11 @@ JitExecutable& CreateJitExecutable(
   // Compile and cache MLIR function.
   auto it = cache->find(key);
   if (it == cache->end()) {
-    absl::StatusOr<JitExecutable> jit_executable =
+    llvm::Expected<JitExecutable> jit_executable =
         JitExecutable::Instantiate(mlir_input, function_name, opts);
-    if (!jit_executable.ok())
+    if (auto err = jit_executable.takeError())
       LOG(FATAL) << "Failed to instantiate JitExecutable from the function: "
-                 << function_name.str()
-                 << "; error: " << jit_executable.status().message();
+                 << function_name.str() << "; error: " << tfrt::StrCat(err);
 
     auto storage = std::make_unique<JitExecutable>(std::move(*jit_executable));
     it = cache->insert_or_assign(key, std::move(storage)).first;
@@ -111,32 +107,20 @@ MemrefDesc TensorToMemrefDesc(const Tensor& tensor) {
   for (int d = 0; d < tensor.shape().dims(); ++d)
     dims[d] = tensor.shape().dim_size(d);
 
-  xla::PrimitiveType dtype;
+  tfrt::DType dtype;
   if (tensor.dtype() == DT_FLOAT)
-    dtype = xla::PrimitiveType::F32;
+    dtype = tfrt::GetDType<float>();
   else if (tensor.dtype() == DT_INT64)
-    dtype = xla::PrimitiveType::S64;
+    dtype = tfrt::GetDType<int64_t>();
   else
     LOG(FATAL) << "Unsupported tensor dtype: " << tensor.dtype();
 
   tfrt::TensorShape shape(dims);
-  return MemrefDesc(
-      shape.GetRank(), dtype, tensor.data(), 0, [&](auto sizes, auto strides) {
-        MutableArrayRef<int64_t> sizes_ref(sizes.data(), sizes.size());
-        MutableArrayRef<int64_t> strides_ref(strides.data(), strides.size());
-        shape.GetDimensions(sizes_ref);
-        shape.GetStrides(strides_ref);
-      });
-}
-
-llvm::SmallVector<int64_t> GetTensorTypeShape(
-    llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<bool> dynamic_dims) {
-  llvm::SmallVector<int64_t> type_shape;
-  for (int64_t i = 0; i < shape.size(); ++i) {
-    type_shape.push_back(
-        dynamic_dims[i] == kDynamicDim ? mlir::ShapedType::kDynamic : shape[i]);
-  }
-  return type_shape;
+  return MemrefDesc(shape.GetRank(), dtype, tensor.data(), 0,
+                    [&](auto sizes, auto strides) {
+                      shape.GetDimensions(sizes);
+                      shape.GetStrides(strides);
+                    });
 }
 
 std::string PrintTensorType(llvm::ArrayRef<int64_t> shape,

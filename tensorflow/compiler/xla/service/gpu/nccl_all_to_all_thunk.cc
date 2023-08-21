@@ -26,10 +26,13 @@ limitations under the License.
 #include "absl/strings/str_format.h"
 #include "tensorflow/compiler/xla/layout_util.h"
 #include "tensorflow/compiler/xla/service/gpu/ir_emission_utils.h"
+#include "tensorflow/compiler/xla/service/hlo_casting_utils.h"
+#include "tensorflow/compiler/xla/service/hlo_instructions.h"
 #include "tensorflow/compiler/xla/shape_util.h"
+#include "tensorflow/compiler/xla/util.h"
 
 #if XLA_ENABLE_XCCL
-#include "tensorflow/compiler/xla/stream_executor/gpu/gpu_stream.h"
+#include "tensorflow/stream_executor/gpu/gpu_stream.h"
 #endif
 
 namespace xla {
@@ -49,7 +52,7 @@ namespace gpu {
   return absl::c_all_of(op.getInputs(), [&op](mlir::Value operand) {
     Shape shape = GetShape(operand);
     return LayoutUtil::IsDenseArray(shape) &&
-           IsTypeSupportedByNccl(shape.element_type(), Thunk::kNcclAllToAll) &&
+           IsTypeSupportedByNccl(shape.element_type()) &&
            (!op.getSplitDimension() ||
             LayoutUtil::MinorToMajor(shape).back() == *op.getSplitDimension());
   });
@@ -99,12 +102,11 @@ Status RunAllToAll(bool has_split_dimension,
       uint8_t* recv_buffer =
           static_cast<uint8_t*>(buffer.destination_buffer.opaque());
 
-      TF_ASSIGN_OR_RETURN(auto dtype_and_multiplier,
-                          ToNcclDataTypeAndCountMultiplier(
-                              buffer.element_type, Thunk::kNcclAllToAll));
+      TF_ASSIGN_OR_RETURN(
+          auto dtype_and_multiplier,
+          ToNcclDataTypeAndCountMultiplier(buffer.element_type));
       ncclDataType_t dtype = dtype_and_multiplier.first;
-      int64_t element_count =
-          buffer.element_count * dtype_and_multiplier.second;
+      int element_count = buffer.element_count * dtype_and_multiplier.second;
 
       TF_RET_CHECK(element_count % num_participants == 0)
           << "Buffer was not an exact multiple of the number of participants.";
@@ -132,12 +134,11 @@ Status RunAllToAll(bool has_split_dimension,
       uint8_t* recv_buffer =
           static_cast<uint8_t*>(buffer.destination_buffer.opaque());
 
-      TF_ASSIGN_OR_RETURN(auto dtype_and_multiplier,
-                          ToNcclDataTypeAndCountMultiplier(
-                              buffer.element_type, Thunk::kNcclAllToAll));
+      TF_ASSIGN_OR_RETURN(
+          auto dtype_and_multiplier,
+          ToNcclDataTypeAndCountMultiplier(buffer.element_type));
       ncclDataType_t dtype = dtype_and_multiplier.first;
-      int64_t element_count =
-          buffer.element_count * dtype_and_multiplier.second;
+      int element_count = buffer.element_count * dtype_and_multiplier.second;
 
       XLA_CUDA_RETURN_IF_ERROR(ncclSend(send_buffer, element_count, dtype,
                                         /*rank=*/i, comm, gpu_stream));

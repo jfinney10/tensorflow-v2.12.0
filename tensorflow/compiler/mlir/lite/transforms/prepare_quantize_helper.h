@@ -15,8 +15,8 @@ limitations under the License.
 
 // Transform pass for LSTMs.
 
-#ifndef TENSORFLOW_COMPILER_MLIR_LITE_TRANSFORMS_PREPARE_QUANTIZE_HELPER_H_
-#define TENSORFLOW_COMPILER_MLIR_LITE_TRANSFORMS_PREPARE_QUANTIZE_HELPER_H_
+#ifndef TENSORFLOW_COMPILER_MLIR_LITE_TRANSFORMS_PREPARE_QUANTIZE_HELPER
+#define TENSORFLOW_COMPILER_MLIR_LITE_TRANSFORMS_PREPARE_QUANTIZE_HELPER
 
 #include <algorithm>
 #include <cmath>
@@ -29,6 +29,8 @@ limitations under the License.
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/MathExtras.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
+#include "mlir/Dialect/Quant/FakeQuantSupport.h"  // from @llvm-project
+#include "mlir/Dialect/Quant/QuantOps.h"  // from @llvm-project
 #include "mlir/Dialect/Quant/QuantTypes.h"  // from @llvm-project
 #include "mlir/IR/Attributes.h"  // from @llvm-project
 #include "mlir/IR/BuiltinTypes.h"  // from @llvm-project
@@ -38,8 +40,6 @@ limitations under the License.
 #include "mlir/IR/Value.h"  // from @llvm-project
 #include "mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/lite/ir/tfl_ops.h"
-#include "tensorflow/compiler/mlir/lite/quantization/ir/FakeQuantSupport.h"
-#include "tensorflow/compiler/mlir/lite/quantization/ir/QuantOps.h"
 #include "tensorflow/compiler/mlir/lite/quantization/quantization_config.h"
 #include "tensorflow/compiler/mlir/lite/quantization/quantization_traits.h"
 #include "tensorflow/compiler/mlir/lite/quantization/quantization_utils.h"
@@ -80,8 +80,8 @@ inline QuantizedType GetIntermediateElementType(LstmOp op, int tensor_index) {
 }
 
 namespace operator_property = ::tflite::optimize::operator_property;
-using Q = quantfork::QuantizeCastOp;
-using DQ = quantfork::DequantizeCastOp;
+using Q = quant::QuantizeCastOp;
+using DQ = quant::DequantizeCastOp;
 
 template <typename LstmOp>
 LogicalResult GetLstmProperty(
@@ -97,18 +97,18 @@ LogicalResult GetLstmProperty(
     return failure();
   }
   lstm_variant->use_projection =
-      !op.getProjectionWeights().getType().template isa<NoneType>();
+      !op.projection_weights().getType().template isa<NoneType>();
   lstm_variant->use_peephole =
-      !op.getCellToOutputWeights().getType().template isa<NoneType>();
+      !op.cell_to_output_weights().getType().template isa<NoneType>();
   lstm_variant->use_layer_norm =
-      !op.getForgetLayerNormCoefficients().getType().template isa<NoneType>();
+      !op.forget_layer_norm_coefficients().getType().template isa<NoneType>();
 
   *op_property = operator_property::GetOperatorProperty(*lstm_variant);
 
   // TODO(b/176258587) move this to operator_property.cc if this is needed in
   // other components, too.
   bool use_cifg =
-      op.getInputToInputWeights().getType().template isa<NoneType>();
+      op.input_to_input_weights().getType().template isa<NoneType>();
   if (use_cifg) {
     const absl::flat_hash_set<int> cifg_non_inputs = {1, 5, 9, 12, 20};
     const int cifg_non_intermediate = 0;
@@ -179,10 +179,10 @@ class PrepareLstmOutputScale : public OpRewritePattern<SourceOp> {
       return failure();
     }
 
-    llvm::SmallVector<quantfork::StatisticsOp, 2> stats_ops = {
-        llvm::dyn_cast_or_null<quantfork::StatisticsOp>(
+    llvm::SmallVector<quant::StatisticsOp, 2> stats_ops = {
+        llvm::dyn_cast_or_null<quant::StatisticsOp>(
             op.getOperand(input_index).getDefiningOp()),
-        llvm::dyn_cast_or_null<quantfork::StatisticsOp>(
+        llvm::dyn_cast_or_null<quant::StatisticsOp>(
             *op.getResult().getUsers().begin()),
     };
 
@@ -213,7 +213,7 @@ class PrepareLstmOutputScale : public OpRewritePattern<SourceOp> {
     mlir::IntegerAttr axis;
     for (auto& stats_op : stats_ops) {
       rewriter.setInsertionPointAfter(stats_op);
-      rewriter.replaceOpWithNewOp<quantfork::StatisticsOp>(
+      rewriter.replaceOpWithNewOp<quant::StatisticsOp>(
           stats_op, stats_op.getArg(), layer_stats, axis_stats, axis);
     }
     return success();
@@ -255,8 +255,8 @@ class ConvertOpStatsToQDQs : public OpRewritePattern<SourceOp> {
           return failure();
         }
       } else {
-        if (auto stats_op = llvm::dyn_cast<quantfork::StatisticsOp>(
-                input.getDefiningOp())) {
+        if (auto stats_op =
+                llvm::dyn_cast<quant::StatisticsOp>(input.getDefiningOp())) {
           if (failed(replaceStatsOp(op, stats_op, index, tensor_property,
                                     rewriter))) {
             return failure();
@@ -332,7 +332,7 @@ class ConvertOpStatsToQDQs : public OpRewritePattern<SourceOp> {
   }
 
   LogicalResult replaceStatsOp(
-      SourceOp op, quantfork::StatisticsOp stats_op, int input_index,
+      SourceOp op, quant::StatisticsOp stats_op, int input_index,
       const operator_property::TensorProperty& tensor_property,
       PatternRewriter& rewriter) const {
     if (tensor_property.state_tensor && !stats_op.getResult().hasOneUse()) {
@@ -376,12 +376,12 @@ class ConvertOpStatsToQDQs : public OpRewritePattern<SourceOp> {
       if (tensor_property.number_of_bits == 16) {
         max = std::max(std::abs(min), std::abs(max));
         min = -max;
-        quant_type = quantfork::fakeQuantAttrsToType(
+        quant_type = quant::fakeQuantAttrsToType(
             op.getLoc(), tensor_property.number_of_bits, min, max,
             /*narrowRange=*/true, expressed,
             /*isSigned=*/true);
       } else {
-        quant_type = quantfork::fakeQuantAttrsToType(
+        quant_type = quant::fakeQuantAttrsToType(
             op.getLoc(), tensor_property.number_of_bits, min, max,
             /*narrowRange=*/false, expressed,
             /*isSigned=*/true);
@@ -463,7 +463,7 @@ class ConvertLstmStatsToQDQs : public ConvertOpStatsToQDQs<SourceOp> {
       }
       quant::UniformQuantizedType qtype;
       if (tensor_property.number_of_bits == 8) {
-        qtype = quantfork::fakeQuantAttrsToType(
+        qtype = quant::fakeQuantAttrsToType(
             op.getLoc(), tensor_property.number_of_bits,
             calibrated_type.getMin(), calibrated_type.getMax(),
             /*narrowRange=*/false, calibrated_type.getExpressedType(),
@@ -476,7 +476,7 @@ class ConvertLstmStatsToQDQs : public ConvertOpStatsToQDQs<SourceOp> {
       } else if (tensor_property.number_of_bits == 16) {
         double max = std::max(std::abs(calibrated_type.getMin()),
                               std::abs(calibrated_type.getMax()));
-        qtype = quantfork::fakeQuantAttrsToType(
+        qtype = quant::fakeQuantAttrsToType(
             op.getLoc(), tensor_property.number_of_bits, -max, max,
             /*narrowRange=*/true, calibrated_type.getExpressedType(),
             /*isSigned=*/true);
@@ -500,9 +500,9 @@ inline quant::AccumulatorScaleFunc GetUniformQuantizedTypeForBiasWithScale(
     double scale) {
   return [=](const std::vector<quant::QuantParams>& quant_params,
              bool legacy_float_scale) -> quant::QuantParams {
-    if (auto qtype = quant::GetUniformQuantizedTypeForBias(quant_params,
-                                                           legacy_float_scale)
-                         .dyn_cast_or_null<UniformQuantizedType>()) {
+    if (auto qtype =
+            GetUniformQuantizedTypeForBias(quant_params, legacy_float_scale)
+                .dyn_cast_or_null<UniformQuantizedType>()) {
       return quant::UniformQuantizedType::get(
           qtype.getFlags(), qtype.getStorageType(), qtype.getExpressedType(),
           qtype.getScale() * scale, qtype.getZeroPoint(),
@@ -571,4 +571,4 @@ class ConvertSvdfStatsToQDQs : public ConvertOpStatsToQDQs<TFL::SVDFOp> {
 }  // namespace TFL
 }  // namespace mlir
 
-#endif  // TENSORFLOW_COMPILER_MLIR_LITE_TRANSFORMS_PREPARE_QUANTIZE_HELPER_H_
+#endif  // TENSORFLOW_COMPILER_MLIR_LITE_TRANSFORMS_PREPARE_QUANTIZE_HELPER

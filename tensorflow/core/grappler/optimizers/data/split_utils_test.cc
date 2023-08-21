@@ -203,7 +203,7 @@ TEST(SplitUtilsTest, Basic) {
 
   SplitResults results =
       SplitFunction(orig, {"i1"}, /*num_captured_inputs=*/0, function_library)
-          .value();
+          .ValueOrDie();
   FunctionDef first = results.first_function;
   FunctionDef second = results.second_function;
 
@@ -245,7 +245,7 @@ TEST(SplitUtilsTest, MultiOutput) {
 
   SplitResults results =
       SplitFunction(orig, {"t1"}, /*num_captured_inputs=*/0, function_library)
-          .value();
+          .ValueOrDie();
   FunctionDef first = results.first_function;
   FunctionDef second = results.second_function;
 
@@ -276,7 +276,7 @@ TEST(SplitUtilsTest, MultipleNodesHaveSameInput) {
 
   SplitResults results =
       SplitFunction(orig, {"i1"}, /*num_captured_inputs=*/0, function_library)
-          .value();
+          .ValueOrDie();
   FunctionDef first = results.first_function;
   FunctionDef second = results.second_function;
 
@@ -310,7 +310,8 @@ TEST(SplitUtilsTest, CapturedInputs) {
   for (int num_captured = 0; num_captured <= 4; num_captured++) {
     VLOG(1) << "Number of captured inputs: " << num_captured;
     SplitResults results =
-        SplitFunction(orig, {"add"}, num_captured, function_library).value();
+        SplitFunction(orig, {"add"}, num_captured, function_library)
+            .ValueOrDie();
     FunctionDef first = results.first_function;
     FunctionDef second = results.second_function;
 
@@ -348,7 +349,7 @@ TEST(SplitUtilsTest, ControlOutputs) {
   SplitResults results =
       SplitFunction(orig, {"n1", "n2", "i1"}, /*num_captured_inputs=*/0,
                     function_library)
-          .value();
+          .ValueOrDie();
   FunctionDef first = results.first_function;
   FunctionDef second = results.second_function;
 
@@ -381,7 +382,7 @@ TEST(SplitUtilsTest, Empty) {
 
   SplitResults results =
       SplitFunction(orig, {}, /*num_captured_inputs=*/1, function_library)
-          .value();
+          .ValueOrDie();
   FunctionDef first = results.first_function;
   FunctionDef second = results.second_function;
 
@@ -410,7 +411,7 @@ TEST(SplitUtilsTest, UniqueArgNames) {
 
   SplitResults results =
       SplitFunction(orig, {"add"}, /*num_captured_inputs=*/0, function_library)
-          .value();
+          .ValueOrDie();
   FunctionDef first = results.first_function;
   FunctionDef second = results.second_function;
 

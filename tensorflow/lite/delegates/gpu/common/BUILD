@@ -3,7 +3,6 @@ load("@flatbuffers//:build_defs.bzl", "flatbuffer_cc_library")
 load("//tensorflow:tensorflow.bzl", "workspace_root")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = ["//visibility:public"],
     licenses = ["notice"],
 )
@@ -63,6 +62,7 @@ cc_library(
         "//tensorflow/lite/delegates/gpu/common/selectors:subgraph",
         "//tensorflow/lite/delegates/gpu/common/task:gpu_operation",
         "//tensorflow/lite/delegates/gpu/common/task:serialization_base",
+        "//tensorflow/lite/delegates/gpu/common/task:storage_type_util",
         "//tensorflow/lite/delegates/gpu/common/transformations:add_bias",
         "//tensorflow/lite/delegates/gpu/common/transformations:global_pooling_to_reduce_op",
         "//tensorflow/lite/delegates/gpu/common/transformations:merge_padding_with",
@@ -80,26 +80,6 @@ flatbuffer_cc_library(
     ],
     includes = [
         "//tensorflow/lite/delegates/gpu/common/task:serialization_base_cc_fbs_includes",
-    ],
-)
-
-cc_library(
-    name = "gpu_model_test_util",
-    testonly = True,
-    srcs = ["gpu_model_test_util.cc"],
-    hdrs = ["gpu_model_test_util.h"],
-    deps = [
-        ":gpu_model",
-        ":operations",
-        ":status",
-        "//tensorflow/lite/delegates/gpu/common/task:testing_util",
-        "//tensorflow/lite/delegates/gpu/common/tasks:cast",
-        "//tensorflow/lite/delegates/gpu/common/tasks:concat_z",
-        "//tensorflow/lite/delegates/gpu/common/tasks:conv_generic",
-        "//tensorflow/lite/delegates/gpu/common/tasks:elementwise",
-        "//tensorflow/lite/delegates/gpu/common/tasks:prelu",
-        "//tensorflow/lite/delegates/gpu/common/tasks:reshape",
-        "//tensorflow/lite/delegates/gpu/common/tasks:strided_slice",
     ],
 )
 
@@ -208,7 +188,6 @@ cc_library(
         ":tensor",
         "//tensorflow/lite:string",
         "//tensorflow/lite/c:common",
-        "//tensorflow/lite/core/c:common",
         "//tensorflow/lite/kernels:lstm_shared",
         "//tensorflow/lite/kernels/internal:quantization_util",
         "//tensorflow/lite/kernels/internal:tensor",
@@ -244,15 +223,13 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "//tensorflow/lite:framework",
+        "//tensorflow/lite/c:c_api_types",
+        "//tensorflow/lite/core/api",
+        "//tensorflow/lite/delegates:utils",
+        "//tensorflow/lite:framework_lib",
         "//tensorflow/lite:kernel_api",
         "//tensorflow/lite:util",
         "//tensorflow/lite/c:common",
-        "//tensorflow/lite/core:framework",
-        "//tensorflow/lite/core/c:c_api_types",
-        "//tensorflow/lite/core/c:common",
-        "//tensorflow/lite/core/api",
-        "//tensorflow/lite/delegates:utils",
         "//tensorflow/lite/tools/versioning:gpu_compatibility",
         "//tensorflow/lite/delegates/gpu/common/transformations:model_transformations",
         "//tensorflow/lite/kernels:kernel_util",
@@ -272,7 +249,6 @@ cc_test(
         "//tensorflow/lite:framework",
         "//tensorflow/lite:kernel_api",
         "//tensorflow/lite/c:common",
-        "//tensorflow/lite/core/c:common",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:span",
@@ -293,7 +269,6 @@ cc_library(
         ":tensor",
         "//tensorflow/lite:kernel_api",
         "//tensorflow/lite/c:common",
-        "//tensorflow/lite/core/c:common",
         "//tensorflow/lite/kernels:kernel_util",
         "//tensorflow/lite/kernels/internal:reference_base",
         "//tensorflow/lite/kernels/internal:tensor",
@@ -331,7 +306,6 @@ cc_library(
         ":status",
         ":tensor",
         "//tensorflow/lite/c:common",
-        "//tensorflow/lite/core/c:common",
         "//tensorflow/lite/delegates:utils",
         "//tensorflow/lite/kernels:kernel_util",
         "//tensorflow/lite/kernels/internal/utils:sparsity_format_converter",
@@ -350,7 +324,6 @@ cc_library(
         ":shape",
         ":status",
         ":tensor",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/types:variant",
     ],
 )
@@ -371,7 +344,6 @@ cc_library(
     deps = [
         ":status",
         "//tensorflow/lite/c:common",
-        "//tensorflow/lite/core/c:common",
         "//tensorflow/lite/kernels/internal:optimized_base",
         "//tensorflow/lite/kernels/internal:tensor",
         "//tensorflow/lite/kernels/internal:types",
@@ -387,7 +359,6 @@ cc_test(
         ":quantization_util",
         "//tensorflow/lite:util",
         "//tensorflow/lite/c:common",
-        "//tensorflow/lite/core/c:common",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest_main",
@@ -487,7 +458,6 @@ cc_library(
         ":shape",
         ":status",
         "//tensorflow/lite/c:common",
-        "//tensorflow/lite/core/c:common",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
     ],

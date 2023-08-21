@@ -17,9 +17,15 @@ limitations under the License.
 
 #include <queue>
 
-#include "tensorflow/compiler/xla/hlo/ir/hlo_computation.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instruction.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_opcode.h"
+#include "tensorflow/compiler/xla/service/hlo_computation.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
+#include "tensorflow/compiler/xla/service/hlo_opcode.h"
+#include "tensorflow/compiler/xla/status_macros.h"
+#include "tensorflow/compiler/xla/types.h"
+#include "tensorflow/compiler/xla/util.h"
+#include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/platform/logging.h"
 
 namespace xla {
 
@@ -65,8 +71,7 @@ StatusOr<bool> TupleSimplifier::Run(
     }
     for (auto* instruction : computation->MakeInstructionPostOrder()) {
       if (instruction->opcode() == HloOpcode::kTuple) {
-        TF_ASSIGN_OR_RETURN(bool c, RemoveWholeTuple(instruction));
-        changed |= c;
+        TF_ASSIGN_OR_RETURN(changed, RemoveWholeTuple(instruction));
       } else {
         auto ancestor = instruction->LatestNonGteAncestorAndIndex();
         if (ancestor.first == instruction) {
@@ -91,13 +96,12 @@ StatusOr<bool> TupleSimplifier::Run(
         // if only a subset of tuple's elements are used, this transform
         // optimizes them one at a time, and after the last use is optimized,
         // the Tuple will also be deleted.
-        HloInstruction* replacement = ancestor.first;
-        for (int i = 0; i < ancestor.second.size(); ++i) {
-          if (replacement->opcode() != HloOpcode::kTuple) {
-            replacement = nullptr;
-            break;
-          }
-          replacement = replacement->mutable_operand(ancestor.second[i]);
+        HloInstruction* replacement = nullptr;
+        if (ShapeUtil::Compatible(ancestor.first->shape(),
+                                  instruction->shape())) {
+          replacement = ancestor.first;
+        } else if (ancestor.first->opcode() == HloOpcode::kTuple) {
+          replacement = ancestor.first->mutable_operand(ancestor.second[0]);
         }
 
         if (replacement) {

@@ -43,18 +43,6 @@ namespace tflite {
 namespace optimize {
 namespace {
 
-// Unpacks the given flatbuffer model.
-//
-// This helper is useful as UnPackTo requires the input to not have any existing
-// state so directly calling UnPackTo could lead to memory leaks if the model
-// already had some state. Instead, the returned object from here can be used to
-// overwrite existing model.
-ModelT UnPackFlatBufferModel(const Model& flatbuffer_model) {
-  ModelT model;
-  flatbuffer_model.UnPackTo(&model);
-  return model;
-}
-
 TfLiteStatus QuantizeModel(
     flatbuffers::FlatBufferBuilder* builder, ModelT* model,
     const TensorType& input_type, const TensorType& output_type,
@@ -79,7 +67,7 @@ TfLiteStatus QuantizeModel(
 
   auto flatbuffer_model =
       FlatBufferModel::BuildFromBuffer(buffer.c_str(), buffer.size());
-  *model = UnPackFlatBufferModel(*flatbuffer_model->GetModel());
+  flatbuffer_model->GetModel()->UnPackTo(model);
   return kTfLiteOk;
 }
 
@@ -156,7 +144,7 @@ class QuantizeModelTest : public testing::Test {
   QuantizeModelTest() {
     input_model_ = ReadModel(internal::kConvModelWith0Plus10Weights);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 
   std::unique_ptr<FlatBufferModel> input_model_;
@@ -242,7 +230,7 @@ class QuantizeConvModelTest : public QuantizeModelTest,
     tensor_type_ = GetParam();
     input_model_ = ReadModel(internal::kConvModelWith0Plus10Weights);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
     // Flatbuffer is missing calibration data -- add dummy params.
     auto& subgraph = model_.subgraphs[0];
     auto* input = subgraph->tensors[subgraph->inputs[0]].get();
@@ -316,7 +304,7 @@ class QuantizeConvNoBiasModelTest : public QuantizeModelTest {
   QuantizeConvNoBiasModelTest() {
     input_model_ = ReadModel(internal::kConvModelWithNoBias);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -335,7 +323,7 @@ class QuantizeSplitModelTest : public QuantizeModelTest {
   QuantizeSplitModelTest() {
     input_model_ = ReadModel(internal::kModelSplit);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -413,7 +401,7 @@ class QuantizeConvModel2Test : public QuantizeModelTest,
     tensor_type_ = GetParam();
     input_model_ = ReadModel(internal::kConvModelWith0Plus10Weights);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
     auto& subgraph = model_.subgraphs[0];
     auto* input = subgraph->tensors[subgraph->inputs[0]].get();
     auto* output = subgraph->tensors[subgraph->outputs[0]].get();
@@ -648,7 +636,7 @@ class QuantizeSoftmaxTest : public QuantizeModelTest {
   QuantizeSoftmaxTest() {
     input_model_ = ReadModel(internal::kSingleSoftmaxModelMinMinus5MaxPlus5);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -710,7 +698,7 @@ class QuantizeAvgPoolTest : public QuantizeModelTest {
   QuantizeAvgPoolTest() {
     input_model_ = ReadModel(internal::kSingleAvgPoolModelMinMinus5MaxPlus5);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -769,7 +757,7 @@ class QuantizeMultiInputAddWithReshapeTest : public QuantizeModelTest {
   QuantizeMultiInputAddWithReshapeTest() {
     input_model_ = ReadModel(internal::kMultiInputAddWithReshape);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -889,7 +877,7 @@ class QuantizeConstInputTest : public QuantizeModelTest,
     tensor_type_ = GetParam();
     input_model_ = ReadModel(internal::kConstInputAddModel);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 
   TensorType tensor_type_;
@@ -938,7 +926,7 @@ class QuantizeArgMaxTest : public QuantizeModelTest {
   QuantizeArgMaxTest() {
     input_model_ = ReadModel(internal::kModelWithArgMaxOp);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -983,7 +971,7 @@ class QuantizeLSTMTest : public QuantizeModelTest {
   QuantizeLSTMTest() {
     input_model_ = ReadModel(internal::kLstmCalibrated);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -1008,7 +996,7 @@ class QuantizeLSTM2Test : public QuantizeModelTest {
   QuantizeLSTM2Test() {
     input_model_ = ReadModel(internal::kLstmCalibrated2);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -1033,7 +1021,7 @@ class QuantizeUnidirectionalSequenceLSTMTest : public QuantizeModelTest {
   QuantizeUnidirectionalSequenceLSTMTest() {
     input_model_ = ReadModel(internal::kUnidirectionalSequenceLstmCalibrated);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -1060,7 +1048,7 @@ class QuantizeSVDFTest : public QuantizeModelTest {
   QuantizeSVDFTest() {
     input_model_ = ReadModel(internal::kSvdfCalibrated);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -1085,7 +1073,7 @@ class QuantizeFCTest : public QuantizeModelTest {
   QuantizeFCTest() {
     input_model_ = ReadModel(internal::kModelWithFCOp);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -1124,10 +1112,13 @@ TEST_F(QuantizeFCTest, VerifyFC) {
   EXPECT_EQ(subgraph->tensors[op->outputs[0]].get()->type, TensorType_INT8);
 
   // check op and versioning.
-  EXPECT_EQ(model_.operator_codes.size(), 1);
+  EXPECT_EQ(model_.operator_codes.size(), 2);
   EXPECT_EQ(GetBuiltinCode(model_.operator_codes[0].get()),
             BuiltinOperator_FULLY_CONNECTED);
-  EXPECT_EQ(model_.operator_codes[0]->version, 5);
+  EXPECT_EQ(model_.operator_codes[0]->version, 4);
+  EXPECT_EQ(GetBuiltinCode(model_.operator_codes[1].get()),
+            BuiltinOperator_RESHAPE);
+  EXPECT_EQ(model_.operator_codes[1]->version, 1);
 }
 
 class QuantizeCustomOpTest
@@ -1137,7 +1128,7 @@ class QuantizeCustomOpTest
   QuantizeCustomOpTest() {
     input_model_ = ReadModel(internal::kModelMixed);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -1176,7 +1167,7 @@ class QuantizePackTest : public QuantizeModelTest {
   QuantizePackTest() {
     input_model_ = ReadModel(internal::kModelPack);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -1240,7 +1231,7 @@ class QuantizeMinimumMaximumTest
   QuantizeMinimumMaximumTest() {
     input_model_ = ReadModel(GetParam());
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -1300,7 +1291,7 @@ class QuantizeUnpackTest : public QuantizeModelTest {
   QuantizeUnpackTest() {
     input_model_ = ReadModel(internal::kModelWithUnpack);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 
@@ -1352,7 +1343,7 @@ class QuantizeBroadcastToModelTest
     tensor_type_ = GetParam();
     input_model_ = ReadModel(internal::kModelWithBroadcastToOp);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
   TensorType tensor_type_;
 };
@@ -1418,7 +1409,7 @@ class QuantizeGatherNDModelTest
     tensor_type_ = GetParam();
     input_model_ = ReadModel(internal::kModelWithGatherNDOp);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 
   TensorType tensor_type_;
@@ -1479,7 +1470,7 @@ class QuantizeWhereModelTest : public QuantizeModelTest {
   QuantizeWhereModelTest() {
     input_model_ = ReadModel(internal::kModelWithWhereOp);
     readonly_model_ = input_model_->GetModel();
-    model_ = UnPackFlatBufferModel(*readonly_model_);
+    readonly_model_->UnPackTo(&model_);
   }
 };
 

@@ -22,13 +22,13 @@ limitations under the License.
 #include <vector>
 
 #include "absl/types/span.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instruction.h"
 #include "tensorflow/compiler/xla/service/buffer_assignment.h"
 #include "tensorflow/compiler/xla/service/gpu/buffer_allocations.h"
 #include "tensorflow/compiler/xla/service/gpu/launch_dimensions.h"
 #include "tensorflow/compiler/xla/service/gpu/thunk.h"
-#include "tensorflow/compiler/xla/stream_executor/stream_executor.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
 #include "tensorflow/compiler/xla/types.h"
+#include "tensorflow/core/platform/stream_executor_no_cuda.h"
 
 namespace xla {
 namespace gpu {
@@ -48,8 +48,7 @@ class KernelThunk : public Thunk {
   KernelThunk(ThunkInfo thunk_info,
               absl::Span<const BufferAllocation* const> args,
               const std::string& kernel_name,
-              const LaunchDimensions& launch_dimensions,
-              std::vector<mlir::Value> values);
+              const LaunchDimensions& launch_dimensions);
   KernelThunk(const KernelThunk&) = delete;
   KernelThunk& operator=(const KernelThunk&) = delete;
   ~KernelThunk() override = default;
@@ -60,13 +59,6 @@ class KernelThunk : public Thunk {
                     se::StreamExecutor* executor) override;
   Status ExecuteOnStream(const ExecuteParams& params) override;
 
-  void ClearCompileTimeInfo() override {
-    Thunk::ClearCompileTimeInfo();
-    for (auto& value : values_) {
-      value = nullptr;
-    }
-  }
-
   const std::vector<const BufferAllocation*>& arguments() const {
     return args_;
   }
@@ -74,7 +66,6 @@ class KernelThunk : public Thunk {
   const LaunchDimensions& launch_dimensions() const {
     return launch_dimensions_;
   }
-  absl::Span<const mlir::Value> values() const { return values_; }
 
  private:
   // Buffers passed to the kernel as arguments.
@@ -85,9 +76,6 @@ class KernelThunk : public Thunk {
 
   // The thread and block dimension used to launch the kernel.
   const LaunchDimensions launch_dimensions_;
-
-  // mlir::Value(s) corresponding to the buffer allocation arguments.
-  std::vector<mlir::Value> values_;
 
   mutable absl::Mutex mutex_;
 

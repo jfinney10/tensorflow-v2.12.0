@@ -161,12 +161,9 @@ class TRTEngineResourceOpsTest
     if (this->param_.dynamic_shape) {
       TrtShapeOptimizationProfile profile;
       profile.SetShapeTensorMask(network.get());
-      const int n_input = param_.n_inputs;
-      // Set the input mask to true (no resource input)
-      std::vector<bool> input_mask(n_input, true);
-      profile.SetInputMask(input_mask);
       // The for loop defines three optimization profiles for the network.
       for (int i = 1; i <= 3; i++) {
+        const int n_input = param_.n_inputs;
         std::vector<TensorShape> shape_vec(n_input);
         // Define a shape with all dimensions set to 3*i.
         std::vector<int> dimvec(this->param_.dims.nbDims, 3 * i);
@@ -199,7 +196,8 @@ class TRTEngineResourceOpsTest
       }
       std::vector<PartialTensorShape> input_partial_shapes;
       TF_CHECK_OK(GetNetworkInputShapes(network.get(), &input_partial_shapes));
-      profile.InitProfiles(input_partial_shapes, ProfileStrategy::kOptimal);
+      profile.InitProfiles(input_partial_shapes,
+                           ProfileStrategy::kImplicitBatchModeCompatible);
       // Configure and build engine
       TF_CHECK_OK(profile.ConfigureBuilder(builder.get(), builder_config.get(),
                                            network.get()));

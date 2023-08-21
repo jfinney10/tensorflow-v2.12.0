@@ -15,5 +15,3 @@
 
 """Ops related to Tensor Processing Units."""
 
-import os
-os.environ['TPU_ML_PLATFORM'] = 'Tensorflow'

@@ -22,16 +22,17 @@ limitations under the License.
 #include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "tensorflow/dtensor/cc/constants.h"
 #include "tensorflow/dtensor/mlir/dtensor_mlir_passes.h"
+#include "tensorflow/dtensor/mlir/dtensor_mlir_passes_classes.h"
 
 namespace tensorflow {
-namespace dtensor {
 
+namespace dtensor {
 namespace {
-#define GEN_PASS_DEF_DTENSORFUNCTIONRENAMING
+#define GEN_PASS_CLASSES
 #include "tensorflow/dtensor/mlir/dtensor_passes.h.inc"
 
 struct DTensorFunctionRenaming
-    : public impl::DTensorFunctionRenamingBase<DTensorFunctionRenaming> {
+    : public DTensorFunctionRenamingBase<DTensorFunctionRenaming> {
   void runOnOperation() override {
     mlir::ModuleOp module = getOperation();
 

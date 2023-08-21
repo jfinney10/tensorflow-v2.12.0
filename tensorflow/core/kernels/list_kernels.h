@@ -39,17 +39,17 @@ limitations under the License.
 #include "tensorflow/core/util/tensor_ops_util.h"
 #include "tensorflow/core/util/util.h"
 
-// stream.h isn't available in some platforms such as Android, iOS, ChromiumOS,
-// and Fuchsia. Only include it for platforms that PluggableDevice is tested on.
+// stream.h isn't available in some platforms such as Android, iOS, and
+// ChromiumOS. Only include it for platforms that PluggableDevice is tested on.
 #if !defined(PLUGGABLE_DEVICE_SUPPORTED) &&                              \
     (__x86_64__ || __i386__ || defined(__APPLE__) || defined(_WIN32)) && \
     !defined(ANDROID) && !defined(__ANDROID__) && !TARGET_OS_IOS &&      \
-    !defined(PLATFORM_CHROMIUMOS) && !defined(__Fuchsia__)
+    !defined(PLATFORM_CHROMIUMOS)
 #define PLUGGABLE_DEVICE_SUPPORTED
 #endif
 
 #ifdef PLUGGABLE_DEVICE_SUPPORTED
-#include "tensorflow/compiler/xla/stream_executor/stream.h"
+#include "tensorflow/stream_executor/stream.h"
 #endif
 
 namespace tensorflow {

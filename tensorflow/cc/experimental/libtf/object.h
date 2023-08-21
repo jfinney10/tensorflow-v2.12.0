@@ -166,7 +166,7 @@ class Object : public Handle {
         if (class_dict_maybe.type() == TaggedValue::DICT) {
           auto& dict = class_dict_maybe.dict();
           auto it = dict.find(key.value_);
-          if (it != dict.end()) {
+          if (it != value_.dict().end()) {
             return Cast<T>(Handle(it->second));
           }
         }
@@ -428,7 +428,7 @@ class Callable final : public Handle {
     if (!maybe_value.ok()) {
       return maybe_value.status();
     }
-    return Cast<TReturn>(Handle(maybe_value.value()));
+    return Cast<TReturn>(Handle(maybe_value.ValueOrDie()));
   }
 
  public:

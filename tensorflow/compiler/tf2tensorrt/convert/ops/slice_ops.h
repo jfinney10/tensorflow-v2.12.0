@@ -55,7 +55,7 @@ using SliceDims = absl::InlinedVector<int64, 4>;
 // through to the Converter functions optionally accept it (SetLayerName,
 // PrepareTensorForShape).
 Status ConvertStridedSliceHelper(
-    const OpConverterParams* params, const TRT_TensorOrWeights& input,
+    OpConverterParams* params, const TRT_TensorOrWeights& input,
     const PartialTensorShape& input_dims, const SliceDims& begin,
     const SliceDims& stride, const SliceDims& end,
     std::optional<nvinfer1::Dims> final_shape = std::nullopt,

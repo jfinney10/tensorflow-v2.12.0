@@ -121,7 +121,7 @@ static thread::ThreadPool* GetOrCreateBatchThreadsPool() {
       return nullptr;
     }
     static serving::BoundedExecutor* executor =
-        status_or_executor.value().release();
+        status_or_executor.ValueOrDie().release();
     return new thread::ThreadPool(executor);
   }();
   return shared_thread_pool;
@@ -895,7 +895,7 @@ class UnbatchGradResource : public ResourceBase {
     const Tensor& batch_key_t = context->input(3);
 
     mutex_lock ml(mu_);
-    if (!TensorShapeUtils::IsScalar(batch_key_t.shape())) {
+    if (batch_key_t.NumElements() != 1) {
       return errors::InvalidArgument("Expected `id` to be scalar. Received ",
                                      batch_key_t.DebugString());
     }

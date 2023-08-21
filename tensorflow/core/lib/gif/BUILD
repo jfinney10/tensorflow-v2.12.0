@@ -14,12 +14,8 @@ load(
 )
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = ["//tensorflow/core:__pkg__"],
-    features = [
-        "-layering_check",
-        "-parse_headers",
-    ],
+    features = ["-parse_headers"],
     licenses = ["notice"],
 )
 
@@ -28,7 +24,6 @@ cc_library(
     srcs = [
         "gif_io.cc",
         "//tensorflow/core/platform:gif_hdrs",
-        "//tensorflow/tsl/platform:gif_hdrs",
     ],
     hdrs = ["gif_io.h"],
     copts = tf_copts(),
@@ -50,16 +45,14 @@ cc_library(
     srcs = if_mobile([
         "gif_io.cc",
         "//tensorflow/core/platform:gif_hdrs",
-        "//tensorflow/tsl/platform:gif_hdrs",
     ]),
     hdrs = [
         "gif_io.h",
         "//tensorflow/core/lib/core:legacy_lib_core_stringpiece_header",
         "//tensorflow/core/lib/gtl:legacy_android_gif_internal_headers",
         "//tensorflow/core/platform:gif_internal_hdrs",
-        "//tensorflow/tsl/platform:gif_internal_hdrs",
-        "//tensorflow/tsl/platform/default:integral_types.h",
-        "//tensorflow/tsl/platform/default:logging.h",
+        "//tensorflow/core/platform/default:integral_types.h",
+        "//tensorflow/core/platform/default:logging.h",
     ],
     copts = tf_copts(),
     linkopts = if_android(["-ldl"]),

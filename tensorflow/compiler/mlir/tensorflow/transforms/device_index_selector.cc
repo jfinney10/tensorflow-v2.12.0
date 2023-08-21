@@ -15,7 +15,7 @@ limitations under the License.
 
 // Converts DeviceIndex to constant device.
 
-#include "mlir/Dialect/Arith/IR/Arith.h"  // from @llvm-project
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"  // from @llvm-project
 #include "mlir/Dialect/Func/IR/FuncOps.h"  // from @llvm-project
 #include "mlir/IR/Attributes.h"  // from @llvm-project
 #include "mlir/IR/Builders.h"  // from @llvm-project
@@ -24,13 +24,11 @@ limitations under the License.
 #include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
 #include "tensorflow/compiler/mlir/tensorflow/transforms/passes.h"
+#include "tensorflow/compiler/mlir/tensorflow/transforms/passes_detail.h"
 
 namespace mlir {
 namespace TF {
 namespace {
-
-#define GEN_PASS_DEF_DEVICEINDEXSELECTORPASS
-#include "tensorflow/compiler/mlir/tensorflow/transforms/tf_passes.h.inc"
 
 // Folds the DeviceIndex op to a constant value. The DeviceIndex return the
 // index of the device the op should run on. The user can use this to provide
@@ -48,7 +46,7 @@ namespace {
 // executed to produce the same values but with different functions optimized
 // for CPU or GPU.
 struct DeviceIndexSelector
-    : public impl::DeviceIndexSelectorPassBase<DeviceIndexSelector> {
+    : public DeviceIndexSelectorPassBase<DeviceIndexSelector> {
   void runOnOperation() override;
 };
 
@@ -63,7 +61,7 @@ void DeviceIndexSelector::runOnOperation() {
     // future.
     OpBuilder b(op);
     RankedTensorType type = RankedTensorType::get({}, b.getIntegerType(32));
-    int index = op.getDeviceNames().size();
+    int index = op.device_names().size();
     for (auto use : op.getOperation()->getUsers()) {
       // Skip if it doesn't feed into case. Alternatively this could always
       // return the CPU device index if it exists.

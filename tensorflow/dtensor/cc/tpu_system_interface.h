@@ -39,8 +39,7 @@ class TpuSystemInterface {
 
   virtual Status Initialize(OpKernelContext* ctx, ResourceMgr* rmgr,
                             absl::Duration retry_timeout,
-                            std::vector<int32>* core_id_output_vec,
-                            bool use_tfrt_host_runtime) = 0;
+                            std::vector<int32>* core_id_output_vec) = 0;
 
   virtual Status Shutdown() = 0;
 

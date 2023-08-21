@@ -15,6 +15,8 @@
 
 """Class to hold a library of OpDefs and use it to create Brain operations."""
 
+import six
+
 from google.protobuf import text_format
 from tensorflow.core.config import flags
 from tensorflow.core.framework import attr_value_pb2
@@ -164,7 +166,7 @@ def _MakeFloat(v, arg_name):
 
 
 def _MakeInt(v, arg_name):
-  if isinstance(v, str):
+  if isinstance(v, six.string_types):
     raise TypeError(f"Expected int for argument '{arg_name}' not {repr(v)}.")
   try:
     return int(v)

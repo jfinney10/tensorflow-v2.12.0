@@ -39,12 +39,9 @@ namespace {
 constexpr std::array<DataType, 6> kScanOpTypes = {
     {DT_HALF, DT_BFLOAT16, DT_FLOAT, DT_DOUBLE, DT_INT32, DT_INT64}};
 
-enum class Reducer { kProduct, kSum, kLogSumExp };
-
 class ScanOp : public XlaOpKernel {
  public:
-  ScanOp(OpKernelConstruction* ctx, Reducer reducer)
-      : XlaOpKernel(ctx), reducer_(reducer) {
+  ScanOp(OpKernelConstruction* ctx, bool sum) : XlaOpKernel(ctx), sum_(sum) {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("reverse", &reverse_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("exclusive", &exclusive_));
   }
@@ -96,19 +93,12 @@ class ScanOp : public XlaOpKernel {
 
     xla::XlaOp init;
     const xla::XlaComputation* reducer;
-    switch (reducer_) {
-      case Reducer::kSum:
-        init = XlaHelpers::Zero(builder, dtype);
-        reducer = ctx->GetOrCreateAdd(dtype);
-        break;
-      case Reducer::kProduct:
-        init = XlaHelpers::One(builder, dtype);
-        reducer = ctx->GetOrCreateMul(dtype);
-        break;
-      case Reducer::kLogSumExp:
-        init = XlaHelpers::FloatLiteral(builder, dtype, -INFINITY);
-        reducer = ctx->GetOrCreateLogAddExp(dtype);
-        break;
+    if (sum_) {
+      init = XlaHelpers::Zero(builder, dtype);
+      reducer = ctx->GetOrCreateAdd(dtype);
+    } else {
+      init = XlaHelpers::One(builder, dtype);
+      reducer = ctx->GetOrCreateMul(dtype);
     }
     auto output = xla::ReduceWindowWithGeneralPadding(
         XlaHelpers::ConvertElementType(ctx->Input(0), dtype), init, *reducer,
@@ -132,14 +122,14 @@ class ScanOp : public XlaOpKernel {
   }
 
  private:
-  const Reducer reducer_;
+  const bool sum_;  // True=cumulative sum. False=cumulative product.
   bool reverse_;
   bool exclusive_;
 };
 
 class CumsumOp : public ScanOp {
  public:
-  explicit CumsumOp(OpKernelConstruction* ctx) : ScanOp(ctx, Reducer::kSum) {}
+  explicit CumsumOp(OpKernelConstruction* ctx) : ScanOp(ctx, /*sum=*/true) {}
 };
 REGISTER_XLA_OP(Name("Cumsum")
                     .TypeConstraint("T", kScanOpTypes)
@@ -148,23 +138,12 @@ REGISTER_XLA_OP(Name("Cumsum")
 
 class CumprodOp : public ScanOp {
  public:
-  explicit CumprodOp(OpKernelConstruction* ctx)
-      : ScanOp(ctx, Reducer::kProduct) {}
+  explicit CumprodOp(OpKernelConstruction* ctx) : ScanOp(ctx, /*sum=*/false) {}
 };
 REGISTER_XLA_OP(Name("Cumprod")
                     .TypeConstraint("T", kScanOpTypes)
                     .CompileTimeConstantInput("axis"),
                 CumprodOp);
-
-class CumulativeLogsumexpOp : public ScanOp {
- public:
-  explicit CumulativeLogsumexpOp(OpKernelConstruction* ctx)
-      : ScanOp(ctx, Reducer::kLogSumExp) {}
-};
-REGISTER_XLA_OP(Name("CumulativeLogsumexp")
-                    .TypeConstraint("T", kScanOpTypes)
-                    .CompileTimeConstantInput("axis"),
-                CumulativeLogsumexpOp);
 
 }  // anonymous namespace
 }  // namespace tensorflow

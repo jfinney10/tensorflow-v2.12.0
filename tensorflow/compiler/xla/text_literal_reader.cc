@@ -33,17 +33,18 @@ limitations under the License.
 #include "tensorflow/compiler/xla/types.h"
 #include "tensorflow/compiler/xla/util.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
-#include "tensorflow/tsl/lib/io/buffered_inputstream.h"
-#include "tensorflow/tsl/lib/io/random_inputstream.h"
-#include "tensorflow/tsl/platform/protobuf.h"
+#include "tensorflow/core/lib/io/buffered_inputstream.h"
+#include "tensorflow/core/lib/io/random_inputstream.h"
+#include "tensorflow/core/platform/protobuf.h"
 
 namespace xla {
 
 StatusOr<Literal> TextLiteralReader::ReadPath(absl::string_view path) {
   CHECK(!absl::EndsWith(path, ".gz"))
       << "TextLiteralReader no longer supports reading .gz files";
-  std::unique_ptr<tsl::RandomAccessFile> file;
-  Status s = tsl::Env::Default()->NewRandomAccessFile(std::string(path), &file);
+  std::unique_ptr<tensorflow::RandomAccessFile> file;
+  Status s =
+      tensorflow::Env::Default()->NewRandomAccessFile(std::string(path), &file);
   if (!s.ok()) {
     return s;
   }
@@ -52,12 +53,12 @@ StatusOr<Literal> TextLiteralReader::ReadPath(absl::string_view path) {
   return reader.ReadAllLines();
 }
 
-TextLiteralReader::TextLiteralReader(tsl::RandomAccessFile* file)
+TextLiteralReader::TextLiteralReader(tensorflow::RandomAccessFile* file)
     : file_(file) {}
 
 StatusOr<Literal> TextLiteralReader::ReadAllLines() {
-  tsl::io::RandomAccessInputStream stream(file_.get());
-  tsl::io::BufferedInputStream buf(&stream, 65536);
+  tensorflow::io::RandomAccessInputStream stream(file_.get());
+  tensorflow::io::BufferedInputStream buf(&stream, 65536);
   std::string shape_string;
   Status s = buf.ReadLine(&shape_string);
   if (!s.ok()) {

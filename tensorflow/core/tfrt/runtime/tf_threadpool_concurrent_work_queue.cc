@@ -34,9 +34,15 @@ namespace tfrt_stub {
 using ::tensorflow::thread::ThreadPoolInterface;
 
 StatusOr<std::unique_ptr<WorkQueueInterface>>
-TfThreadPoolWorkQueue::InitializeRequest(int64_t request_id) const {
-  return {std::make_unique<TfThreadPoolWorkQueue>(
-      request_id, intra_op_threadpool_, inter_op_threadpool_)};
+TfThreadPoolWorkQueue::InitializeRequest(
+    ::tfrt::RequestContextBuilder* request_context_builder,
+    ThreadPoolInterface** intra_op_threadpool) const {
+  DCHECK(intra_op_threadpool);
+  *intra_op_threadpool = intra_op_threadpool_;
+
+  return {std::make_unique<TfThreadPoolWorkQueue>(request_context_builder->id(),
+                                                  intra_op_threadpool_,
+                                                  inter_op_threadpool_)};
 }
 
 void TfThreadPoolWorkQueue::AddTask(tfrt::TaskFunction work) {
@@ -95,9 +101,8 @@ std::unique_ptr<TfThreadPoolWorkQueue> CreateDefaultTfThreadPoolWorkQueue(
   class Wrapper : public TfThreadPoolWorkQueue {
    public:
     explicit Wrapper(std::unique_ptr<ThreadPools> thread_pools)
-        : TfThreadPoolWorkQueue(
-              /*intra_op_threadpool=*/&thread_pools->intra_op_threadpool,
-              /*inter_op_threadpool=*/&thread_pools->inter_op_threadpool),
+        : TfThreadPoolWorkQueue(&thread_pools->inter_op_threadpool,
+                                &thread_pools->intra_op_threadpool),
           thread_pools_(std::move(thread_pools)) {}
 
     ~Wrapper() override = default;

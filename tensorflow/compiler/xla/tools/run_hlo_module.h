@@ -20,10 +20,10 @@ limitations under the License.
 #include <random>
 #include <string>
 
-#include "tensorflow/compiler/xla/hlo/ir/hlo_module.h"
+#include "tensorflow/compiler/xla/service/hlo_module.h"
 #include "tensorflow/compiler/xla/service/hlo_runner.h"
 #include "tensorflow/compiler/xla/tools/run_hlo_module.pb.h"
-#include "tensorflow/tsl/platform/status.h"
+#include "tensorflow/core/platform/status.h"
 
 namespace xla {
 
@@ -40,15 +40,13 @@ struct RunHloModuleOptions {
         // Using small float range by default, as otherwise all reductions
         // miscompare vs. the interpreter with inf/nan.
         use_large_float_range(false),
-        treat_gte_as_data_formatting(false),
         abs_error_bound(1e-3),
         rel_error_bound(1e-3),
         input_format("hlo"),
         input_module(""),
         iterations(1),
         output_literals_file(""),
-        input_literals_file(""),
-        random_init_input_literals(true) {}
+        input_literals_file("") {}
   std::string platform;
   std::string reference_platform;
   bool print_literals;
@@ -56,7 +54,6 @@ struct RunHloModuleOptions {
   bool run_test_hlo_passes;
   bool run_reference_hlo_passes;
   bool use_large_float_range;
-  bool treat_gte_as_data_formatting;
   float abs_error_bound;
   float rel_error_bound;
   std::string input_format;
@@ -64,7 +61,6 @@ struct RunHloModuleOptions {
   int iterations;
   std::string output_literals_file;
   std::string input_literals_file;
-  bool random_init_input_literals;
 };
 
 // Runs test_module on the platform with the name

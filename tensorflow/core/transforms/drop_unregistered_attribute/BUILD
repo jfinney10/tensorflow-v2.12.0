@@ -1,8 +1,7 @@
-load("//tensorflow:tensorflow.default.bzl", "get_compatible_with_cloud")
+load("//tensorflow:tensorflow.bzl", "get_compatible_with_cloud")
 load("//tensorflow/compiler/mlir:glob_lit_test.bzl", "glob_lit_tests")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_compatible_with = get_compatible_with_cloud(),
     default_visibility = [
         "//tensorflow/core:__subpackages__",
@@ -16,7 +15,7 @@ cc_library(
     hdrs = ["pass.h"],
     deps = [
         "//tensorflow/core/ir:Dialect",
-        "//tensorflow/core/transforms:PassIncGen",
+        "//tensorflow/core/transforms:PassDetail",
         "@llvm-project//llvm:Support",
         "@llvm-project//mlir:Pass",
     ],

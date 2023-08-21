@@ -49,10 +49,6 @@ TfLiteDelegateUniquePtr FlexDelegate::Create(
         ->CopyFromBufferHandle(context, buffer_handle, tensor);
   };
   flex_delegate->flags |= kTfLiteDelegateFlagsAllowDynamicTensors;
-  // NOMUTANTS -- this flag has effects in profiler that disable the profiling
-  // of the macro operator "TfLiteFlexDelegate", which only shows in profiler
-  // output string. Adding flag check in Flex tests is currently not necessary.
-  flex_delegate->flags |= kTfLiteDelegateFlagsPerOperatorProfiling;
   reinterpret_cast<FlexDelegate*>(flex_delegate->data_)->base_delegate_ =
       flex_delegate.get();
   return flex_delegate;
@@ -148,7 +144,7 @@ TfLiteStatus FlexDelegate::CopyFromBufferHandle(
   // The life cycle of the pointer will be managed by the reference counting in
   // the TensorFlow world and the pointer will be freed when all the buffer
   // maps, who own it, are gone.
-  if (IsResourceOrVariant(output)) {
+  if (flex::IsResourceOrVariant(output)) {
     const size_t required_bytes = sizeof(tensorflow::Tensor**);
     const tensorflow::Tensor** tf_tensor_ptr =
         reinterpret_cast<const tensorflow::Tensor**>(malloc(required_bytes));

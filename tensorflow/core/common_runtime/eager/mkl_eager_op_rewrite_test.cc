@@ -43,23 +43,23 @@ class EagerOpRewriteTest : public ::testing::Test {
     eager_ctx_ = new tensorflow::EagerContext(
         SessionOptions(),
         tensorflow::ContextDevicePlacementPolicy::DEVICE_PLACEMENT_SILENT,
-        async, device_mgr.get(), false, rendezvous, nullptr, nullptr,
-        /*run_eager_op_as_function=*/true);
+        async, device_mgr.get(), false, rendezvous);
 
     EagerExecutor executor_(false);
     std::unique_ptr<tensorflow::EagerOperation> op(
         new tensorflow::EagerOperation(eager_ctx_));
-    EXPECT_EQ(OkStatus(),
+    EXPECT_EQ(Status::OK(),
               op.get()->Reset(op_name.c_str(), nullptr, false, &executor_));
-    EXPECT_EQ(OkStatus(), op.get()->SetDeviceName(
-                              "/job:localhost/replica:0/task:0/device:CPU:0"));
+    EXPECT_EQ(Status::OK(),
+              op.get()->SetDeviceName(
+                  "/job:localhost/replica:0/task:0/device:CPU:0"));
     return op;
   }
 
   // Validates the result of MKL eager rewrite.
   void CheckRewrite(EagerOperation* orig_op, string expected_op_name) {
     std::unique_ptr<tensorflow::EagerOperation> out_op;
-    EXPECT_EQ(OkStatus(),
+    EXPECT_EQ(Status::OK(),
               EagerOpRewriteRegistry::Global()->RunRewrite(
                   EagerOpRewriteRegistry::POST_PLACEMENT, orig_op, &out_op));
 

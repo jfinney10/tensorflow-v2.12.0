@@ -20,14 +20,12 @@ limitations under the License.
 #include <string>
 #include <vector>
 
-#include "tensorflow/lite/core/c/common.h"
+#include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/core/subgraph.h"
 #include "tensorflow/lite/internal/signature_def.h"
 
 namespace tflite {
-namespace impl {
-class Interpreter;               // Class for friend declarations.
-}
+class Interpreter;  // Class for friend declarations.
 class SignatureRunnerJNIHelper;  // Class for friend declarations.
 class TensorHandle;              // Class for friend declarations.
 class SignatureRunnerHelper;     // Class for friend declarations.
@@ -137,14 +135,6 @@ class SignatureRunner {
   /// signature in dependency order).
   TfLiteStatus Invoke();
 
-  /// Attempts to cancel in flight invocation if any.
-  /// This will not affect calls to `Invoke` that happend after this.
-  /// Non blocking and thread safe.
-  /// Returns kTfLiteError if cancellation is not enabled, otherwise returns
-  /// kTfLiteOk.
-  /// WARNING: This is an experimental API and subject to change.
-  TfLiteStatus Cancel() { return subgraph_->Cancel(); }
-
  private:
   // The life cycle of SignatureRunner depends on the life cycle of Subgraph,
   // which is owned by an Interpreter. Therefore, the Interpreter will takes the
@@ -152,7 +142,7 @@ class SignatureRunner {
   // SignatureRunner objects don't outlive their corresponding Subgraph objects.
   SignatureRunner(const internal::SignatureDef* signature_def,
                   Subgraph* subgraph);
-  friend class ::tflite::impl::Interpreter;
+  friend class Interpreter;
   friend class SignatureRunnerJNIHelper;
   friend class TensorHandle;
   friend class SignatureRunnerHelper;

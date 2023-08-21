@@ -15,13 +15,12 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/status_macros.h"
 
-#include <functional>
 #include <utility>
 
 #include "tensorflow/compiler/xla/statusor.h"
 #include "tensorflow/compiler/xla/test.h"
 #include "tensorflow/compiler/xla/test_helpers.h"
-#include "tensorflow/tsl/platform/errors.h"
+#include "tensorflow/core/lib/core/errors.h"
 
 namespace xla {
 
@@ -42,14 +41,14 @@ Status RetCheckSuccess() {
 
 TEST(StatusMacros, RetCheckFailing) {
   Status status = RetCheckFail();
-  EXPECT_EQ(status.code(), tsl::error::INTERNAL);
+  EXPECT_EQ(status.code(), tensorflow::error::INTERNAL);
   EXPECT_THAT(status.error_message(),
               ::testing::ContainsRegex("RET_CHECK failure.*2 > 3"));
 }
 
 TEST(StatusMacros, RetCheckFailingWithExtraMessage) {
   Status status = RetCheckFailWithExtraMessage();
-  EXPECT_EQ(status.code(), tsl::error::INTERNAL);
+  EXPECT_EQ(status.code(), tensorflow::error::INTERNAL);
   EXPECT_THAT(status.error_message(),
               ::testing::ContainsRegex("RET_CHECK.*2 > 3 extra message"));
 }
@@ -62,7 +61,7 @@ TEST(StatusMacros, RetCheckSucceeding) {
 StatusOr<int> CreateIntSuccessfully() { return 42; }
 
 StatusOr<int> CreateIntUnsuccessfully() {
-  return tsl::errors::Internal("foobar");
+  return tensorflow::errors::Internal("foobar");
 }
 
 TEST(StatusMacros, AssignOrAssertOnOK) {
@@ -72,7 +71,7 @@ TEST(StatusMacros, AssignOrAssertOnOK) {
 
 Status ReturnStatusOK() { return OkStatus(); }
 
-Status ReturnStatusError() { return (tsl::errors::Internal("foobar")); }
+Status ReturnStatusError() { return (tensorflow::errors::Internal("foobar")); }
 
 using StatusReturningFunction = std::function<Status()>;
 
@@ -90,7 +89,7 @@ TEST(StatusMacros, ReturnIfErrorOnOK) {
 TEST(StatusMacros, ReturnIfErrorOnError) {
   StatusOr<int> rc = CallStatusReturningFunction(ReturnStatusError);
   EXPECT_FALSE(rc.ok());
-  EXPECT_EQ(rc.status().code(), tsl::error::INTERNAL);
+  EXPECT_EQ(rc.status().code(), tensorflow::error::INTERNAL);
 }
 
 TEST(StatusMacros, AssignOrReturnSuccessfully) {
@@ -109,7 +108,7 @@ TEST(StatusMacros, AssignOrReturnUnsuccessfully) {
     return OkStatus();
   }();
   EXPECT_FALSE(status.ok());
-  EXPECT_EQ(status.code(), tsl::error::INTERNAL);
+  EXPECT_EQ(status.code(), tensorflow::error::INTERNAL);
 }
 
 }  // namespace xla

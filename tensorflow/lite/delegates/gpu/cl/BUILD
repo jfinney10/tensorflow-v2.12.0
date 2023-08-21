@@ -6,7 +6,6 @@ load(
 load("//tensorflow:tensorflow.bzl", "if_google", "workspace_root")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
     default_visibility = ["//visibility:public"],
     licenses = ["notice"],
 )
@@ -103,8 +102,9 @@ cc_library(
         ":buffer",
         ":cl_context",
         ":gpu_object",
-        ":qcom_thin_filter",
+        ":linear_storage",
         ":tensor",
+        ":texture2d",
         "//tensorflow/lite/delegates/gpu/common:gpu_info",
         "//tensorflow/lite/delegates/gpu/common:status",
         "//tensorflow/lite/delegates/gpu/common:util",
@@ -359,7 +359,6 @@ cc_library(
         ":tensor_type_util",
         "//tensorflow/lite:kernel_api",
         "//tensorflow/lite/c:common",
-        "//tensorflow/lite/core/c:common",
         "//tensorflow/lite/delegates/gpu:api",
         "//tensorflow/lite/delegates/gpu:delegate",
         "//tensorflow/lite/delegates/gpu/common:model",
@@ -423,6 +422,26 @@ cc_library(
 )
 
 cc_library(
+    name = "linear_storage",
+    srcs = ["linear_storage.cc"],
+    hdrs = ["linear_storage.h"],
+    deps = [
+        ":cl_context",
+        ":cl_image_format",
+        ":gpu_object",
+        ":opencl_wrapper",
+        ":util",
+        "//tensorflow/lite/delegates/gpu/common:data_type",
+        "//tensorflow/lite/delegates/gpu/common:status",
+        "//tensorflow/lite/delegates/gpu/common:types",
+        "//tensorflow/lite/delegates/gpu/common/task:tensor_desc",
+        "//tensorflow/lite/delegates/gpu/common/task:tensor_linear_desc",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "opencl_wrapper",
     srcs = ["opencl_wrapper.cc"],
     hdrs = ["opencl_wrapper.h"],
@@ -431,25 +450,14 @@ cc_library(
             "-ldl",  # opencl_wrapper calls dlopen()
             "-lm",
         ],
-        # copybara:uncomment_begin(google-only)
-        # "//tools/cc_target_os:linux-google": [
-        # "-ldl",
-        # "-rdynamic",
-        # ],
-        # copybara:uncomment_end
         "//conditions:default": ["-ldl"],  # opencl_wrapper calls dlopen()
     }),
     deps = [
+        "//tensorflow/lite/delegates/gpu/common:status",
         "@com_google_absl//absl/strings",
         "@opencl_headers",
-        "//tensorflow/lite/delegates/gpu/common:status",
         "//tensorflow/lite/delegates/gpu/cl/" + if_google("google", "default") + ":qcom_wrapper",
-    ] + select({
-        # copybara:uncomment_begin(google-only)
-        # "//tools/cc_target_os:linux-google": ["//third_party/opencl_icd_loader"],
-        # copybara:uncomment_end
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 cc_library(
@@ -468,18 +476,6 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@farmhash_archive//:farmhash",
         "@flatbuffers",
-    ],
-)
-
-cc_library(
-    name = "qcom_thin_filter",
-    srcs = ["qcom_thin_filter.cc"],
-    hdrs = ["qcom_thin_filter.h"],
-    deps = [
-        ":cl_context",
-        ":gpu_object",
-        ":util",
-        "//tensorflow/lite/delegates/gpu/common/task:qcom_thin_filter_desc",
     ],
 )
 
@@ -541,6 +537,7 @@ cc_library(
         "//tensorflow/lite/delegates/gpu/common:types",
         "//tensorflow/lite/delegates/gpu/common/task:gpu_tensor",
         "//tensorflow/lite/delegates/gpu/common/task:tensor_desc",
+        "//tensorflow/lite/delegates/gpu/common/task:texture2d_desc",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -574,6 +571,41 @@ cc_library(
 )
 
 cc_library(
+    name = "texture2d",
+    srcs = ["texture2d.cc"],
+    hdrs = ["texture2d.h"],
+    deps = [
+        ":cl_command_queue",
+        ":cl_context",
+        ":cl_image_format",
+        ":gpu_object",
+        ":opencl_wrapper",
+        ":util",
+        "//tensorflow/lite/delegates/gpu/common:data_type",
+        "//tensorflow/lite/delegates/gpu/common:status",
+        "//tensorflow/lite/delegates/gpu/common/task:texture2d_desc",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "texture2d_test",
+    srcs = ["texture2d_test.cc"],
+    linkstatic = True,
+    tags = tf_gpu_tests_tags() + [
+        "linux",
+        "local",
+    ],
+    deps = [
+        ":cl_test",
+        ":texture2d",
+        "//tensorflow/lite/delegates/gpu/common:status",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
@@ -586,6 +618,5 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "//tensorflow/lite/delegates/gpu/cl/" + if_google("google", "default") + ":util",
     ],
 )

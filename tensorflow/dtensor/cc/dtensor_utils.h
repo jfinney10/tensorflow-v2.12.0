@@ -16,7 +16,6 @@ limitations under the License.
 #ifndef TENSORFLOW_DTENSOR_CC_DTENSOR_UTILS_H_
 #define TENSORFLOW_DTENSOR_CC_DTENSOR_UTILS_H_
 
-#include <string>
 namespace tensorflow {
 namespace dtensor {
 
@@ -52,14 +51,8 @@ bool DoNotFuseReduceScatter();
 // reduce op.
 int ReduceInBfloat16MaxGroupSize();
 
-// Returns whether to lower DTensorAllGather to CollectiveReduceV2. If false,
-// lowers it to CollectiveReduceV2 for GPU and CPU for supported data types.
-bool LowerCollectiveGatherToCollectiveGatherV2();
-
-// Returns whether to enable defaulting TF ops that do not have SPMD
-// implementation to default to the ReplicatedOpSpmdExpander.
-bool EnableReplicatedSpmdAsDefault(const std::string& op_name);
-
+// Returns DTensor Checkpointing version 2 is enabled.
+bool DTensorCheckpointV2Enabled();
 }  // namespace dtensor
 }  // namespace tensorflow
 

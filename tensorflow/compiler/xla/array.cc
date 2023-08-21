@@ -15,9 +15,6 @@ limitations under the License.
 
 #include "tensorflow/compiler/xla/array.h"
 
-#include <complex>
-#include <random>
-
 namespace xla {
 
 // Specialization of FillRandom() method for complex64 type. Uses real part of

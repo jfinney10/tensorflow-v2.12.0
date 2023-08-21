@@ -55,7 +55,7 @@ REGISTER_OP("QuantizedConcatV2")
       }
       c->set_output(1, c->Scalar());
       c->set_output(2, c->Scalar());
-      return OkStatus();
+      return Status::OK();
     });
 
 REGISTER_OP("_MklQuantizedConcatV2")
@@ -78,7 +78,7 @@ REGISTER_OP("_MklQuantizedConcatV2")
       }
       c->set_output(1, c->Scalar());
       c->set_output(2, c->Scalar());
-      return OkStatus();
+      return Status::OK();
     });
 
 REGISTER_OP("_MklQuantizeV2")
@@ -113,7 +113,7 @@ REGISTER_OP("_MklDequantize")
       ShapeHandle unused;
       TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 0, &unused));
       TF_RETURN_IF_ERROR(c->WithRank(c->input(2), 0, &unused));
-      return OkStatus();
+      return Status::OK();
     });
 
 }  // namespace tensorflow

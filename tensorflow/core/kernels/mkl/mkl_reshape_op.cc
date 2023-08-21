@@ -228,7 +228,7 @@ class MklReshapeOp : public OpKernel {
         (*product) *= size;
       }
     }
-    return OkStatus();
+    return Status::OK();
   }
 };
 

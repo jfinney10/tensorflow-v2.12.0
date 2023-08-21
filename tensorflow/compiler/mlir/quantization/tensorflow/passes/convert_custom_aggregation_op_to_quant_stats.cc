@@ -27,7 +27,6 @@ limitations under the License.
 #include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "mlir/Support/LogicalResult.h"  // from @llvm-project
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"  // from @llvm-project
-#include "tensorflow/compiler/mlir/lite/quantization/ir/QuantOps.h"
 #include "tensorflow/compiler/mlir/quantization/tensorflow/passes/passes.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_dialect.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
@@ -56,8 +55,7 @@ class ConvertCustomAggregationOpToQuantStatsPass
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<TF::TensorFlowDialect>();
-    registry.insert<quant::QuantizationDialect>();
-    registry.insert<quantfork::QuantizationForkDialect>();
+    registry.insert<QuantizationDialect>();
   }
 
   void runOnOperation() override;
@@ -93,8 +91,8 @@ class ConvertCustomAggregationOpToQuantStats : public RewritePattern {
     ElementsAttr axis_stats;
     IntegerAttr axis;
 
-    rewriter.replaceOpWithNewOp<quantfork::StatisticsOp>(
-        op, op->getOperand(0), layer_stats, axis_stats, axis);
+    rewriter.replaceOpWithNewOp<StatisticsOp>(op, op->getOperand(0),
+                                              layer_stats, axis_stats, axis);
     return success();
   }
 };

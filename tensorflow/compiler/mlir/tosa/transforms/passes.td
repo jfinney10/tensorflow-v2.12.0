@@ -18,9 +18,7 @@ include "mlir/Pass/PassBase.td"
 def TosaLegalizeTFPass : Pass<"tosa-legalize-tf", "mlir::func::FuncOp"> {
   let summary = "Legalize from TensorFlow to TOSA";
   let constructor = "createLegalizeTFPass()";
-  let dependentDialects = ["TosaDialect",
-    "quant::QuantizationDialect","quantfork::QuantizationForkDialect"
-  ];
+  let dependentDialects = ["TosaDialect", "quant::QuantizationDialect"];
 }
 
 def TosaLegalizeTFLPass : Pass<"tosa-legalize-tfl", "mlir::func::FuncOp"> {
@@ -72,5 +70,5 @@ def TosaDequantizeTFLSoftmaxPass : Pass<"tosa-dequantize-tfl-softmax", "mlir::fu
     See https://github.com/google/iree/issues/8974.
   }];
   let constructor = "createDequantizeTFLSoftmaxPass()";
-  let dependentDialects = ["mlir::TFL::TFLDialect", "quantfork::QuantizationForkDialect"];
+  let dependentDialects = ["mlir::TFL::TFLDialect", "quant::QuantizationDialect"];
 }

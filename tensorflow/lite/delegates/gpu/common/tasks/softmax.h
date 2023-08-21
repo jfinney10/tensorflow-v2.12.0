@@ -23,8 +23,7 @@ limitations under the License.
 namespace tflite {
 namespace gpu {
 
-GPUOperation CreateSoftmax(const OperationDef& definition,
-                           const GpuInfo& gpu_info, const BHWC& shape);
+GPUOperation CreateSoftmax(const OperationDef& definition);
 
 }  // namespace gpu
 }  // namespace tflite

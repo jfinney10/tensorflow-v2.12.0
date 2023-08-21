@@ -34,13 +34,12 @@ limitations under the License.
 namespace mlir {
 namespace TFL {
 namespace {
-#define GEN_PASS_DEF_TRIMFUNCTIONSPASS
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/lite/transforms/passes.h.inc"
 
 // The pass to trim functions before we legalize to TFL
 // dialect using the specified allowlist.
-class TrimFunctionsPass
-    : public impl::TrimFunctionsPassBase<TrimFunctionsPass> {
+class TrimFunctionsPass : public TrimFunctionsPassBase<TrimFunctionsPass> {
  public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TrimFunctionsPass)
 

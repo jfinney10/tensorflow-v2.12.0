@@ -14,8 +14,7 @@
 # ==============================================================================
 """Types for specifying saving and loading behavior."""
 
-
-class SaveSpec:
+class SaveSpec(object):
   """Class used to describe tensor slices that need to be saved."""
 
   def __init__(self, tensor, slice_spec, name, dtype=None, device=None):
@@ -53,7 +52,7 @@ class SaveSpec:
     return self._tensor() if callable(self._tensor) else self._tensor
 
 
-class SaveableObject:
+class SaveableObject(object):
   """Base class for saving and restoring saveable objects."""
 
   def __init__(self, op, specs, name):

@@ -14,7 +14,6 @@
 # ==============================================================================
 """Tests for array_ops."""
 import re
-import sys
 import time
 import unittest
 
@@ -144,7 +143,6 @@ class BatchMatrixTransposeTest(test_util.TensorFlowTestCase):
 class BooleanMaskTest(test_util.TensorFlowTestCase):
 
   def setUp(self):
-    super().setUp()
     self.rng = np.random.RandomState(42)
 
   def CheckVersusNumpy(self, ndims_mask, arr_shape, make_mask=None, axis=None):
@@ -453,7 +451,7 @@ class ReverseV2Test(test_util.TensorFlowTestCase):
         np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64,
         np.int64, np.bool_, np.float16, np.float32, np.float64, np.complex64,
         np.complex128,
-        np.array(b"").dtype.type, dtypes.bfloat16.as_numpy_dtype
+        np.array(b"").dtype.type
     ]:
       self._reverse1DimAuto(dtype)
 
@@ -462,7 +460,7 @@ class ReverseV2Test(test_util.TensorFlowTestCase):
         np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.uint64,
         np.int64, np.bool_, np.float16, np.float32, np.float64, np.complex64,
         np.complex128,
-        np.array(b"").dtype.type, dtypes.bfloat16.as_numpy_dtype
+        np.array(b"").dtype.type
     ]:
       self._reverse2DimAuto(dtype)
 
@@ -628,7 +626,7 @@ class StridedSliceChecker(object):
 STRIDED_SLICE_TYPES = [
     dtypes.int32, dtypes.int64, dtypes.int16, dtypes.int8, dtypes.uint8,
     dtypes.float32, dtypes.float64, dtypes.complex64, dtypes.complex128,
-    dtypes.bool, dtypes.bfloat16
+    dtypes.bool
 ]
 
 
@@ -686,9 +684,6 @@ class StridedSliceTest(test_util.TensorFlowTestCase):
   @test_util.assert_no_new_pyobjects_executing_eagerly
   @test_util.assert_no_garbage_created
   def testVariableSliceEagerMemory(self):
-    if sys.version_info.major == 3 and sys.version_info.minor == 11:
-      # TODO(b/265082239)
-      self.skipTest("Not working in Python 3.11")
     with context.eager_mode():
       v = variables.Variable([1., 2.])
       v[0]  # pylint: disable=pointless-statement

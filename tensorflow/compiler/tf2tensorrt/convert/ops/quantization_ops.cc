@@ -82,7 +82,7 @@ QuantizationScales<T, 1> ComputeQuantizationRange(bool signed_input,
 // ITensor pointer. If the input is weights, we convert it to a ITensor by
 // adding a constant layer.
 StatusOr<nvinfer1::ITensor*> ExlicitQDQInputToTensor(
-    TRTNetworkBuilder* builder, const OpConverterParams* params,
+    TRTNetworkBuilder* builder, OpConverterParams* params,
     const TRT_TensorOrWeights& input) {
   if (input.is_tensor()) {
     return input.tensor()->trt_tensor();
@@ -155,14 +155,13 @@ struct QDQOpSpec<ops::QuantizeAndDequantizeV2> {
         &args->max_range);
     TRT_ENSURE(args->scales.dequantize_scale[0] != 0);
     TRT_ENSURE(args->scales.quantize_scale[0] != 0);
-    return OkStatus();
+    return Status::OK();
   }
 
   // Converts in explicit precision mode. In this mode, QDQ operations are
   // directly converted into TensorRT quantizing and dequantizing scale
   // operations.
-  static Status ConvertExplicit(const OpConverterParams* params,
-                                const Attrs& args) {
+  static Status ConvertExplicit(OpConverterParams* params, const Attrs& args) {
     const auto& node_def = params->node_def;
 
     StatusOr<TRTNetworkBuilder> builder = TRTNetworkBuilder::Create(
@@ -223,7 +222,7 @@ struct QDQOpSpec<ops::QuantizeAndDequantizeV2> {
       final_output = (*undo_reshape)->getOutput(0);
     }
     params->outputs->push_back(final_output);
-    return OkStatus();
+    return Status::OK();
   }
 };
 
@@ -250,8 +249,7 @@ struct QDQOpSpec<ops::QuantizeAndDequantizeV3> {
                                                                        args);
   }
 
-  static Status ConvertExplicit(const OpConverterParams* params,
-                                const Attrs& args) {
+  static Status ConvertExplicit(OpConverterParams* params, const Attrs& args) {
     return QDQOpSpec<ops::QuantizeAndDequantizeV2>::ConvertExplicit(params,
                                                                     args);
   }
@@ -278,8 +276,7 @@ struct QDQOpSpec<ops::FakeQuantWithMinMaxVars> {
     return errors::Unimplemented("");
   }
 
-  static Status ConvertExplicit(const OpConverterParams* params,
-                                const Attrs& args) {
+  static Status ConvertExplicit(OpConverterParams* params, const Attrs& args) {
     return errors::Unimplemented("");
   }
 };
@@ -306,8 +303,7 @@ struct QDQOpSpec<ops::FakeQuantWithMinMaxArgs> {
     return errors::Unimplemented("");
   }
 
-  static Status ConvertExplicit(const OpConverterParams* params,
-                                const Attrs& args) {
+  static Status ConvertExplicit(OpConverterParams* params, const Attrs& args) {
     return errors::Unimplemented("");
   }
 };
@@ -315,20 +311,21 @@ struct QDQOpSpec<ops::FakeQuantWithMinMaxArgs> {
 // Converts QDQ operations in non-explicit precision mode. This is the original
 // "ConvertQuantize" function. In this mode, Q/DQ operations are no-ops and are
 // instead used to set the dynamic range of the input tensor.
-Status ConvertDynamicRangeMode(const OpConverterParams* params) {
+Status ConvertDynamicRangeMode(OpConverterParams* params) {
   const auto& inputs = params->inputs;
   const auto& node_def = params->node_def;
+
   float min_range = 0.0f;
   float max_range = 0.0f;
-  const auto& op_name = node_def.op();
-  if (op_name == "FakeQuantWithMinMaxArgs") {
-    AttrSlice attrs(node_def);
+  AttrSlice attrs(params->node_def);
+
+  if (node_def.op() == "FakeQuantWithMinMaxArgs") {
     // Get ranges via node attributes.
     TF_RETURN_IF_ERROR(GetNodeAttr(attrs, "min", &min_range));
     TF_RETURN_IF_ERROR(GetNodeAttr(attrs, "max", &max_range));
-  } else if (op_name == "FakeQuantWithMinMaxVars" ||
-             op_name == "QuantizeAndDequantizeV2" ||
-             op_name == "QuantizeAndDequantizeV3") {
+  } else if (node_def.op() == "FakeQuantWithMinMaxVars" ||
+             node_def.op() == "QuantizeAndDequantizeV2" ||
+             node_def.op() == "QuantizeAndDequantizeV3") {
     // Get ranges via inputs.
     auto get_weights_value = [&inputs](int index) {
       const auto* raw_weights = inputs.at(index).weights().GetPointer<float>();
@@ -337,11 +334,11 @@ Status ConvertDynamicRangeMode(const OpConverterParams* params) {
     min_range = get_weights_value(1);
     max_range = get_weights_value(2);
   } else {
-    return errors::InvalidArgument("Unknown quantization op ", op_name, ", at ",
-                                   node_def.name());
+    return errors::InvalidArgument("Unknown quantization op ", node_def.op(),
+                                   ", at ", node_def.name());
   }
   if (params->validation_only) {
-    return OkStatus();
+    return Status::OK();
   }
 
   // Store ranges for tensor
@@ -358,13 +355,13 @@ Status ConvertDynamicRangeMode(const OpConverterParams* params) {
   // fusion will occur), then there is no problem with the current
   // implementation.
   params->outputs->push_back(inputs.at(0));
-  return OkStatus();
+  return Status::OK();
 }
 
 template <typename TFOpType>
 class ConvertQDQ : public OpConverterBase<ConvertQDQ<TFOpType>> {
  public:
-  explicit ConvertQDQ(const OpConverterParams* params)
+  explicit ConvertQDQ(OpConverterParams* params)
       : OpConverterBase<ConvertQDQ<TFOpType>>(params) {}
 
   static constexpr auto InputSpec() { return QDQOpSpec<TFOpType>::InputSpec(); }
@@ -378,7 +375,7 @@ class ConvertQDQ : public OpConverterBase<ConvertQDQ<TFOpType>> {
     if (this->params_->validation_only) {
       return ConvertDynamicRangeMode(this->params_);
     }
-    return OkStatus();
+    return Status::OK();
   }
 
   Status Validate() {

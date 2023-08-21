@@ -17,7 +17,6 @@ limitations under the License.
 #define TENSORFLOW_LITE_DELEGATES_GPU_COMMON_TASKS_SOFTMAX1X1_H_
 
 #include <string>
-#include <vector>
 
 #include "tensorflow/lite/delegates/gpu/common/task/gpu_operation.h"
 #include "tensorflow/lite/delegates/gpu/common/task/tensor_desc.h"
@@ -28,8 +27,7 @@ namespace gpu {
 class Softmax1x1 : public GPUOperation {
  public:
   Softmax1x1() = default;
-  Softmax1x1(const OperationDef& definition, const GpuInfo& gpu_info,
-             const BHWC& shape);
+  explicit Softmax1x1(const OperationDef& definition);
   void GetPossibleKernelWorkGroups(
       TuningType tuning_type, const GpuInfo& gpu_info,
       const KernelInfo& kernel_info,
@@ -51,8 +49,7 @@ class Softmax1x1 : public GPUOperation {
   std::string GetSoftmaxKernelCode(const OperationDef& op_def);
 };
 
-Softmax1x1 CreateSoftmax1x1(const OperationDef& definition,
-                            const GpuInfo& gpu_info, const BHWC& shape);
+Softmax1x1 CreateSoftmax1x1(const OperationDef& definition);
 
 }  // namespace gpu
 }  // namespace tflite

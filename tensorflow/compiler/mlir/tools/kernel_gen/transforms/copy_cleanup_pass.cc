@@ -28,7 +28,7 @@ namespace mlir {
 namespace kernel_gen {
 namespace transforms {
 namespace {
-#define GEN_PASS_DEF_COPYCLEANUPPASS
+#define GEN_PASS_CLASSES
 #include "tensorflow/compiler/mlir/tools/kernel_gen/transforms/kernel_gen_passes.h.inc"
 
 // A pass to remove memref::AllocOps and memref::CopyOps ops.
@@ -154,7 +154,7 @@ void RemoveCopyIfTargetIsFunctionArg(func::FuncOp func) {
 
 }  // namespace
 
-struct CopyCleanupPass : public impl::CopyCleanupPassBase<CopyCleanupPass> {
+struct CopyCleanupPass : public CopyCleanupPassBase<CopyCleanupPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect>();
   }

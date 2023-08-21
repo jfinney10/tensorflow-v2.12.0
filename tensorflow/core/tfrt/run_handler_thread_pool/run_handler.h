@@ -13,11 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_CORE_TFRT_RUN_HANDLER_THREAD_POOL_RUN_HANDLER_H_
-#define TENSORFLOW_CORE_TFRT_RUN_HANDLER_THREAD_POOL_RUN_HANDLER_H_
+#ifndef TENSORFLOW_CORE_TFRT_EXPERIMENTAL_RUN_HANDLER_THREAD_POOLL_RUN_HANDLER_H_
+#define TENSORFLOW_CORE_TFRT_EXPERIMENTAL_RUN_HANDLER_THREAD_POOLL_RUN_HANDLER_H_
 
 #include <cstddef>
-#include <utility>
 
 #include "tensorflow/core/lib/core/threadpool.h"
 #include "tensorflow/core/lib/histogram/histogram.h"
@@ -413,9 +412,7 @@ class RunHandlerThreadPool {
 class RunHandlerWorkQueue : public tensorflow::tfrt_stub::WorkQueueInterface {
  public:
   explicit RunHandlerWorkQueue(std::unique_ptr<RunHandler> run_handler)
-      : WorkQueueInterface(run_handler->step_id(),
-                           run_handler->AsIntraThreadPoolInterface()),
-        run_handler_(std::move(run_handler)) {
+      : run_handler_(std::move(run_handler)) {
     DCHECK(run_handler_);
   }
   ~RunHandlerWorkQueue() override = default;
@@ -446,4 +443,4 @@ class RunHandlerWorkQueue : public tensorflow::tfrt_stub::WorkQueueInterface {
 }  // end namespace tf
 }  // end namespace tfrt
 
-#endif  // TENSORFLOW_CORE_TFRT_RUN_HANDLER_THREAD_POOL_RUN_HANDLER_H_
+#endif  // TENSORFLOW_CORE_TFRT_EXPERIMENTAL_RUN_HANDLER_THREAD_POOLL_RUN_HANDLER_H_

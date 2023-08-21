@@ -22,23 +22,22 @@ limitations under the License.
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/functional/function_ref.h"
 #include "absl/strings/str_format.h"
 #include "tensorflow/compiler/xla/client/xla_builder.h"
 #include "tensorflow/compiler/xla/comparison_util.h"
-#include "tensorflow/compiler/xla/hlo/ir/dfs_hlo_visitor_with_default.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_casting_utils.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_computation.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instruction.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instructions.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_module.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_opcode.h"
 #include "tensorflow/compiler/xla/literal.h"
 #include "tensorflow/compiler/xla/literal_util.h"
+#include "tensorflow/compiler/xla/service/dfs_hlo_visitor_with_default.h"
 #include "tensorflow/compiler/xla/service/dynamic_dimension_inference.h"
 #include "tensorflow/compiler/xla/service/dynamic_window_utils.h"
+#include "tensorflow/compiler/xla/service/hlo_casting_utils.h"
+#include "tensorflow/compiler/xla/service/hlo_computation.h"
 #include "tensorflow/compiler/xla/service/hlo_creation_utils.h"
 #include "tensorflow/compiler/xla/service/hlo_dce.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
+#include "tensorflow/compiler/xla/service/hlo_instructions.h"
+#include "tensorflow/compiler/xla/service/hlo_module.h"
+#include "tensorflow/compiler/xla/service/hlo_opcode.h"
 #include "tensorflow/compiler/xla/service/pattern_matcher.h"
 #include "tensorflow/compiler/xla/service/shape_inference.h"
 #include "tensorflow/compiler/xla/shape_util.h"
@@ -46,14 +45,16 @@ limitations under the License.
 #include "tensorflow/compiler/xla/util.h"
 #include "tensorflow/compiler/xla/window_util.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
-#include "tensorflow/tsl/lib/monitoring/gauge.h"
-#include "tensorflow/tsl/platform/errors.h"
+#include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/lib/monitoring/gauge.h"
+#include "tensorflow/core/platform/errors.h"
+#include "tensorflow/core/platform/statusor.h"
 
 namespace xla {
 
 namespace {
 
-auto* dynamic_padding_gauge = tsl::monitoring::Gauge<bool, 0>::New(
+auto* dynamic_padding_gauge = tensorflow::monitoring::Gauge<bool, 0>::New(
     "/tensorflow/core/use_dynamic_padding_gauge",
     "Tracks if dynamic padder is used.");
 
@@ -897,7 +898,7 @@ StatusOr<bool> RewriteReverse(
 HloInstruction* RewriteInputWithDynamicPadding(
     HloInstruction* conv, HloInstruction* input, HloInstruction* padding_value,
     absl::Span<HloInstruction*> padding_before, Window* input_window,
-    absl::FunctionRef<int64_t(int64_t)> window_dim_to_shape_dim) {
+    std::function<int64_t(int64_t)> window_dim_to_shape_dim) {
   HloInstruction* zero_s32 = conv->AddInstruction(
       HloInstruction::CreateConstant(LiteralUtil::Zero(S32)));
   // Padded shape represents the bounded shape after dynamic padding.
@@ -950,7 +951,7 @@ HloInstruction* RewriteInputWithDynamicPadding(
   // Reconstruct dynamic padding using pad and dynamic slice.
 
   HloInstruction* pad =
-      MakePadHlo(input, padding_value, padding_configs).value();
+      MakePadHlo(input, padding_value, padding_configs).ValueOrDie();
   input = conv->AddInstruction(HloInstruction::CreateDynamicSlice(
       padded_shape, pad, start_indices, padded_shape.dimensions()));
   return input;
@@ -1281,7 +1282,8 @@ StatusOr<bool> RewriteDynamicSelectAndScatterSamePadding(
     }
     *padding_configs.add_dimensions() = padding_dim;
   }
-  HloInstruction* padded = MakePadHlo(rewritten, init, padding_configs).value();
+  HloInstruction* padded =
+      MakePadHlo(rewritten, init, padding_configs).ValueOrDie();
   rewritten = hlo->AddInstruction(HloInstruction::CreateDynamicSlice(
       hlo->shape(), padded, start_indices, hlo->shape().dimensions()));
   TF_RETURN_IF_ERROR(hlo->ReplaceAllUsesWith(rewritten));
@@ -1377,7 +1379,7 @@ StatusOr<bool> RewriteDynamicSort(
       "inbound_rhs");
   std::vector<const HloInstruction*> extra_parameters{new_param_0.get(),
                                                       new_param_1.get()};
-  HloComputation* sort_comp = sort->GetModule()->AddEmbeddedComputation(
+  HloComputation* sort_comp = sort->parent()->parent()->AddEmbeddedComputation(
       sort->called_computations()[0]->CloneWithReplacements(
           /*replacements=*/nullptr, extra_parameters));
   auto inbound_lhs =
@@ -1497,38 +1499,16 @@ StatusOr<bool> RewriteDynamicBinaryOp(
                 static_shape, HloOpcode::kSelect, pred, broadcast, operand));
         return select;
       };
-
-      HloInstruction* one = binary->AddInstruction(
-          HloInstruction::CreateConstant(LiteralUtil::One(S32)));
-
       auto operand_0_needs_broadcast = binary->parent()->AddInstruction(
           HloInstruction::CreateCompare(ShapeUtil::MakeShape(PRED, {}), dim_0,
                                         dim_1, ComparisonDirection::kLt),
-          "lhs_less_than_rhs");
-      auto is_one = binary->parent()->AddInstruction(
-          HloInstruction::CreateCompare(ShapeUtil::MakeShape(PRED, {}), dim_0,
-                                        one, ComparisonDirection::kEq),
-          "lhs_is_one");
-      operand_0_needs_broadcast = binary->parent()->AddInstruction(
-          HloInstruction::CreateBinary(ShapeUtil::MakeShape(PRED, {}),
-                                       HloOpcode::kAnd, is_one,
-                                       operand_0_needs_broadcast),
           "lhs_needs_implicit_broadcast");
       operand_0 = rewrite_operand(operand_0_needs_broadcast, operand_0);
 
       auto operand_1_needs_broadcast = binary->parent()->AddInstruction(
           HloInstruction::CreateCompare(ShapeUtil::MakeShape(PRED, {}), dim_1,
                                         dim_0, ComparisonDirection::kLt),
-          "rhs_less_than_lhs");
-      is_one = binary->parent()->AddInstruction(
-          HloInstruction::CreateCompare(ShapeUtil::MakeShape(PRED, {}), dim_1,
-                                        one, ComparisonDirection::kEq),
-          "rhs_is_one");
-      operand_1_needs_broadcast = binary->parent()->AddInstruction(
-          HloInstruction::CreateBinary(ShapeUtil::MakeShape(PRED, {}),
-                                       HloOpcode::kAnd, is_one,
-                                       operand_1_needs_broadcast),
-          "lhs_needs_implicit_broadcast");
+          "rhs_needs_implicit_broadcast");
       operand_1 = rewrite_operand(operand_1_needs_broadcast, operand_1);
     }
   }

@@ -16,22 +16,23 @@ limitations under the License.
 #include "tensorflow/compiler/xla/service/scatter_simplifier.h"
 
 #include <algorithm>
+#include <iostream>
 #include <iterator>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/types/span.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_casting_utils.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instruction.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instructions.h"
 #include "tensorflow/compiler/xla/permutation_util.h"
 #include "tensorflow/compiler/xla/service/gather_scatter_utils.h"
+#include "tensorflow/compiler/xla/service/hlo_casting_utils.h"
 #include "tensorflow/compiler/xla/service/hlo_creation_utils.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
+#include "tensorflow/compiler/xla/service/hlo_instructions.h"
 #include "tensorflow/compiler/xla/shape.h"
 #include "tensorflow/compiler/xla/util.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
-#include "tensorflow/tsl/platform/statusor.h"
+#include "tensorflow/core/platform/statusor.h"
 
 namespace xla {
 namespace {
@@ -59,8 +60,6 @@ StatusOr<HloInstruction*> FlattenAndTransposeUpdates(
   // Collapse scatter dimensions to one.
   if (num_scatter_dims > 1) {
     TF_ASSIGN_OR_RETURN(updates, CollapseFirstNDims(updates, num_scatter_dims));
-  } else if (num_scatter_dims == 0) {
-    TF_ASSIGN_OR_RETURN(updates, InsertDegenerateDims(updates, {0}));
   }
 
   // Insert size 1 dimensions.

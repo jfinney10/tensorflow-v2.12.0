@@ -15,8 +15,9 @@
 """Tests for DecodeRaw op from parsing_ops."""
 
 import gzip
-import io
 import zlib
+
+from six import BytesIO
 
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import ops
@@ -33,7 +34,7 @@ class DecodeCompressedOpTest(test.TestCase):
     elif compression_type == "ZLIB":
       return zlib.compress(bytes_in)
     else:
-      out = io.BytesIO()
+      out = BytesIO()
       with gzip.GzipFile(fileobj=out, mode="wb") as f:
         f.write(bytes_in)
       return out.getvalue()

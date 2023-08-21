@@ -20,15 +20,12 @@ limitations under the License.
 #include "mlir/Pass/Pass.h"  // from @llvm-project
 #include "tensorflow/core/ir/ops.h"
 #include "tensorflow/core/transforms/func_to_graph/func_to_graph.h"
+#include "tensorflow/core/transforms/pass_detail.h"
 
 namespace mlir {
 namespace tfg {
 namespace {
-
-#define GEN_PASS_DEF_FUNCTOGRAPH
-#include "tensorflow/core/transforms/passes.h.inc"
-
-class FuncToGraphPass : public impl::FuncToGraphBase<FuncToGraphPass> {
+class FuncToGraphPass : public FuncToGraphBase<FuncToGraphPass> {
  public:
   FuncToGraphPass() = default;
 
@@ -51,7 +48,7 @@ void FuncToGraphPass::runOnOperation() {
 
   GraphFuncOp lifted_graph_func;
   for (auto func : module.getOps<GraphFuncOp>()) {
-    if (func.getSymName() == lifted_graph_func_name) {
+    if (func.sym_name() == lifted_graph_func_name) {
       lifted_graph_func = func;
       break;
     }

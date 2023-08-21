@@ -409,10 +409,8 @@ class SaveAndLoadForTrainingTest(test.TestCase, parameterized.TestCase):
         self.v.assign_add(value)
 
     export_dir = self.get_temp_dir()
-    # TODO(b/157621013): strategy.run doesn't work with tf.function with
-    # input_signature.
-    # value = strategy.experimental_distribute_values_from_function(
-    #     lambda ctx: tf.identity([3., 7.][ctx.replica_id_in_sync_group]))
+    value = strategy.experimental_distribute_values_from_function(
+        lambda ctx: tf.identity([3., 7.][ctx.replica_id_in_sync_group]))
     with strategy.scope():
       m = Model()
       tf.saved_model.save(m, export_dir)
@@ -420,7 +418,7 @@ class SaveAndLoadForTrainingTest(test.TestCase, parameterized.TestCase):
       self.assertAllEqual(
           self.evaluate(strategy.experimental_local_results(m.v)), [5., 5.])
       del m
-      # TODO(b/157621013): strategy.run doesn't work with tf.function with
+      # TODO(b/161488560): strategy.run doesn't work with tf.function with
       # input_signature.
       # self.evaluate(strategy.run(m.update, args=(value,)))
       # self.assertAllEqual(
@@ -432,12 +430,10 @@ class SaveAndLoadForTrainingTest(test.TestCase, parameterized.TestCase):
       self.assertAllEqual(
           self.evaluate(strategy.experimental_local_results(loaded.v)),
           [5., 5.])
-      # TODO(b/157621013): strategy.run doesn't work with tf.function with
-      # input_signature.
-      # self.evaluate(strategy.run(loaded.update, args=(value,)))
-      # self.assertAllEqual(
-      #     self.evaluate(strategy.experimental_local_results(loaded.v)),
-      #     [8., 12.])
+      self.evaluate(strategy.run(loaded.update, args=(value,)))
+      self.assertAllEqual(
+          self.evaluate(strategy.experimental_local_results(loaded.v)),
+          [8., 12.])
 
   def test_read_mirrored_variable(self, strategy):
 
@@ -490,8 +486,8 @@ class SaveAndLoadForTrainingTest(test.TestCase, parameterized.TestCase):
         self.v.assign_add(value)
 
     export_dir = self.get_temp_dir()
-    # value = strategy.experimental_distribute_values_from_function(
-    #     lambda ctx: tf.identity([1., 2.][ctx.replica_id_in_sync_group]))
+    value = strategy.experimental_distribute_values_from_function(
+        lambda ctx: tf.identity([1., 2.][ctx.replica_id_in_sync_group]))
     with strategy.scope():
       m = Model()
       tf.saved_model.save(m, export_dir)
@@ -504,11 +500,9 @@ class SaveAndLoadForTrainingTest(test.TestCase, parameterized.TestCase):
     self.evaluate(loaded.v.assign(1.))
     self.assertAllEqual(
         self.evaluate(strategy.experimental_local_results(loaded.v)), [1., 1.])
-    # TODO(b/157621013): strategy.run doesn't work with tf.function with
-    # input_signature (Similar to test_update_sync_on_read_variable)
-    # strategy.run(loaded.update, args=(value,))
-    # self.assertAllEqual(
-    #    self.evaluate(strategy.experimental_local_results(loaded.v)), [2., 3.])
+    strategy.run(loaded.update, args=(value,))
+    self.assertAllEqual(
+        self.evaluate(strategy.experimental_local_results(loaded.v)), [2., 3.])
 
   # TODO(crccw): add a test case that trains a saved model with optimizer.
 

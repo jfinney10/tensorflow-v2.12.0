@@ -15,6 +15,8 @@
 """Test base for tf.data service tests."""
 import tempfile
 
+from absl import flags
+
 from tensorflow.core.protobuf import service_config_pb2
 from tensorflow.python.data.experimental.ops import data_service_ops
 from tensorflow.python.data.experimental.service import server_lib
@@ -32,9 +34,9 @@ NO_WORK_DIR = ""
 # We use a faster than normal heartbeat interval so that tests run faster.
 TEST_HEARTBEAT_INTERVAL_MS = 100
 TEST_DISPATCHER_TIMEOUT_MS = 1000
-TEST_WORKER_TIMEOUT_MS = 200
-TEST_JOB_GC_CHECK_INTERNAL_MS = 1000
 PROTOCOL = "grpc"
+TRANSFER_PROTOCOL = flags.DEFINE_string(
+    "tf_data_service_test_transfer_protocol", None, "Data plane protocol.")
 
 
 def all_cluster_configurations():
@@ -69,7 +71,7 @@ def _make_worker(dispatcher_address,
 
 
 # pylint: disable=protected-access
-class TestWorker:
+class TestWorker(object):
   """A tf.data service worker."""
 
   def __init__(self,
@@ -120,29 +122,23 @@ class TestWorker:
   def num_tasks(self):
     return self._server._num_tasks()
 
-  def snapshot_task_progresses(self):
-    return self._server._snapshot_task_progresses()
-
   def worker_address(self):
     return self._server._address
 
 
-class TestCluster:
+class TestCluster(object):
   """Test tf.data service cluster."""
 
-  def __init__(
-      self,
-      num_workers,
-      dispatcher_port=0,
-      work_dir=TMP_WORK_DIR,
-      fault_tolerant_mode=True,
-      job_gc_check_interval_ms=TEST_JOB_GC_CHECK_INTERNAL_MS,
-      job_gc_timeout_ms=None,
-      worker_timeout_ms=TEST_WORKER_TIMEOUT_MS,
-      worker_shutdown_quiet_period_ms=0,
-      start=True,
-      data_transfer_protocol=None,
-  ):
+  def __init__(self,
+               num_workers,
+               dispatcher_port=0,
+               work_dir=TMP_WORK_DIR,
+               fault_tolerant_mode=True,
+               job_gc_check_interval_ms=None,
+               job_gc_timeout_ms=None,
+               worker_shutdown_quiet_period_ms=0,
+               start=True,
+               data_transfer_protocol=None):
     """Creates a tf.data service test cluster.
 
     Args:
@@ -158,19 +154,20 @@ class TestCluster:
         delete old and unused jobs, in milliseconds.
       job_gc_timeout_ms: How long a job needs to be unused before it becomes a
         candidate for garbage collection, in milliseconds.
-      worker_timeout_ms: How long to wait for a worker to heartbeat before
-        considering it missing, in milliseconds.
       worker_shutdown_quiet_period_ms: When shutting down a worker, how long to
         wait for the gRPC server to process the final requests.
       start: Whether to immediately start the servers in the cluster. If
         `False`, the servers can be started later by calling
         `start_dispatcher()` and `start_workers()`.
       data_transfer_protocol: (Optional.) The protocol to use for transferring
-        data with the tf.data service.
+        data with the tf.data service. The default can controlled via
+        tf_data_service_test_transfer_protocol flag.
     """
     if work_dir == TMP_WORK_DIR:
       work_dir = tempfile.mkdtemp(dir=googletest.GetTempDir())
     self._worker_shutdown_quiet_period_ms = worker_shutdown_quiet_period_ms
+    if not data_transfer_protocol:
+      data_transfer_protocol = TRANSFER_PROTOCOL.value
     self._data_transfer_protocol = data_transfer_protocol
     self.dispatcher = server_lib.DispatchServer(
         server_lib.DispatcherConfig(
@@ -179,11 +176,8 @@ class TestCluster:
             protocol=PROTOCOL,
             fault_tolerant_mode=fault_tolerant_mode,
             job_gc_check_interval_ms=job_gc_check_interval_ms,
-            job_gc_timeout_ms=job_gc_timeout_ms,
-            worker_timeout_ms=worker_timeout_ms,
-        ),
-        start=start,
-    )
+            job_gc_timeout_ms=job_gc_timeout_ms),
+        start=start)
 
     self.workers = []
     for _ in range(num_workers):
@@ -210,9 +204,6 @@ class TestCluster:
   def stop_dispatcher(self):
     # pylint: disable=protected-access
     self.dispatcher._stop()
-
-  def stop_worker(self, index):
-    self.workers[index].stop()
 
   def stop_workers(self):
     for worker in self.workers:
@@ -243,9 +234,6 @@ class TestCluster:
   def num_tasks_on_workers(self):
     return sum(worker.num_tasks() for worker in self.workers)
 
-  def snapshot_streams(self, path):
-    return self.dispatcher._snapshot_streams(path)
-
   def __del__(self):
     # Destroy workers before the dispatcher for clean shutdown.
     self.workers.clear()
@@ -255,6 +243,28 @@ class TestCluster:
 class TestBase(test_base.DatasetTestBase):
   """Base class for tf.data service tests."""
 
+  def register_dataset(self, dispatcher_address, dataset):
+    compression = "AUTO"
+    if TRANSFER_PROTOCOL.value is not None:
+      compression = None
+
+    return data_service_ops.register_dataset(
+        dispatcher_address, dataset, compression=compression)
+
+  def from_dataset_id(self,
+                      processing_mode,
+                      cluster,
+                      dataset_id,
+                      element_spec,
+                      job_name=None):
+    return data_service_ops.from_dataset_id(
+        processing_mode,
+        cluster.dispatcher_address(),
+        dataset_id,
+        element_spec,
+        data_transfer_protocol=TRANSFER_PROTOCOL.value,
+        job_name=job_name)
+
   def make_distributed_dataset(self,
                                dataset,
                                cluster,
@@ -263,7 +273,6 @@ class TestBase(test_base.DatasetTestBase):
                                consumer_index=None,
                                num_consumers=None,
                                max_outstanding_requests=None,
-                               data_transfer_protocol=None,
                                compression="AUTO",
                                cross_trainer_cache=None,
                                target_workers="AUTO"):
@@ -277,7 +286,7 @@ class TestBase(test_base.DatasetTestBase):
             num_consumers=num_consumers,
             max_outstanding_requests=max_outstanding_requests,
             task_refresh_interval_hint_ms=20,
-            data_transfer_protocol=data_transfer_protocol,
+            data_transfer_protocol=TRANSFER_PROTOCOL.value,
             compression=compression,
             cross_trainer_cache=cross_trainer_cache,
             target_workers=target_workers))
@@ -288,7 +297,6 @@ class TestBase(test_base.DatasetTestBase):
                                      processing_mode="parallel_epochs",
                                      job_name=None,
                                      max_outstanding_requests=None,
-                                     data_transfer_protocol=None,
                                      compression="AUTO",
                                      cross_trainer_cache=None,
                                      target_workers="AUTO"):
@@ -299,7 +307,6 @@ class TestBase(test_base.DatasetTestBase):
         processing_mode=processing_mode,
         job_name=job_name,
         max_outstanding_requests=max_outstanding_requests,
-        data_transfer_protocol=data_transfer_protocol,
         compression=compression,
         cross_trainer_cache=cross_trainer_cache,
         target_workers=target_workers)

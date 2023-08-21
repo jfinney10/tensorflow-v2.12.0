@@ -96,13 +96,13 @@ for more performance parameters that you could run with the benchmark app.
 View the results using the `logcat` command:
 
 ```shell
-adb logcat | grep "Inference timings"
+adb logcat | grep "Average inference"
 ```
 
 The benchmark results are reported as:
 
 ```
-... tflite  : Inference timings in us: Init: 5685, First inference: 18535, Warmup (avg): 14462.3, Inference (avg): 14575.2
+... tflite  : Average inference timings in us: Warmup: 91471, Init: 4108, Inference: 80660.1
 ```
 
 ### Native benchmark binary

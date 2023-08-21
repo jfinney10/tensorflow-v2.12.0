@@ -19,7 +19,6 @@ limitations under the License.
 #include <atomic>
 #include <iterator>
 #include <string>
-#include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -35,12 +34,12 @@ limitations under the License.
 #include "mlir/IR/MLIRContext.h"  // from @llvm-project
 #include "mlir/IR/OperationSupport.h"  // from @llvm-project
 #include "mlir/IR/Value.h"  // from @llvm-project
+#include "tensorflow/compiler/mlir/hlo/include/mlir-hlo/utils/convert_op_folder.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_attributes.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_device.h"
 #include "tensorflow/compiler/mlir/tensorflow/ir/tf_ops.h"
 #include "tensorflow/compiler/mlir/tensorflow/transforms/collection_ops_util.h"
 #include "tensorflow/compiler/mlir/tensorflow/utils/convert_tensor.h"
-#include "tensorflow/compiler/xla/mlir_hlo/utils/convert_op_folder.h"
 #include "tensorflow/core/platform/errors.h"
 #include "tensorflow/dtensor/cc/constants.h"
 #include "tensorflow/dtensor/cc/tensor_layout.h"
@@ -54,14 +53,6 @@ limitations under the License.
 namespace tensorflow {
 namespace dtensor {
 
-// Checks that all layouts are fully replicated
-bool AllReplicated(const std::vector<Layout>& layouts) {
-  for (const Layout& layout : layouts) {
-    if (!layout.IsFullyReplicated()) return false;
-  }
-  return true;
-}
-
 StatusOr<mlir::TensorType> LocalTypeFromGlobalType(
     const Layout& layout, const mlir::TensorType& original_type) {
   if (!original_type.hasRank()) {
@@ -70,7 +61,7 @@ StatusOr<mlir::TensorType> LocalTypeFromGlobalType(
   auto shape = llvm::to_vector<4>(original_type.getShape());
   auto shard_values = layout.num_shards();
   for (int output_axis = 0; output_axis < shape.size(); ++output_axis) {
-    if (shape[output_axis] != mlir::ShapedType::kDynamic) {
+    if (shape[output_axis] != mlir::ShapedType::kDynamicSize) {
       if (shape[output_axis] % shard_values[output_axis] != 0) {
         return errors::InvalidArgument(
             "The sharding spec for axis ", output_axis, " splits among ",
@@ -96,7 +87,7 @@ StatusOr<mlir::TensorType> GlobalTypeFromLocalType(
   auto shape = llvm::to_vector<4>(original_type.getShape());
   auto shard_values = layout.num_shards();
   for (int output_axis = 0; output_axis < shape.size(); ++output_axis)
-    if (shape[output_axis] != mlir::ShapedType::kDynamic)
+    if (shape[output_axis] != mlir::ShapedType::kDynamicSize)
       shape[output_axis] *= shard_values[output_axis];
   mlir::RankedTensorType new_output_type =
       mlir::RankedTensorType::get(shape, original_type.getElementType());
@@ -120,7 +111,8 @@ Status CreateSplitOp(const int num_split, const int split_dimension,
   auto input_type = src_input.getType().cast<mlir::TensorType>();
 
   if (input_type.hasRank()) {
-    if (input_type.getShape()[split_dimension] == mlir::ShapedType::kDynamic) {
+    if (input_type.getShape()[split_dimension] ==
+        mlir::ShapedType::kDynamicSize) {
       output_type = input_type;
     } else {
       auto shape = llvm::to_vector<4>(input_type.getShape());
@@ -144,7 +136,7 @@ Status CreateSplitOp(const int num_split, const int split_dimension,
   // Creates a split op that splits |src_input| along |split_dimension|.
   llvm::SmallVector<mlir::Type, 4> output_types(num_split, output_type);
   *split_op = builder->create<mlir::TF::SplitOp>(
-      location, output_types, split_dimension_op.getOutput(), src_input);
+      location, output_types, split_dimension_op.output(), src_input);
   return OkStatus();
 }
 
@@ -331,7 +323,7 @@ mlir::Value GetForwardedDTensorLayoutInput(mlir::Value value) {
       llvm::dyn_cast_or_null<mlir::TF::DTensorLayout>(value.getDefiningOp());
   if (!layout_op) return value;
 
-  return layout_op.getInput();
+  return layout_op.input();
 }
 
 // Takes an operand and traces its use across function call and
@@ -372,7 +364,7 @@ llvm::SmallVector<mlir::OpOperand*, 4> TraceUseToNextTFOp(
       values.emplace_back(if_op.getResult(operand->getOperandNumber()));
     } else if (auto while_op =
                    owner->getParentOfType<mlir::TF::WhileRegionOp>()) {
-      if (while_op && !while_op.getCond().isAncestor(yield->getParentRegion()))
+      if (while_op && !while_op.cond().isAncestor(yield->getParentRegion()))
         values.emplace_back(while_op.getResult(operand->getOperandNumber()));
     } else {
       LOG(WARNING)
@@ -380,11 +372,11 @@ llvm::SmallVector<mlir::OpOperand*, 4> TraceUseToNextTFOp(
     }
   } else if (mlir::isa<mlir::TF::DTensorLayout>(owner)) {
     auto dtensor_layout = mlir::cast<mlir::TF::DTensorLayout>(owner);
-    values.emplace_back(dtensor_layout.getOutput());
+    values.emplace_back(dtensor_layout.output());
   } else if (auto while_op = mlir::dyn_cast<mlir::TF::WhileRegionOp>(owner)) {
     // Handle loop variant inputs of while op.
-    mlir::Region& cond = while_op.getCond();
-    mlir::Region& body = while_op.getBody();
+    mlir::Region& cond = while_op.cond();
+    mlir::Region& body = while_op.body();
     const int operand_index = operand->getOperandNumber();
     values.emplace_back(cond.front().getArgument(operand_index));
     values.emplace_back(body.front().getArgument(operand_index));
@@ -500,7 +492,7 @@ StatusOr<mlir::Value> GetMeshCoordinatesFromCluster(
         op->getAttrOfType<mlir::StringAttr>(kMeshCoordinatesAttr)
                 .getValue()
                 .str() == serialized_mesh) {
-      ret_val = op.getZ();
+      ret_val = op.z();
       return mlir::WalkResult::interrupt();
     }
     return mlir::WalkResult::advance();
@@ -539,10 +531,10 @@ StatusOr<mlir::Value> GetMeshCoordinatesFromCluster(
                                                 running_product_value);
 
   auto mod_op = builder.create<mlir::TF::FloorModOp>(
-      cluster.getLoc(), div_op.getZ(), mesh_shape_value);
+      cluster.getLoc(), div_op.z(), mesh_shape_value);
 
   mod_op->setAttr(kMeshCoordinatesAttr, builder.getStringAttr(serialized_mesh));
-  return mod_op.getZ();
+  return mod_op.z();
 }
 
 mlir::LogicalResult ValidateMetadataAttributes(mlir::Operation* op) {
@@ -588,7 +580,7 @@ void RemoveUnusedClusterResults(mlir::tf_device::ClusterOp cluster) {
   llvm::SmallVector<mlir::Value, 4> result_producing_values;
   new_result_values.reserve(cluster->getNumResults());
   result_producing_values.reserve(cluster->getNumResults());
-  for (mlir::OpResult result : cluster.getResults()) {
+  for (mlir::OpResult result : cluster.results()) {
     if (!result.use_empty()) {
       new_result_values.emplace_back(result);
       result_producing_values.emplace_back(
@@ -608,7 +600,7 @@ void RemoveUnusedClusterResults(mlir::tf_device::ClusterOp cluster) {
       cluster.getLoc(), new_result_types);
   new_cluster->setAttr(kMeshAttr,
                        cluster->getAttrOfType<mlir::StringAttr>(kMeshAttr));
-  new_cluster.getBody().push_back(new mlir::Block);
+  new_cluster.body().push_back(new mlir::Block);
 
   auto& cluster_body = cluster.GetBody().getOperations();
   new_cluster.GetBody().getOperations().splice(
@@ -620,7 +612,7 @@ void RemoveUnusedClusterResults(mlir::tf_device::ClusterOp cluster) {
                                             result_producing_values);
 
   assert(new_cluster.getNumResults() == new_result_values.size());
-  for (auto it : llvm::zip(new_result_values, new_cluster.getResults())) {
+  for (auto it : llvm::zip(new_result_values, new_cluster.results())) {
     mlir::Value value_to_replace = std::get<0>(it);
     mlir::Value new_result = std::get<1>(it);
     value_to_replace.replaceAllUsesWith(new_result);
@@ -664,7 +656,7 @@ Status SetBuilderInsertionAfterValue(mlir::Value value,
   }
   if (!cluster) return errors::Internal("value not used in any cluster");
 
-  builder.setInsertionPointToStart(cluster.SingleBlock::getBody());
+  builder.setInsertionPointToStart(cluster.getBody());
   return OkStatus();
 }
 
@@ -679,7 +671,7 @@ Status PrintTensor(mlir::Value value, const std::string& format_string = "%s") {
   mlir::TF::StringFormatOp format = builder.create<mlir::TF::StringFormatOp>(
       value.getLoc(), scalar_string, mlir::ValueRange({device_id, value}));
   format->setAttr("template", builder.getStringAttr(all_format));
-  builder.create<mlir::TF::PrintV2Op>(value.getLoc(), format.getOutput(),
+  builder.create<mlir::TF::PrintV2Op>(value.getLoc(), format.output(),
                                       /*output_stream=*/"log(info)",
                                       /*end=*/"\n");
   return OkStatus();
@@ -755,13 +747,13 @@ mlir::Operation* TopologicalIterator::next() {
     ops_to_visit_.push_back(&cluster_op.GetBody().front());
 
   if (auto while_op = mlir::dyn_cast<mlir::TF::WhileRegionOp>(op)) {
-    ops_to_visit_.push_back(&while_op.getCond().front().front());
-    ops_to_visit_.push_back(&while_op.getBody().front().front());
+    ops_to_visit_.push_back(&while_op.cond().front().front());
+    ops_to_visit_.push_back(&while_op.body().front().front());
   }
 
   if (auto if_op = mlir::dyn_cast<mlir::TF::IfRegionOp>(op)) {
-    ops_to_visit_.push_back(&if_op.getThenBranch().front().front());
-    ops_to_visit_.push_back(&if_op.getElseBranch().front().front());
+    ops_to_visit_.push_back(&if_op.then_branch().front().front());
+    ops_to_visit_.push_back(&if_op.else_branch().front().front());
   }
   return op;
 }

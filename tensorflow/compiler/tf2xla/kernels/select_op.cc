@@ -114,15 +114,15 @@ class SelectOpV2 : public XlaOpKernel {
 
     auto bcasted_cond = BroadcastTo(ctx->Input(0), bcast.output_shape());
     OP_REQUIRES_OK(ctx, bcasted_cond.status());
-    auto cond_handle = bcasted_cond.value();
+    auto cond_handle = bcasted_cond.ValueOrDie();
 
     auto bcasted_then = BroadcastTo(ctx->Input(1), bcast.output_shape());
     OP_REQUIRES_OK(ctx, bcasted_then.status());
-    auto then_handle = bcasted_then.value();
+    auto then_handle = bcasted_then.ValueOrDie();
 
     auto bcasted_else = BroadcastTo(ctx->Input(2), bcast.output_shape());
     OP_REQUIRES_OK(ctx, bcasted_else.status());
-    auto else_handle = bcasted_else.value();
+    auto else_handle = bcasted_else.ValueOrDie();
 
     ctx->SetOutput(0, xla::Select(cond_handle, then_handle, else_handle));
   }

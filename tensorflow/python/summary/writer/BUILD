@@ -1,7 +1,7 @@
 load("//tensorflow:tensorflow.bzl", "py_tests")
 
 package(
-    # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
+    default_visibility = ["//tensorflow:internal"],
     licenses = ["notice"],
 )
 
@@ -32,6 +32,7 @@ py_library(
         "//tensorflow/python/framework:constant_op",
         "//tensorflow/python/framework:for_generated_wrappers",
         "//tensorflow/python/util",
+        "@six_archive//:six",
     ],
 )
 

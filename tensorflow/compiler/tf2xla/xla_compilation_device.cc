@@ -114,13 +114,14 @@ void XlaCompilationDevice::Compute(OpKernel* op_kernel,
       ParseShardingFromDevice(op_kernel->def(), std::numeric_limits<int>::max(),
                               /*add_metadata=*/false);
   OP_REQUIRES_OK(context, sharding_parse_result.status());
-  std::optional<xla::OpSharding> op_sharding = sharding_parse_result.value();
+  std::optional<xla::OpSharding> op_sharding =
+      sharding_parse_result.ValueOrDie();
 
   auto frontend_attributes_result =
       GetFrontendAttributesFromAttrSlice(AttrSlice(op_kernel->def()));
   OP_REQUIRES_OK(context, frontend_attributes_result.status());
   std::optional<xla::FrontendAttributes> attributes =
-      frontend_attributes_result.value();
+      frontend_attributes_result.ValueOrDie();
 
   xla::FrontendAttributes merged_attributes = b->frontend_attributes();
   if (attributes.has_value()) {

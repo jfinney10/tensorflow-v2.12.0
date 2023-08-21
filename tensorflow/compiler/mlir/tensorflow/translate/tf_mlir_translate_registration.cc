@@ -31,10 +31,11 @@ limitations under the License.
 #include "tensorflow/compiler/mlir/tensorflow/translate/tf_mlir_translate.h"
 #include "tensorflow/compiler/mlir/tensorflow/translate/tf_mlir_translate_cl.h"
 #include "tensorflow/core/framework/graph.pb.h"
+#include "tensorflow/stream_executor/lib/statusor.h"
 
 namespace mlir {
-using tsl::Status;
-using tsl::StatusOr;
+using stream_executor::port::Status;
+using stream_executor::port::StatusOr;
 
 namespace {
 inline absl::string_view StringRefToView(llvm::StringRef ref) {
@@ -54,7 +55,7 @@ static OwningOpRef<mlir::ModuleOp> GraphdefToMlirTranslateFunction(
 }
 
 static TranslateToMLIRRegistration GraphdefToMlirTranslate(
-    "graphdef-to-mlir", "graphdef-to-mlir", GraphdefToMlirTranslateFunction);
+    "graphdef-to-mlir", GraphdefToMlirTranslateFunction);
 
 static OwningOpRef<mlir::ModuleOp> GraphdefToSplattedMlirTranslateFunction(
     llvm::StringRef input, MLIRContext* context) {
@@ -68,8 +69,7 @@ static OwningOpRef<mlir::ModuleOp> GraphdefToSplattedMlirTranslateFunction(
 }
 
 static TranslateToMLIRRegistration GraphdefToSplattedMlirTranslate(
-    "graphdef-to-splatted-mlir", "graphdef-to-splatted-mlir",
-    GraphdefToSplattedMlirTranslateFunction);
+    "graphdef-to-splatted-mlir", GraphdefToSplattedMlirTranslateFunction);
 
 static LogicalResult MlirToGraphdefTranslateFunction(
     ModuleOp module, llvm::raw_ostream& output) {
@@ -85,12 +85,12 @@ static LogicalResult MlirToGraphdefTranslateFunction(
     return mlir::failure();
   }
 
-  output << graphdef_or.value()->DebugString();
+  output << graphdef_or.ValueOrDie()->DebugString();
   return success();
 }
 
 static TranslateFromMLIRRegistration mlir_to_graphdef_translate(
-    "mlir-to-graphdef", "mlir-to-graphdef", MlirToGraphdefTranslateFunction,
+    "mlir-to-graphdef", MlirToGraphdefTranslateFunction,
     [](DialectRegistry& registry) {
       mlir::RegisterAllTensorFlowDialects(registry);
     });

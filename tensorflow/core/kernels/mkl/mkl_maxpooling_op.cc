@@ -180,8 +180,8 @@ class MklMaxPoolingOp : public MklPoolingForwardOpBase<T> {
                                   output_min_mkl_shape, this->native_format_);
         AllocateOutputSetMklShape(context, 2, &output_max, {},
                                   output_max_mkl_shape, this->native_format_);
-        output_min->scalar<float>()() = min_input;
-        output_max->scalar<float>()() = max_input;
+        output_min->flat<float>()(0) = min_input;
+        output_max->flat<float>()(0) = max_input;
       } else {
         MklDnnData<uint8> dnn_data_wksp(&cpu_engine_);
         AllocateWorkspaceTensor(context, *(pooling_fwd->GetPoolingFwdPd()),
@@ -193,9 +193,9 @@ class MklMaxPoolingOp : public MklPoolingForwardOpBase<T> {
         pooling_fwd->Execute(src_data, dst_data, ws_data, fwd_cpu_stream);
       }
     } catch (dnnl::error& e) {
-      string error_msg = "Status: " + std::to_string(e.status) + ", message: " +
-                         string(e.message) + ", in file " + string(__FILE__) +
-                         ":" + std::to_string(__LINE__);
+      string error_msg = "Status: " + std::to_string(e.status) +
+                         ", message: " + string(e.message) + ", in file " +
+                         string(__FILE__) + ":" + std::to_string(__LINE__);
       OP_REQUIRES_OK(context, errors::Aborted("Compute received an exception:",
                                               error_msg));
     }
@@ -259,19 +259,6 @@ class MklMaxPoolingGradOp : public MklPoolingBackwardOpBase<T> {
       MklPoolParameters pool_params;
       TensorShape orig_input_shape = orig_input_tensor.shape();
 
-      if (orig_input_tensor.NumElements() == 0 ||
-          grad_tensor.NumElements() == 0) {
-        Tensor* output = nullptr;
-        TensorShape output_shape;
-        auto shape_vec = orig_input_tensor.vec<int32>();
-        for (int64_t i = 0; i < orig_input_tensor.NumElements(); ++i) {
-          OP_REQUIRES_OK(context, output_shape.AddDimWithStatus(shape_vec(i)));
-        }
-        OP_REQUIRES_OK(context,
-                       context->allocate_output(0, output_shape, &output));
-        output->flat<T>().setZero();
-        return;
-      }
       bool is_pool2d = (this->ksize_.size() == 4);
       this->InitMklPoolParameters(context, &pool_params, orig_input_mkl_shape,
                                   orig_input_shape);
@@ -356,9 +343,9 @@ class MklMaxPoolingGradOp : public MklPoolingBackwardOpBase<T> {
       pooling_bwd->Execute(diff_dst_data, diff_src_data, ws_data,
                            bwd_cpu_stream);
     } catch (dnnl::error& e) {
-      string error_msg = "Status:" + std::to_string(e.status) + ", message: " +
-                         string(e.message) + ". in file " + string(__FILE__) +
-                         ":" + std::to_string(__LINE__);
+      string error_msg = "Status:" + std::to_string(e.status) +
+                         ", message: " + string(e.message) + ". in file " +
+                         string(__FILE__) + ":" + std::to_string(__LINE__);
       OP_REQUIRES_OK(context, errors::Aborted("Compute received an exception:",
                                               error_msg));
     }

@@ -21,14 +21,14 @@ limitations under the License.
 #include <vector>
 
 #include "absl/types/span.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_computation.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_instruction.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_module.h"
-#include "tensorflow/compiler/xla/hlo/ir/hlo_opcode.h"
 #include "tensorflow/compiler/xla/layout_util.h"
 #include "tensorflow/compiler/xla/literal.h"
 #include "tensorflow/compiler/xla/service/algebraic_simplifier.h"
 #include "tensorflow/compiler/xla/service/computation_layout.h"
+#include "tensorflow/compiler/xla/service/hlo_computation.h"
+#include "tensorflow/compiler/xla/service/hlo_instruction.h"
+#include "tensorflow/compiler/xla/service/hlo_module.h"
+#include "tensorflow/compiler/xla/service/hlo_opcode.h"
 #include "tensorflow/compiler/xla/service/hlo_parser.h"
 #include "tensorflow/compiler/xla/service/pattern_matcher.h"
 #include "tensorflow/compiler/xla/service/pattern_matcher_gmock.h"
@@ -40,8 +40,8 @@ limitations under the License.
 #include "tensorflow/compiler/xla/tests/test_utils.h"
 #include "tensorflow/compiler/xla/util.h"
 #include "tensorflow/compiler/xla/xla_data.pb.h"
-#include "tensorflow/tsl/lib/core/status_test_util.h"
-#include "tensorflow/tsl/platform/status.h"
+#include "tensorflow/core/lib/core/status.h"
+#include "tensorflow/core/lib/core/status_test_util.h"
 
 namespace xla {
 namespace {
@@ -274,9 +274,9 @@ TEST_F(LayoutAssignmentTest, ConflictingLayoutTuple) {
       m->entry_computation()->ComputeProgramShape());
   Shape result_shape = nested_tuple->shape();
   *ShapeUtil::GetMutableSubshape(&result_shape, /*index=*/{0, 0}) =
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 2}, {1, 0});
+      ShapeUtil::MakeShapeWithLayout(F32, {2, 2}, {1, 0});
   *ShapeUtil::GetMutableSubshape(&result_shape, /*index=*/{1, 0}) =
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 2}, {0, 1});
+      ShapeUtil::MakeShapeWithLayout(F32, {2, 2}, {0, 1});
   TF_CHECK_OK(computation_layout.mutable_result_layout()->CopyLayoutFromShape(
       result_shape));
 
@@ -297,7 +297,7 @@ TEST_F(LayoutAssignmentTest, ConflictingLayoutTuple) {
   AlgebraicSimplifierOptions options(
       [](const Shape&, const Shape&) { return false; });
   options.set_is_layout_sensitive(true);
-  EXPECT_TRUE(AlgebraicSimplifier(options).Run(m.get()).value());
+  EXPECT_TRUE(AlgebraicSimplifier(options).Run(m.get()).ValueOrDie());
   HloInstruction* root = m->entry_computation()->root_instruction();
   // Verify layout of the root and the root's operands.
   EXPECT_TRUE(ShapeUtil::Equal(result_shape, root->shape()));
@@ -543,7 +543,7 @@ TEST_F(LayoutAssignmentTest, MakeOperandsTheSame) {
 TEST_F(LayoutAssignmentTest, TransposeToBitcastFromOperand) {
   auto builder = HloComputation::Builder(TestName());
   Shape input_shape_with_layout =
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {3, 5, 6, 7}, {2, 0, 3, 1});
+      ShapeUtil::MakeShapeWithLayout(F32, {3, 5, 6, 7}, {2, 0, 3, 1});
   auto param = builder.AddInstruction(
       HloInstruction::CreateParameter(0, input_shape_with_layout, "param"));
   auto transpose = builder.AddInstruction(HloInstruction::CreateTranspose(
@@ -589,7 +589,7 @@ TEST_F(LayoutAssignmentTest, TransposeIsBitcastFail) {
   LayoutUtil::ClearLayout(hlo->mutable_shape());
   EXPECT_DEATH(ShapeUtil::TransposeIsBitcast(hlo->operand(0)->shape(),
                                              hlo->shape(), hlo->dimensions()),
-               "has_layout");
+               "LayoutUtil::HasLayout");
 }
 
 // ReshapeIsBitcast shouldn't be called without layout information.
@@ -606,7 +606,7 @@ TEST_F(LayoutAssignmentTest, ReshapeIsBitcastFail) {
   LayoutUtil::ClearLayout(hlo->mutable_shape());
   EXPECT_DEATH(
       ShapeUtil::ReshapeIsBitcast(hlo->operand(0)->shape(), hlo->shape()),
-      "has_layout");
+      "LayoutUtil::HasLayout");
 }
 
 // Check that the computation below doesn't crash the compiler.
@@ -681,10 +681,10 @@ TEST_F(LayoutAssignmentTest, GTEInheritsLayoutFromOperand) {
   ComputationLayout computation_layout(
       m->entry_computation()->ComputeProgramShape());
   Shape param_shape = ShapeUtil::MakeTupleShape(
-      {ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 2, 2}, {0, 1, 2}),
+      {ShapeUtil::MakeShapeWithLayout(F32, {2, 2, 2}, {0, 1, 2}),
        ShapeUtil::MakeTupleShape({
-           ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 2, 2}, {1, 2, 0}),
-           ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 2, 2}, {2, 0, 1}),
+           ShapeUtil::MakeShapeWithLayout(F32, {2, 2, 2}, {1, 2, 0}),
+           ShapeUtil::MakeShapeWithLayout(F32, {2, 2, 2}, {2, 0, 1}),
        })});
   TF_ASSERT_OK(
       computation_layout.mutable_parameter_layout(0)->CopyLayoutFromShape(
@@ -744,7 +744,7 @@ TEST_F(LayoutAssignmentTest, ConditionalAsymmetricLayout) {
 
   auto false_builder = HloComputation::Builder(TestName() + "_FalseBranch");
   {
-    Shape xshape = ShapeUtil::MakeShapeWithDenseLayout(F32, {128, 8}, {0, 1});
+    Shape xshape = ShapeUtil::MakeShapeWithLayout(F32, {128, 8}, {0, 1});
     false_builder.AddInstruction(
         HloInstruction::CreateParameter(0, tshape, "param"));
     // Using infeed as layout assignment does not mess up with it.
@@ -837,11 +837,13 @@ TEST_F(LayoutAssignmentTest, ChannelLayoutMismatch) {
       param = (f32[2,2]) parameter(0)
       gte = f32[2,2] get-tuple-element(param), index=0
       token0 = token[] after-all()
-      recv = (f32[2,2], u32[], token[]) recv(token0), channel_id=1
-      recv-done = (f32[2,2], token[]) recv-done(recv), channel_id=1
+      recv = (f32[2,2], u32[], token[]) recv(token0), channel_id=1, sharding={maximal device=1}
+      recv-done = (f32[2,2], token[]) recv-done(recv), channel_id=1,
+        sharding={maximal device=1}
       ROOT root = f32[2,2] get-tuple-element(recv-done), index=0
-      send = (f32[2,2], u32[], token[]) send(gte, token0), channel_id=1
-      send-done = token[] send-done(send), channel_id=1
+      send = (f32[2,2], u32[], token[]) send(gte, token0), channel_id=1,
+        sharding={maximal device=0}
+      send-done = token[] send-done(send), channel_id=1, sharding={maximal device=0}
     }
   )";
 
@@ -850,7 +852,7 @@ TEST_F(LayoutAssignmentTest, ChannelLayoutMismatch) {
   ComputationLayout computation_layout(
       m->entry_computation()->ComputeProgramShape());
   Shape param_shape = ShapeUtil::MakeTupleShape(
-      {ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 2}, {0, 1})});
+      {ShapeUtil::MakeShapeWithLayout(F32, {2, 2}, {0, 1})});
   TF_ASSERT_OK(
       computation_layout.mutable_parameter_layout(0)->CopyLayoutFromShape(
           param_shape));
@@ -891,7 +893,7 @@ TEST_F(LayoutAssignmentTest, AllReduceLayoutMissmatch) {
   ComputationLayout computation_layout(
       m->entry_computation()->ComputeProgramShape());
   Shape param_shape = ShapeUtil::MakeTupleShape(
-      {ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 2}, {0, 1})});
+      {ShapeUtil::MakeShapeWithLayout(F32, {2, 2}, {0, 1})});
   TF_ASSERT_OK(
       computation_layout.mutable_parameter_layout(0)->CopyLayoutFromShape(
           param_shape));
@@ -930,7 +932,7 @@ TEST_F(LayoutAssignmentTest, CopySliceOperandToAvoidImplicitLayoutChange) {
           .value();
   HloInstruction* root =
       compiled_module->entry_computation()->root_instruction();
-  Shape shape_copy = ShapeUtil::MakeShapeWithDenseLayout(F32, {4, 5}, {1, 0});
+  Shape shape_copy = ShapeUtil::MakeShapeWithLayout(F32, {4, 5}, {1, 0});
   EXPECT_THAT(
       root,
       GmockMatch(m::Add(
@@ -962,7 +964,7 @@ TEST_F(LayoutAssignmentTest, CopyDSliceOperandToAvoidImplicitLayoutChange) {
           .value();
   HloInstruction* root =
       compiled_module->entry_computation()->root_instruction();
-  Shape shape_copy = ShapeUtil::MakeShapeWithDenseLayout(F32, {4, 5}, {1, 0});
+  Shape shape_copy = ShapeUtil::MakeShapeWithLayout(F32, {4, 5}, {1, 0});
   EXPECT_THAT(root,
               GmockMatch(m::Add(
                   m::Parameter(),
@@ -995,7 +997,7 @@ TEST_F(LayoutAssignmentTest, CopyConcatOperandToAvoidImplicitLayoutChange) {
           .value();
   HloInstruction* root =
       compiled_module->entry_computation()->root_instruction();
-  Shape shape_copy = ShapeUtil::MakeShapeWithDenseLayout(F32, {3, 5}, {1, 0});
+  Shape shape_copy = ShapeUtil::MakeShapeWithLayout(F32, {3, 5}, {1, 0});
   EXPECT_THAT(
       root,
       GmockMatch(m::Add(
@@ -1052,7 +1054,7 @@ TEST_F(LayoutAssignmentTest, PropagatingLayoutFromResultToOperand) {
           .value();
   HloInstruction* root =
       compiled_module->entry_computation()->root_instruction();
-  Shape shape_copy = ShapeUtil::MakeShapeWithDenseLayout(F32, {4, 5}, {0, 1});
+  Shape shape_copy = ShapeUtil::MakeShapeWithLayout(F32, {4, 5}, {0, 1});
   EXPECT_THAT(root,
               GmockMatch(m::Slice(
                   m::Copy(m::Parameter(0)).WithShapeEqualTo(&shape_copy))));
@@ -1149,10 +1151,10 @@ ENTRY %CustomCallWithNotLayoutConstrained (p: f32[42,2,3]) -> f32[1,2,3,4] {
         std::unique_ptr<VerifiedHloModule> m,
         ParseAndReturnVerifiedModule(module_str, GetModuleConfigForTest()));
     ComputationLayout computation_layout = m->entry_computation_layout();
-    *computation_layout.mutable_parameter_layout(0) = ShapeLayout(
-        ShapeUtil::MakeShapeWithDenseLayout(F32, {42, 2, 3}, {0, 2, 1}));
+    *computation_layout.mutable_parameter_layout(0) =
+        ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {42, 2, 3}, {0, 2, 1}));
     *computation_layout.mutable_result_layout() = ShapeLayout(
-        ShapeUtil::MakeShapeWithDenseLayout(F32, {1, 2, 3, 4}, {3, 2, 0, 1}));
+        ShapeUtil::MakeShapeWithLayout(F32, {1, 2, 3, 4}, {3, 2, 0, 1}));
     AssignLayouts(m.get(), &computation_layout);
 
     HloInstruction* root = m->entry_computation()->root_instruction();
@@ -1165,10 +1167,10 @@ ENTRY %CustomCallWithNotLayoutConstrained (p: f32[42,2,3]) -> f32[1,2,3,4] {
         std::unique_ptr<VerifiedHloModule> m,
         ParseAndReturnVerifiedModule(module_str, GetModuleConfigForTest()));
     ComputationLayout computation_layout = m->entry_computation_layout();
-    *computation_layout.mutable_parameter_layout(0) = ShapeLayout(
-        ShapeUtil::MakeShapeWithDenseLayout(F32, {42, 2, 3}, {0, 1, 2}));
+    *computation_layout.mutable_parameter_layout(0) =
+        ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {42, 2, 3}, {0, 1, 2}));
     *computation_layout.mutable_result_layout() = ShapeLayout(
-        ShapeUtil::MakeShapeWithDenseLayout(F32, {1, 2, 3, 4}, {0, 2, 3, 1}));
+        ShapeUtil::MakeShapeWithLayout(F32, {1, 2, 3, 4}, {0, 2, 3, 1}));
     AssignLayouts(m.get(), &computation_layout);
 
     HloInstruction* root = m->entry_computation()->root_instruction();
@@ -1193,11 +1195,11 @@ ENTRY %CustomCallWithLayoutConstraints (p0: f32[4,4], p1: f32[2,3]) -> f32[1,2,3
       ParseAndReturnVerifiedModule(module_str, GetModuleConfigForTest()));
   ComputationLayout computation_layout = m->entry_computation_layout();
   *computation_layout.mutable_parameter_layout(0) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {4, 4}, {1, 0}));
+      ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {4, 4}, {1, 0}));
   *computation_layout.mutable_parameter_layout(1) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 3}, {1, 0}));
+      ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {2, 3}, {1, 0}));
   *computation_layout.mutable_result_layout() = ShapeLayout(
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {1, 2, 3, 4}, {2, 1, 0, 3}));
+      ShapeUtil::MakeShapeWithLayout(F32, {1, 2, 3, 4}, {2, 1, 0, 3}));
   AssignLayouts(m.get(), &computation_layout);
 
   // The custom call should be partially encapsulated in kCopy instructions
@@ -1226,11 +1228,11 @@ ENTRY %customcall.4 (parameter.1: f32[8,128], parameter.2: f32[8,128]) -> f32[8,
       ParseAndReturnVerifiedModule(module_str, GetModuleConfigForTest()));
   ComputationLayout computation_layout = m->entry_computation_layout();
   *computation_layout.mutable_parameter_layout(0) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {8, 128}, {1, 0}));
+      ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {8, 128}, {1, 0}));
   *computation_layout.mutable_parameter_layout(1) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {8, 128}, {1, 0}));
+      ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {8, 128}, {1, 0}));
   *computation_layout.mutable_result_layout() =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {8, 128}, {1, 0}));
+      ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {8, 128}, {1, 0}));
   AssignLayouts(m.get(), &computation_layout);
 
   const HloInstruction* custom_call =
@@ -1253,7 +1255,7 @@ ENTRY %CustomCallLayoutConstrainedZeroOperands () -> f32[1,2,3,4] {
       ParseAndReturnVerifiedModule(module_str, GetModuleConfigForTest()));
   ComputationLayout computation_layout = m->entry_computation_layout();
   *computation_layout.mutable_result_layout() = ShapeLayout(
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {1, 2, 3, 4}, {2, 1, 0, 3}));
+      ShapeUtil::MakeShapeWithLayout(F32, {1, 2, 3, 4}, {2, 1, 0, 3}));
   AssignLayouts(m.get(), &computation_layout);
 
   ASSERT_THAT(m->entry_computation()->root_instruction(),
@@ -1280,11 +1282,11 @@ ENTRY %CustomCallLayoutConstrainedTupleOperand (p0: f32[4,4], p1: f32[2,3]) -> f
       ParseAndReturnVerifiedModule(module_str, GetModuleConfigForTest()));
   ComputationLayout computation_layout = m->entry_computation_layout();
   *computation_layout.mutable_parameter_layout(0) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {4, 4}, {1, 0}));
+      ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {4, 4}, {1, 0}));
   *computation_layout.mutable_parameter_layout(1) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 3}, {1, 0}));
+      ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {2, 3}, {1, 0}));
   *computation_layout.mutable_result_layout() = ShapeLayout(
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {1, 2, 3, 4}, {2, 1, 0, 3}));
+      ShapeUtil::MakeShapeWithLayout(F32, {1, 2, 3, 4}, {2, 1, 0, 3}));
   AssignLayouts(m.get(), &computation_layout);
 
   HloInstruction* root = m->entry_computation()->root_instruction();
@@ -1315,11 +1317,11 @@ ENTRY %CustomCallLayoutConstrainedTupleResult (p0: f32[4,4]) -> (f32[4,4]{1,0}, 
       ParseAndReturnVerifiedModule(module_str, GetModuleConfigForTest()));
   ComputationLayout computation_layout = m->entry_computation_layout();
   *computation_layout.mutable_parameter_layout(0) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {4, 4}, {1, 0}));
+      ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {4, 4}, {1, 0}));
   *computation_layout.mutable_result_layout() =
       ShapeLayout(ShapeUtil::MakeTupleShape(
-          {ShapeUtil::MakeShapeWithDenseLayout(F32, {4, 4}, {1, 0}),
-           ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 3}, {1, 0})}));
+          {ShapeUtil::MakeShapeWithLayout(F32, {4, 4}, {1, 0}),
+           ShapeUtil::MakeShapeWithLayout(F32, {2, 3}, {1, 0})}));
   AssignLayouts(m.get(), &computation_layout);
 
   ExpectTupleLayoutIs(m->result_shape(), {{1, 0}, {1, 0}});
@@ -1362,10 +1364,8 @@ TEST_F(LayoutAssignmentTest, OverwriteDiamondShapedConstraintsX) {
   b.AddInstruction(HloInstruction::CreateTuple({add, transpose}));
   auto m = CreateNewVerifiedModule();
   m->AddEntryComputation(b.Build());
-  Shape ashape_major =
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {12, 8}, {1, 0});
-  Shape ashape_minor =
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {12, 8}, {0, 1});
+  Shape ashape_major = ShapeUtil::MakeShapeWithLayout(F32, {12, 8}, {1, 0});
+  Shape ashape_minor = ShapeUtil::MakeShapeWithLayout(F32, {12, 8}, {0, 1});
   *m->mutable_entry_computation_layout()->mutable_result_layout() =
       ShapeLayout(ShapeUtil::MakeTupleShape({ashape_major, ashape_minor}));
   const Layout r2_dim0major = LayoutUtil::MakeLayout({1, 0});
@@ -1524,9 +1524,9 @@ ENTRY main {
   *computation_layout.mutable_parameter_layout(0) =
       ShapeLayout(ShapeUtil::MakeShape(PRED, {}));
   *computation_layout.mutable_parameter_layout(1) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {93184, 4}, {0, 1}));
+      ShapeLayout(ShapeUtil::MakeShapeWithLayout(F32, {93184, 4}, {0, 1}));
   *computation_layout.mutable_result_layout() = ShapeLayout(
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {2, 512, 364}, {0, 1, 2}));
+      ShapeUtil::MakeShapeWithLayout(F32, {2, 512, 364}, {0, 1, 2}));
   ChannelLayoutConstraints channel_constraints;
   LayoutAssignment layout_assignment(
       &computation_layout,
@@ -1582,22 +1582,18 @@ ENTRY main {
                           ParseAndReturnVerifiedModule(module_str));
   ComputationLayout computation_layout(
       m->entry_computation()->ComputeProgramShape());
-  *computation_layout.mutable_parameter_layout(0) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {64, 243, 243, 10},
-                                                      {0, 3, 2, 1}));
+  *computation_layout.mutable_parameter_layout(0) = ShapeLayout(
+      ShapeUtil::MakeShapeWithLayout(F32, {64, 243, 243, 10}, {0, 3, 2, 1}));
   *computation_layout.mutable_parameter_layout(1) = ShapeLayout(
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {64, 243, 243}, {2, 1, 0}));
-  *computation_layout.mutable_parameter_layout(2) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {64, 243, 243, 10},
-                                                      {2, 3, 1, 0}));
+      ShapeUtil::MakeShapeWithLayout(F32, {64, 243, 243}, {2, 1, 0}));
+  *computation_layout.mutable_parameter_layout(2) = ShapeLayout(
+      ShapeUtil::MakeShapeWithLayout(F32, {64, 243, 243, 10}, {2, 3, 1, 0}));
   *computation_layout.mutable_parameter_layout(3) = ShapeLayout(
-      ShapeUtil::MakeShapeWithDenseLayout(F32, {384, 10, 1, 1}, {0, 1, 3, 2}));
-  *computation_layout.mutable_parameter_layout(4) =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {64, 243, 243, 384},
-                                                      {3, 0, 2, 1}));
-  *computation_layout.mutable_result_layout() =
-      ShapeLayout(ShapeUtil::MakeShapeWithDenseLayout(F32, {64, 243, 243, 384},
-                                                      {3, 0, 2, 1}));
+      ShapeUtil::MakeShapeWithLayout(F32, {384, 10, 1, 1}, {0, 1, 3, 2}));
+  *computation_layout.mutable_parameter_layout(4) = ShapeLayout(
+      ShapeUtil::MakeShapeWithLayout(F32, {64, 243, 243, 384}, {3, 0, 2, 1}));
+  *computation_layout.mutable_result_layout() = ShapeLayout(
+      ShapeUtil::MakeShapeWithLayout(F32, {64, 243, 243, 384}, {3, 0, 2, 1}));
   ChannelLayoutConstraints channel_constraints;
   LayoutAssignment layout_assignment(
       &computation_layout,
