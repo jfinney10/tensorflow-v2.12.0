@@ -17,6 +17,8 @@ load("//tensorflow:tensorflow.bzl", "filegroup")
 # buildifier: disable=same-origin-load
 load("//tensorflow:tensorflow.bzl", "tf_gen_op_wrappers_cc")
 
+load("//tensorflow/cc:cc_ops.bzl", "tf_cc_ops_hdrs",)
+
 package(
     default_visibility = ["//visibility:public"],
     licenses = ["notice"],
@@ -960,4 +962,53 @@ transitive_hdrs(
         "//tensorflow/cc/saved_model:tag_constants",
         "//tensorflow/cc/tools:freeze_saved_model",
     ],
+)
+
+tf_cc_ops_hdrs(
+    name = "cc_ops_hdrs",
+    op_lib_names = [
+        "array_ops",
+        "audio_ops",
+        "candidate_sampling_ops",
+        "control_flow_ops",
+        "data_flow_ops",
+        "image_ops",
+        "io_ops",
+        "linalg_ops",
+        "logging_ops",
+        "lookup_ops",
+        "manip_ops",
+        "math_ops",
+        "nn_ops",
+        "no_op",
+        "parsing_ops",
+        "random_ops",
+        "sparse_ops",
+        "state_ops",
+        "string_ops",
+        "training_ops",
+        "user_ops",
+    ],
+    visibility = ["//tensorflow:__subpackages__"],
+)
+
+filegroup(
+    name = "cc_ops_headers",
+    srcs = [
+        "ops/const_op.h",
+        "ops/standard_ops.h",
+    ],
+    visibility = ["//tensorflow:__subpackages__"],
+)
+
+filegroup(
+    name = "cc_gen_headers",
+    srcs = glob(["ops/*.h"]) + [":cc_ops_hdrs"],
+    visibility = ["//tensorflow:__subpackages__"],
+)
+
+filegroup(
+    name = "cc_framework_headers",
+    srcs = glob(["framework/*.h"], exclude=["testutil.h"]),
+    visibility = ["//tensorflow:__subpackages__"],
 )
