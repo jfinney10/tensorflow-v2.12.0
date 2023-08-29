@@ -300,7 +300,9 @@ headers = (
     list(find_files('*', 'third_party/eigen3')) +
     list(find_files('*.h', 'tensorflow/include/external/com_google_absl')) +
     list(find_files('*.inc', 'tensorflow/include/external/com_google_absl')) +
-    list(find_files('*', 'tensorflow/include/external/eigen_archive')))
+    list(find_files('*', 'tensorflow/include/external/eigen_archive')) +
+    list(find_files('*', 'tensorflow/c')) +
+    list(find_files('*', 'tensorflow/cc')))
 
 setup(
     name=project_name,
